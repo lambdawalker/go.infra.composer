@@ -1,0 +1,3 @@
+name: composer-local
+runtime: go
+description: Provider-free local component example of the composer native Pulumi adapter.
