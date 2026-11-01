@@ -1,0 +1,40 @@
+name: Go validation
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: ['1.25.x', '1.27.x']
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: ${{ matrix.go }}
+          cache: false
+      - run: test -z "$(gofmt -l .)"
+      - run: go test -race ./...
+      - run: go vet ./...
+      - run: go build ./cmd/infra-compose
+
+  pulumi:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: adapters/pulumi
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: adapters/pulumi/go.mod
+          cache-dependency-path: adapters/pulumi/go.sum
+      - run: go mod verify
+      - run: go test -race ./...
+      - run: go vet ./...
