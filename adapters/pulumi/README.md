@@ -2,6 +2,8 @@
 
 This optional nested Go module keeps the Pulumi dependency outside the composer core. It pins the official Pulumi Go SDK v3.273.0 and requires Go 1.27.3 or newer.
 
+The core dependency is pinned to an implementation commit, so downstream modules do not need a nonexistent development tag. The relative replace directive is only for working on this repository; Go ignores that directive when another module imports the adapter.
+
 Call `pulumiadapter.Execute(ctx, plan, registry)` inside `pulumi.Run`. `registry` is a bounded map from composer kinds to trusted Go factories. A factory calls a provider SDK constructor (or `ctx.RegisterResource`), forwards the supplied resource options, and returns its resource and named native outputs. It must expose every declared output. No external constructor names, executable arguments, or serialized plans are accepted.
 
 The adapter validates all kinds, declared output types, dependencies, and references before calling any factory. Resources follow the plan's topological order. Input references use native SDK outputs, including inside maps and lists. Declared sensitive outputs and secret-tainted resources are marked secret. The returned result retains native typed outputs and exports, and exports are also registered on the Pulumi stack. Factory registration errors deliberately omit provider error bodies, which may contain input values.
