@@ -3,7 +3,7 @@ module github.com/lambdawalker/go.infra.composer/adapters/pulumi
 go 1.27.3
 
 require (
-	github.com/lambdawalker/go.infra.composer v0.0.0-20261101202244-47de7213b3cd
+	github.com/lambdawalker/go.infra.composer v0.0.0-20261102153221-3a792e04a1ec
 	github.com/pulumi/pulumi/sdk/v3 v3.273.0
 )
 
