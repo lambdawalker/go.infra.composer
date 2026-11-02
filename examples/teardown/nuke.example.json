@@ -1,0 +1,11 @@
+{
+  "scope": {"application": "example-backend", "account": "123456789012"},
+  "projects": [
+    {"Name": "backend", "Directory": "./infra", "Backend": "s3://example-composer-state", "Region": "us-east-2", "Shared": false},
+    {"Name": "admin-index", "Directory": "./infra-index", "Backend": "s3://example-composer-shared-state", "Region": "us-east-2", "Shared": true}
+  ],
+  "recovery": [
+    {"id": "example-composer-state", "kind": "recovery_bucket", "region": "us-east-2", "recovery": true, "data": {"exclusive": "true"}},
+    {"id": "example-composer-shared-state", "kind": "recovery_bucket", "region": "us-east-2", "recovery": true, "data": {"exclusive": "true"}}
+  ]
+}

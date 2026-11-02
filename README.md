@@ -81,6 +81,12 @@ go vet ./...
 
 Tests use official `pulumi.WithMocks`. They verify registration semantics, not cloud permissions, DNS readiness, provider replacement behavior or deployment recovery. No cloud deployment was performed for this milestone.
 
+## All-environment teardown
+
+The dependency-free [`teardown`](teardown/README.md) package coordinates report-backed destruction across every configured application environment, then shared **admin/index** projects. The installed Pulumi/AWS CLI adapter verifies resource absence, continues independent targets after failures, and gates explicitly configured state-bucket/KMS cleanup on successful primary cleanup. A separate `infra-nuke` command provides typed scope confirmation, private reporting and full/remaining-only checks. It performs real teardown when authorized; `infra-compose` continues to simulate deployments.
+
+See the [configuration and commands](teardown/README.md) before running it. Discovery covers configured projects/backends and saved inventories, rather than claiming account-wide orphan discovery. Application-specific resources outside Pulumi need a cleanup integration.
+
 ## Secret and execution boundaries
 
 Plans, values and simulator results redact sensitive content when formatted or JSON-encoded. Sensitivity propagates through forwarding, nested inputs, resource outputs and exports; sensitive output references mark their originating native outputs too. `Value.Node()` intentionally exposes plaintext to trusted executors. Do not serialize/log a Node or embed credentials in IDs, source paths, names or URLs. Pulumi secret marking cannot protect a factory that prints plaintext.
@@ -91,7 +97,7 @@ The simulator returns deterministic typed fixtures and `local://` string outputs
 
 Implemented: declaration contracts, matching/injection/defaults, environment policy, reference/graph validation, plan isolation, secret-aware values, local execution, independent examples, CLI, static configuration validation and native Pulumi integration.
 
-Deferred: encrypted credential memory, foundation bootstrap/readiness jobs, persistent state/recovery coordination, provider configuration readers/writers and all 16 admin panels, release inventory/client update enforcement, remote feature/package discovery and a general version solver. These standard requirements remain follow-on work; the simulator and mocks do not establish production readiness.
+Deferred: encrypted credential memory, foundation bootstrap/readiness jobs, distributed deployment/recovery coordination, provider configuration readers/writers and all 16 admin panels, release inventory/client update enforcement, remote feature/package discovery and a general version solver. Report-backed teardown is available separately; these broader standard requirements remain follow-on work. The simulator and mocks do not establish production readiness.
 
 See [implementation design](docs/design.md), [plan](docs/superpowers/plans/2026-11-01-go-composer.md) and [validation record](docs/validation.md). CI tests the core and optional adapter independently.
 

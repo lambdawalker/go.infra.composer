@@ -31,3 +31,19 @@ An independent code review identified nested forwarding recursion, formatting an
 No AWS deployment, live permission/readiness check or production data operation was performed. Mocks do not prove provider behavior. Static configuration selection does not provision readers/writers or IAM. Local simulation has no durable job/state, encrypted credential store, release routing or recovery guarantee. Tests cover represented declarations and trusted factories; arbitrary code inside a Go feature/factory remains trusted code.
 
 CI independently checks core Go 1.25.x/1.27.x and the optional adapter's pinned toolchain. The standard's hosted admin/index, provider-specific live settings, bootstrap/readiness and persistent release/control-plane requirements remain explicit future milestones.
+
+## Teardown lifecycle validation (2026-11-02)
+
+Added the dependency-free teardown engine, installed-CLI Pulumi/AWS driver and separate `infra-nuke` command. Validation passed on Go 1.27.3:
+
+- Core module `go test -race ./...` and `go vet ./...`, including the existing simulator/configuration/ownership suites.
+- Optional native Pulumi module `go test -race ./...` and `go vet ./...`.
+- Linux and Windows amd64 builds of `cmd/infra-nuke`; existing `cmd/infra-compose` build and provider-free plan smoke check.
+- Formatting, whitespace, new local Markdown links and example configuration JSON validation.
+- Independent core/CLI and adapter review; material findings received regression coverage.
+
+New tests cover environment/shared ordering, partial discovery, scoped identities, complete versus partial inventory evidence, retries after stack deletion, report-save failures, cancellation, recovery preflight and bucket/key ordering, and full/remaining-only verification without deletion. CLI tests use injected drivers and temporary files to verify typed authorization, locking, persisted reports and mode exclusivity.
+
+Adapter tests use fake process runners. They exercise encrypted-state preservation, pending-operation refusal, component/custom-resource distinction, cross-region provider routing, foreign account/provider rejection, absence versus access denial, auxiliary log cleanup, versioned S3 deletion and recovery ownership. Backup tests include DynamoDB SYSTEM backups created after deletion and separate AWS Backup recovery-point listings; both block recovery while data remains.
+
+No live AWS/Pulumi deployment, teardown, DNS change or KMS scheduling was executed. Unsupported resource types and resources outside configured projects/backends are not certified absent. Distributed deployment coordination and application-specific resources outside Pulumi remain integration responsibilities.
