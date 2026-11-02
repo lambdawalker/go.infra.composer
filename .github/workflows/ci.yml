@@ -23,6 +23,7 @@ jobs:
       - run: go test -race ./...
       - run: go vet ./...
       - run: go build ./cmd/infra-compose
+      - run: go build ./cmd/infra-nuke
 
   pulumi:
     runs-on: ubuntu-latest

@@ -1,3 +1,5 @@
 .superpowers/
 coverage.out
 /infra-compose
+/infra-nuke
+.infra-composer/
