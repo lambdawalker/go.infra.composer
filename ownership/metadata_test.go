@@ -23,7 +23,7 @@ func TestOwnershipTagsAndDescription(t *testing.T) {
 		t.Fatal("mutable metadata")
 	}
 	d, err := m.Description("Start email verification", 256)
-	if err != nil || d != "[dev]/[attestrabond.com] attestra/verifyemail - Start email verification" {
+	if err != nil || d != "attestrabond.com DEV | verifyemail" {
 		t.Fatal(d, err)
 	}
 	twice, err := m.Description(d, 256)
@@ -32,10 +32,10 @@ func TestOwnershipTagsAndDescription(t *testing.T) {
 	}
 	m.Environment = "qa"
 	d, err = m.Description(d, 256)
-	if err != nil || strings.Contains(d, "[dev]") || !strings.HasPrefix(d, "[qa]") {
+	if err != nil || strings.Contains(d, "[dev]") || !strings.HasPrefix(d, "attestrabond.com QA | ") {
 		t.Fatal("old ownership retained", d, err)
 	}
-	if _, err = m.Description(strings.Repeat("x", 256), 256); err == nil {
+	if _, err = m.Description(strings.Repeat("x", 256), 10); err == nil {
 		t.Fatal("description silently truncated")
 	}
 }
@@ -65,6 +65,23 @@ func TestGeneratedPrefixMeetsIAMDescriptionCharset(t *testing.T) {
 	for _, r := range value {
 		if r > 255 {
 			t.Fatal("generated description violates IAM ASCII/Latin-1 constraint")
+		}
+	}
+}
+
+func TestRepositoryOwnerDescription(t *testing.T) {
+	for _, env := range []string{"shared", "dev"} {
+		m := fixture()
+		m.Domain, m.Environment, m.Owner = "index.attestrabond.com", env, "go.attestra.aws"
+		if env == "dev" {
+			m.Owner = "go.apexfission.aws.auth"
+		}
+		want := m.Domain + " " + strings.ToUpper(env) + " | " + m.Owner
+		for _, previous := range []string{"index-handler", "[shared]/[index.attestrabond.com] attestra/control-plane - index-handler", want} {
+			got, err := m.Description(previous, 256)
+			if err != nil || got != want {
+				t.Fatalf("got %q, %v; want %q", got, err, want)
+			}
 		}
 	}
 }
