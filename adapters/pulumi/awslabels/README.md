@@ -5,7 +5,7 @@ The package uses the Pulumi Go SDK without importing AWS provider SDKs into the 
 ```go
 ctx, inventory, err := awslabels.Install(ctx, ownership.Metadata{
     Application: "attestra", Environment: "dev", Domain: "attestrabond.com",
-    Feature: "application", Deployment: "attestra-dev",
+    Owner: "go.attestra.aws", Feature: "application", Deployment: "attestra-dev",
 })
 if err != nil { return err }
 featureCtx, err := awslabels.ForFeature(ctx, "verifyemail")
@@ -24,3 +24,5 @@ The inventory includes type, logical name, URN, provider ID, ownership labels, p
 This is a resource-option API for typed provider argument structs. Untyped `pulumi.Map` inputs have no provider schema and are reported inventory-only. Provider resources, data-source invokes and resources created outside these constructors are not claimed by this tracker. Inspect the exported coverage and keep native mock tests asserting complete registration coverage.
 
 For tags created manually outside IaC, reconcile them into the desired resource configuration or configure the AWS provider's `ignoreTags` for agreed operator-owned keys/prefixes before rollout. This transformation does not make live AWS reads to discover out-of-band tags; a reviewed preview must catch any proposed removal. CLI bootstrap labeling separately reads and merges actual existing tags.
+
+Descriptions use `domain ENV | owner`, for example `index.attestrabond.com SHARED | go.attestra.aws`. Set `Metadata.Owner` to the creating repository; native features can pass their repository as the optional final argument to `Ensure`. This overrides the description owner in an inherited scope without changing canonical tags. Without an explicit owner the feature identifier is used. Resource purpose is omitted. Existing generated descriptions are replaced, not appended.

@@ -255,10 +255,17 @@ var parentFields = map[string]string{
 
 // Ensure supplies standalone defaults only when the application has not installed
 // an ownership scope. A non-nil tracker belongs to this caller and must be exported.
-func Ensure(ctx *pulumi.Context, environment, origin, feature string) (*pulumi.Context, *Tracker, error) {
+func Ensure(ctx *pulumi.Context, environment, origin, feature string, owner ...string) (*pulumi.Context, *Tracker, error) {
 	if current, ok := ctx.Value(scopeKey{}).(scope); ok {
 		if current.metadata.Environment != environment {
 			return nil, nil, fmt.Errorf("ownership environment differs from native deployment")
+		}
+		if len(owner) > 0 {
+			current.metadata.Owner = owner[0]
+			if err := current.metadata.Validate(); err != nil {
+				return nil, nil, err
+			}
+			ctx = ctx.WithValue(scopeKey{}, current)
 		}
 		return ctx, nil, nil
 	}
@@ -266,7 +273,11 @@ func Ensure(ctx *pulumi.Context, environment, origin, feature string) (*pulumi.C
 	if err != nil || u.Hostname() == "" {
 		return nil, nil, fmt.Errorf("ownership requires a valid application origin")
 	}
-	return Install(ctx, ownership.Metadata{Application: ctx.Project(), Environment: environment, Domain: strings.ToLower(u.Hostname()), Feature: feature, Deployment: ctx.Project() + "-" + environment})
+	repository := ""
+	if len(owner) > 0 {
+		repository = owner[0]
+	}
+	return Install(ctx, ownership.Metadata{Owner: repository, Application: ctx.Project(), Environment: environment, Domain: strings.ToLower(u.Hostname()), Feature: feature, Deployment: ctx.Project() + "-" + environment})
 }
 
 func taggingReason(mode string) string {

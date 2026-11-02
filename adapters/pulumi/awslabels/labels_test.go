@@ -114,7 +114,7 @@ func TestLabelsPreserveArgsOptionsAndInventory(t *testing.T) {
 	if fn.Inputs["name"].StringValue() != "unchanged-physical-name" || !fn.RegisterRPC.GetProtect() {
 		t.Fatal("identity or options changed")
 	}
-	if fn.Inputs["description"].StringValue() != "[dev]/[attestrabond.com] attestra/verifyemail - Starts verification" {
+	if fn.Inputs["description"].StringValue() != "attestrabond.com DEV | verifyemail" {
 		t.Fatal(fn.Inputs)
 	}
 	if original.Tags.(pulumi.StringMap)["ic:feature"] != nil {
@@ -208,5 +208,33 @@ func TestInventoryLinksS3ControlsAndCognitoBrandingParents(t *testing.T) {
 	}, pulumi.WithMocks("test", "dev", m))
 	if err != nil || !checked {
 		t.Fatal(err, checked)
+	}
+}
+
+func TestEnsureUsesCreatingRepositoryInApplicationScope(t *testing.T) {
+	m := &monitor{items: map[string]pulumi.MockResourceArgs{}}
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+		metadata := meta()
+		metadata.Owner = "go.attestra.aws"
+		ctx, _, err := Install(ctx, metadata)
+		if err != nil {
+			return err
+		}
+		ctx, _, err = Ensure(ctx, "dev", "https://attestrabond.com", "authentication", "go.apexfission.aws.auth")
+		if err != nil {
+			return err
+		}
+		s := ctx.Value(scopeKey{}).(scope)
+		value, err := s.metadata.Description("old purpose", 256)
+		if err != nil || value != "attestrabond.com DEV | go.apexfission.aws.auth" {
+			t.Fatalf("%q: %v", value, err)
+		}
+		if s.metadata.Feature != "application" {
+			t.Fatal("description owner changed canonical feature tag")
+		}
+		return nil
+	}, pulumi.WithMocks("test", "dev", m))
+	if err != nil {
+		t.Fatal(err)
 	}
 }
