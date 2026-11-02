@@ -94,3 +94,7 @@ Implemented: declaration contracts, matching/injection/defaults, environment pol
 Deferred: encrypted credential memory, foundation bootstrap/readiness jobs, persistent state/recovery coordination, provider configuration readers/writers and all 16 admin panels, release inventory/client update enforcement, remote feature/package discovery and a general version solver. These standard requirements remain follow-on work; the simulator and mocks do not establish production readiness.
 
 See [implementation design](docs/design.md), [plan](docs/superpowers/plans/2026-11-01-go-composer.md) and [validation record](docs/validation.md). CI tests the core and optional adapter independently.
+
+## Resource ownership
+
+`ownership.Metadata` validates canonical `ic:` tags and portable, idempotent descriptions. The optional Pulumi `awslabels` package applies resource options, isolates feature scopes and exports safe native inventory. See [usage](adapters/pulumi/awslabels/README.md) and the [standard](https://github.com/lambdawalker/design.infra.composer/blob/docs/resource-labels/docs/resource-ownership.md).
