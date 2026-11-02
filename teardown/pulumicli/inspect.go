@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/lambdawalker/go.infra.composer/teardown"
 )
@@ -15,6 +17,12 @@ func probe(r resource, t teardown.Target) teardown.Artifact {
 	value := func(k string) string { var s string; _ = json.Unmarshal(r.Outputs[k], &s); return s }
 	parent := func(k, key string) { a.Kind = k; a.ID = value(key) }
 	switch r.Type {
+	case "aws:secretsmanager/secret:Secret":
+		a.Kind = "secret"
+	case "aws:secretsmanager/secretVersion:SecretVersion":
+		// Individual versions can be retained by the provider. Verification uses
+		// the parent secret's physical absence, without reading any secret value.
+		parent("secret", "secretId")
 	case "aws:lambda/function:Function":
 		a.Kind = "lambda"
 	case "aws:lambda/eventSourceMapping:EventSourceMapping":
@@ -150,6 +158,13 @@ func (d *Driver) Inspect(ctx context.Context, a teardown.Artifact) (teardown.Sta
 	notFound := "ResourceNotFoundException"
 	field := ""
 	switch a.Kind {
+	case "secret":
+		parts := strings.SplitN(a.ID, ":", 6)
+		if len(parts) != 6 || !secretARNPattern.MatchString(a.ID) || parts[4] != d.Config.Scope.Account {
+			return "", errors.New("invalid Secrets Manager secret ARN")
+		}
+		a.Region = parts[3]
+		args = []string{"secretsmanager", "describe-secret", "--secret-id", a.ID}
 	case "lambda":
 		args = []string{"lambda", "get-function-configuration", "--function-name", a.ID}
 	case "mapping":
@@ -225,6 +240,29 @@ func (d *Driver) Inspect(ctx context.Context, a teardown.Artifact) (teardown.Sta
 	var obj map[string]json.RawMessage
 	if json.Unmarshal(b, &obj) != nil || len(obj) == 0 {
 		return "", errors.New("incomplete AWS verification response")
+	}
+	if a.Kind == "secret" {
+		var desc struct {
+			ARN, Name   string
+			DeletedDate json.RawMessage
+		}
+		if json.Unmarshal(b, &desc) != nil || desc.ARN != a.ID || desc.Name == "" || !strings.HasSuffix(a.ID, ":secret:"+desc.Name+"-"+a.ID[len(a.ID)-6:]) {
+			return "", errors.New("incomplete Secrets Manager verification response")
+		}
+		if len(desc.DeletedDate) > 0 && string(desc.DeletedDate) != "null" {
+			var epoch float64
+			var date string
+			if json.Unmarshal(desc.DeletedDate, &epoch) != nil || epoch <= 0 {
+				if json.Unmarshal(desc.DeletedDate, &date) != nil {
+					return "", errors.New("invalid Secrets Manager deletion date")
+				}
+				if _, err := time.Parse(time.RFC3339Nano, date); err != nil {
+					return "", errors.New("invalid Secrets Manager deletion date")
+				}
+			}
+			return teardown.StatePending, nil
+		}
+		return teardown.StatePresent, nil
 	}
 	if field == "" {
 		return teardown.StatePresent, nil
@@ -302,3 +340,5 @@ func (d *Driver) Inspect(ctx context.Context, a teardown.Artifact) (teardown.Sta
 	}
 	return teardown.StateAbsent, nil
 }
+
+var secretARNPattern = regexp.MustCompile(`^arn:aws(?:-cn|-us-gov)?:secretsmanager:[a-z]{2}(?:-[a-z]+)+-[0-9]+:[0-9]{12}:secret:[A-Za-z0-9/_+=.@-]+-[A-Za-z0-9]{6}$`)
