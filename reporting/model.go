@@ -45,17 +45,18 @@ type Observation struct {
 	Reason     Reason    `json:"reason,omitempty"`
 }
 type Artifact struct {
-	Key           string      `json:"key"`
-	Name          string      `json:"name,omitempty"`
-	Type          string      `json:"type,omitempty"`
-	Provider      string      `json:"provider,omitempty"`
-	ProviderID    string      `json:"providerId,omitempty"`
-	Owner         string      `json:"owner,omitempty"`
-	Feature       string      `json:"feature,omitempty"`
-	Parent        string      `json:"parent,omitempty"`
-	Priority      int         `json:"priority,omitempty"`
-	PlannedAction string      `json:"plannedAction,omitempty"`
-	Observation   Observation `json:"observation"`
+	Key           string         `json:"key"`
+	Name          string         `json:"name,omitempty"`
+	Type          string         `json:"type,omitempty"`
+	Provider      string         `json:"provider,omitempty"`
+	ProviderID    string         `json:"providerId,omitempty"`
+	Owner         string         `json:"owner,omitempty"`
+	Feature       string         `json:"feature,omitempty"`
+	Parent        string         `json:"parent,omitempty"`
+	Priority      int            `json:"priority,omitempty"`
+	PlannedAction string         `json:"plannedAction,omitempty"`
+	Observation   Observation    `json:"observation"`
+	Configuration *Configuration `json:"configuration,omitempty"`
 }
 type Metadata struct {
 	Revision   string    `json:"revision,omitempty"`
@@ -87,6 +88,7 @@ func Normalize(r Report) Report {
 			continue
 		}
 		seen[a.Key] = true
+		a.Configuration = normalizeConfiguration(a.Type, a.Configuration)
 		switch a.Observation.Status {
 		case Present, Absent, Recorded:
 			if a.Observation.ObservedAt.IsZero() {

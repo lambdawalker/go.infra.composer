@@ -1,12 +1,27 @@
 # Artifact reporting
 
-`reporting` and `reporting/pulumicli` use only Go's standard library. They never deploy, mutate state or infer a child's existence from its parent. Provider inputs/outputs, diagnostics, policies and logs do not belong in the report model. Supply only safe identity/display metadata. State readers copy an explicit allowlist and discard all other resource properties, including secret wrappers.
+`reporting` and `reporting/pulumicli` use only Go's standard library. They never deploy, mutate state or infer a child's existence from its parent. Raw provider inputs/outputs, diagnostics, policies and logs do not belong in the report model. Supply only safe identity/display metadata and the explicitly allowed recorded settings below. State readers copy an explicit allowlist and discard all other resource properties, including secret wrappers.
 
 ## Model and evidence
 
 The JSON schema version is `reporting.SchemaVersion` (currently `1`). `Report` has `SchemaVersion`, `Scope`, `Metadata`, `CacheLoaded`, `Warnings []string`, and `Artifacts []Artifact`. `Scope` is a comparable struct of strings: `Application`, `Repository`, `Environment`, `Account`, `Region`, `Project`, `Backend`, `Stack`. Fill every applicable field before using cache. `Metadata` has strings `Revision`, `Operation`, `Outcome`, bool `Dirty`, and `StartedAt`, `FinishedAt` (`time.Time`). Warnings should be stable safe codes, never diagnostic text.
 
 `Artifact` string fields are `Key` (unique logical identity, normally Pulumi URN), `Name`, `Type`, `Provider`, `ProviderID` (exact physical identity), `Owner` (creating repository), `Feature` (canonical `ic:feature`), `Parent` (another Key), `PlannedAction`. `Priority int` sorts ascending, then Key; adapters may override the broad `pulumicli.Priority(resourceType string) int` tiers. `Observation` has `Status`, `Source string`, `ObservedAt time.Time`, `Reason`.
+
+`Artifact.Configuration *Configuration` is optional (`json:"configuration,omitempty"`) and additive within schema version 1; older reports remain valid. `Configuration` has `Source string`, `ObservedAt time.Time`, and `Values map[string]string` (JSON keys `source`, `observedAt`, `values`). Source must be `pulumi-state` and the timestamp must be nonzero. ObservedAt is when the state was read, not live configuration verification. Values hold canonical integer/boolean/enum text under the actual output field names. No provider defaults or units are inferred. Configuration records state-export settings independently of presence: a later refresh can change presence without advancing this timestamp or verifying these settings. Preview preserves existing recorded settings and never creates them from desired outputs.
+
+Only exact resource types and output fields in this table are supported:
+
+| Resource type | Allowed fields | Values |
+| --- | --- | --- |
+| `aws:lambda/function:Function` | `memorySize`, `timeout`, `reservedConcurrentExecutions` | Finite integer JSON numbers |
+| `aws:sqs/queue:Queue` | `visibilityTimeoutSeconds`, `messageRetentionSeconds`, `delaySeconds`, `receiveWaitTimeSeconds`, `maxMessageSize` | Finite integer JSON numbers |
+| `aws:cloudwatch/logGroup:LogGroup` | `retentionInDays` | Finite integer JSON numbers |
+| `aws:dynamodb/table:Table` | `readCapacity`, `writeCapacity` | Finite integer JSON numbers |
+| `aws:dynamodb/table:Table` | `deletionProtectionEnabled` | JSON boolean |
+| `aws:dynamodb/table:Table` | `billingMode` | Plain string `PROVISIONED` or `PAY_PER_REQUEST` |
+
+Configuration extraction reads outputs only, with no inputs fallback. Unsupported types/fields, wrappers, arrays, nulls, numeric/boolean strings and arbitrary strings are omitted. No environment variables, policies, tags, user data, URLs, credentials, arbitrary nested properties, S3 contents or lifecycle documents are copied. Empty/invalid configurations are omitted. Normalize deep-copies and sanitizes configuration, including caller-supplied maps, against the same allowlist. HTML and Markdown label this block “Recorded configuration” with its independent source and timestamp, followed by settings in field-name order.
 
 Status constants are `Unknown`, `Recorded`, `Present`, `Absent` (`reporting.Status`). Reason constants are `Unchecked`, `CheckFailed`, `InvalidEvidence`, `NotFound`, `IdentityChanged` (`reporting.Reason`); empty reason means no issue. State only supplies `Recorded`. A successful exact provider check supplies `Present` or `Absent`. Failed/unsupported/malformed/unchecked checks supply `Unknown`. A planned replacement's old physical instance may remain present: `PlannedAction` and observation describe different facts. Never copy old-ID evidence to a new or empty ID. Offline mocks must leave ProviderID empty and presence unknown.
 
@@ -21,9 +36,10 @@ func SaveCache(path string, report Report) error
 func WriteJSON(io.Writer, Report) error
 func WriteMarkdown(io.Writer, Report) error
 func WriteHTML(io.Writer, Report) error
+func NewStateConfiguration(resourceType string, outputs map[string]json.RawMessage, at time.Time) *Configuration
 ```
 
-Normalize copies/sorts inventory, keeps the first duplicate Key and normalizes invalid evidence to unknown. Hierarchy deterministically breaks cycles, keeps orphans, and retains known children beneath an orphan parent. SelectFeature performs exact Feature matching and includes parent closure; parents retain their original ownership. HTML is escaped, self-contained, with visible main sections and collapsed child details; Markdown escapes identity/display text. Human formats include scope, revision, timing, counts and attention items. Zero timestamps display `not checked`.
+Normalize copies/sorts inventory, keeps the first duplicate Key and normalizes invalid evidence to unknown. NewStateConfiguration extracts a safe recorded configuration from state outputs; only ReadState calls it in the adapters. Hierarchy deterministically breaks cycles, keeps orphans, and retains known children beneath an orphan parent. SelectFeature performs exact Feature matching and includes parent closure; parents retain their original ownership. HTML is escaped, self-contained, with visible main sections and collapsed child details; Markdown escapes field labels and identity/display text. Human formats include scope, revision, timing, counts and attention items. Zero timestamps display `not checked`.
 
 Merge only reuses cached evidence when scope, Key, Provider and nonempty ProviderID match and the current artifact has no attempted observation. An explicit current failed/unknown observation supersedes cached success. Cached-only inventory remains visible (with its planned action cleared). Callers with an authoritative complete new inventory may filter cached-only entries themselves before merging. Merge sets CacheLoaded on equal scopes; LoadCache sets it on success. Sources/timestamps stay unchanged: this boolean means a snapshot was loaded, not that its evidence is fresh. SaveCache writes atomically using a private temporary file and 0600 destination; directories it creates are 0700. CachePath hashes the entire scope. LoadCache rejects mismatched scopes and unknown schema versions.
 
@@ -62,6 +78,17 @@ name, colored text status, a type glyph and short owner. Expanded cards show the
 qualified owner and evidence fields. Sort by importance (default), owner, type,
 name, status or feature; reverse direction or expand/collapse all. Sorting is
 applied within each sibling list so subartifacts remain under their parents.
+Search matches an artifact's own name, logical key, qualified owner, type, status
+or feature (case-insensitive substring). Status, owner, type and feature dropdowns
+use exact values from the emitted inventory, with unique options in UTF-16 code-unit
+order and a "Not specified" choice for missing metadata. Search and all selected
+filters combine with AND. A matching child keeps its ancestors as context; a
+matching parent includes its entire descendant subtree even if those descendants
+do not independently match. Ancestor context does not expose unrelated branches.
+Counts distinguish direct matches from the cards shown with hierarchy; collapsed
+cards retain their disclosure state, so expand them to inspect children. Reset
+clears search and filters while preserving sorting and disclosure state. Empty
+search results have a distinct message from a report with no artifacts.
 Inline JavaScript only handles view controls; no requests or external assets are
 needed. Without JavaScript, native disclosure cards still work. Bare owner names
 are qualified with the organization of Scope.Repository when available.

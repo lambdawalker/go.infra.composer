@@ -59,7 +59,7 @@ func parentType(field, typ string) bool {
 }
 
 // ReadState reads `pulumi stack export` JSON. State is recorded, never live evidence.
-// Only identity, parent links, canonical ownership tags and explicit relationship fields survive.
+// Only safe identity/relationship metadata and allowlisted recorded settings survive.
 func ReadState(rd io.Reader, at time.Time) ([]r.Artifact, error) {
 	var root struct {
 		Deployment struct {
@@ -73,7 +73,15 @@ func ReadState(rd io.Reader, at time.Time) ([]r.Artifact, error) {
 	if root.Deployment.Resources == nil {
 		return nil, ErrInvalidInput
 	}
-	return safeArtifacts(root.Deployment.Resources, r.Observation{Status: r.Recorded, Source: "pulumi-state", ObservedAt: at}), nil
+	as := safeArtifacts(root.Deployment.Resources, r.Observation{Status: r.Recorded, Source: "pulumi-state", ObservedAt: at})
+	i := 0
+	for _, s := range root.Deployment.Resources {
+		if managed(s) {
+			as[i].Configuration = r.NewStateConfiguration(s.Type, s.Outputs, at)
+			i++
+		}
+	}
+	return as, nil
 }
 
 // safeArtifacts is shared by state and preview extraction. Provider IDs are only

@@ -2,7 +2,7 @@
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Artifact report</title>
 <style>
-:root{font:13px/1.5 system-ui,sans-serif;color:#243247;background:#f4f6fa;color-scheme:light}*{box-sizing:border-box}body{margin:0}h1{font-size:23px;letter-spacing:-.6px;margin:0 0 18px}h2{font-size:14px;margin:0 0 12px}p{margin:8px 0}.layout{display:grid;grid-template-columns:330px minmax(0,1fr);min-height:100vh}.sidebar{padding:28px 22px;background:#fff;border-right:1px solid #dbe2ec;position:sticky;top:0;max-height:100vh;overflow:auto}.eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:1.3px;color:#64748b;font-weight:700}.summary-counts{color:#53647b;font-size:12px}.context{border-top:1px solid #e5eaf1;margin-top:20px;padding-top:18px}.context dl{display:block}.context dt{font-size:11px;color:#69798e;margin-top:12px}.context dd{margin-top:2px;font-size:12px}table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:11px}th,td{text-align:left;vertical-align:top;padding:8px 5px;border-bottom:1px solid #edf0f5;overflow-wrap:anywhere}th:first-child{width:34%}th{font-size:10px;color:#5d6d82}td:first-child{font-weight:600}.main{padding:28px;min-width:0;max-width:1600px;width:100%}.toolbar{position:sticky;top:0;z-index:2;background:#f4f6faf5;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 0 18px}.toolbar h2{margin:0 auto 0 0;font-size:18px}select,button{font:inherit;border:1px solid #ccd6e3;background:white;color:#243247;border-radius:6px;padding:7px 10px}button{cursor:pointer}summary:focus-visible,button:focus-visible,select:focus-visible{outline:3px solid #5a85ca;outline-offset:3px}.artifact{background:white;border:1px solid #d9e1ec;border-radius:9px;margin:9px 0;overflow:hidden}.artifact>summary{list-style:none;cursor:pointer;padding:13px 16px;display:grid;grid-template-columns:28px minmax(0,1fr) 14px;gap:10px;align-items:start}.artifact>summary::-webkit-details-marker{display:none}.artifact>summary:after{content:'›';font-size:20px;color:#73839b;line-height:22px}.artifact[open]>summary:after{transform:rotate(90deg)}.title-line{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.artifact-name{font-size:14px;font-weight:650;overflow-wrap:anywhere}.owner-short{display:block;font-size:11px;color:#64748b;margin-top:3px;overflow-wrap:anywhere}.artifact[open]>summary .owner-short{display:none}.status{font-size:11px;font-weight:650;color:#596579;background:#edf1f6;padding:2px 7px;border-radius:4px;white-space:nowrap}.status-present{color:#116348;background:#e4f5ed}.status-absent{color:#a52630;background:#fce9eb}.status-recorded{color:#265a9e;background:#e8f0fc}.status-unknown{color:#89570d;background:#fff3d9}.icon{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round;color:#627d9d;margin-top:1px}.artifact-body{padding:0 16px 16px 54px}.owner-full{padding-bottom:12px;border-bottom:1px solid #edf0f5;margin-bottom:12px}.owner-full strong{display:block;font-size:11px;color:#66788f}.owner-full span{font-size:12px;overflow-wrap:anywhere}dl{display:grid;grid-template-columns:120px minmax(0,1fr);gap:6px 14px;margin:0;font-size:12px}dt{font-weight:600;color:#64748b}dd{margin:0;overflow-wrap:anywhere}.children{border-left:2px solid #e2e9f3;padding-left:12px;margin-top:18px}.children h3{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:#6c7d93}.attention{border:1px solid #edcfa4;background:#fffaf2;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:12px}.attention summary{cursor:pointer;font-weight:650}.warning{overflow-wrap:anywhere;color:#89570d}.empty{padding:30px;color:#64748b}.symbols{position:absolute;width:0;height:0;overflow:hidden}.noscript{color:#89570d}.outcome{font-weight:650}.muted{color:#64748b;font-size:11px}@media(max-width:850px){.layout{grid-template-columns:1fr}.sidebar{position:static;max-height:none;border-right:0;border-bottom:1px solid #dbe2ec}.main{padding:18px}.artifact-body{padding-left:16px}.toolbar{position:static}dl{grid-template-columns:100px minmax(0,1fr)}}@media print{.layout{display:block}.sidebar{position:static;max-height:none}.toolbar{position:static}button,select,.toolbar label{display:none}}
+:root{font:13px/1.5 system-ui,sans-serif;color:#243247;background:#f4f6fa;color-scheme:light}*{box-sizing:border-box}body{margin:0}h1{font-size:23px;letter-spacing:-.6px;margin:0 0 18px}h2{font-size:14px;margin:0 0 12px}p{margin:8px 0}.layout{display:grid;grid-template-columns:330px minmax(0,1fr);min-height:100vh}.sidebar{padding:28px 22px;background:#fff;border-right:1px solid #dbe2ec;position:sticky;top:0;max-height:100vh;overflow:auto}.eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:1.3px;color:#64748b;font-weight:700}.summary-counts{color:#53647b;font-size:12px}.context{border-top:1px solid #e5eaf1;margin-top:20px;padding-top:18px}.context dl{display:block}.context dt{font-size:11px;color:#69798e;margin-top:12px}.context dd{margin-top:2px;font-size:12px}table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:11px}th,td{text-align:left;vertical-align:top;padding:8px 5px;border-bottom:1px solid #edf0f5;overflow-wrap:anywhere}th:first-child{width:34%}th{font-size:10px;color:#5d6d82}td:first-child{font-weight:600}.main{padding:28px;min-width:0;max-width:1600px;width:100%}.toolbar{position:sticky;top:0;z-index:2;background:#f4f6faf5;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 0 18px}.toolbar h2{margin:0 auto 0 0;font-size:18px}input,select,button{font:inherit;border:1px solid #ccd6e3;background:white;color:#243247;border-radius:6px;padding:7px 10px}button{cursor:pointer}summary:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #5a85ca;outline-offset:3px}.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end;margin-bottom:12px}.filters label:first-child{grid-column:span 2}.filters label{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600}.filters input,.filters select{width:100%;min-width:0}.filter-help{margin:6px 0;color:#64748b;font-size:11px}[hidden]{display:none!important}.artifact{background:white;border:1px solid #d9e1ec;border-radius:9px;margin:9px 0;overflow:hidden}.artifact>summary{list-style:none;cursor:pointer;padding:13px 16px;display:grid;grid-template-columns:28px minmax(0,1fr) 14px;gap:10px;align-items:start}.artifact>summary::-webkit-details-marker{display:none}.artifact>summary:after{content:'›';font-size:20px;color:#73839b;line-height:22px}.artifact[open]>summary:after{transform:rotate(90deg)}.title-line{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.artifact-name{font-size:14px;font-weight:650;overflow-wrap:anywhere}.owner-short{display:block;font-size:11px;color:#64748b;margin-top:3px;overflow-wrap:anywhere}.artifact[open]>summary .owner-short{display:none}.status{font-size:11px;font-weight:650;color:#596579;background:#edf1f6;padding:2px 7px;border-radius:4px;white-space:nowrap}.status-present{color:#116348;background:#e4f5ed}.status-absent{color:#a52630;background:#fce9eb}.status-recorded{color:#265a9e;background:#e8f0fc}.status-unknown{color:#89570d;background:#fff3d9}.icon{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round;color:#627d9d;margin-top:1px}.artifact-body{padding:0 16px 16px 54px}.owner-full{padding-bottom:12px;border-bottom:1px solid #edf0f5;margin-bottom:12px}.owner-full strong{display:block;font-size:11px;color:#66788f}.owner-full span{font-size:12px;overflow-wrap:anywhere}dl{display:grid;grid-template-columns:120px minmax(0,1fr);gap:6px 14px;margin:0;font-size:12px}dt{font-weight:600;color:#64748b}dd{margin:0;overflow-wrap:anywhere}.children{border-left:2px solid #e2e9f3;padding-left:12px;margin-top:18px}.children h3{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:#6c7d93}.attention{border:1px solid #edcfa4;background:#fffaf2;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:12px}.attention summary{cursor:pointer;font-weight:650}.warning{overflow-wrap:anywhere;color:#89570d}.empty{padding:30px;color:#64748b}.symbols{position:absolute;width:0;height:0;overflow:hidden}.noscript{color:#89570d}.outcome{font-weight:650}.muted{color:#64748b;font-size:11px}@media(max-width:850px){.layout{grid-template-columns:1fr}.sidebar{position:static;max-height:none;border-right:0;border-bottom:1px solid #dbe2ec}.main{padding:18px}.artifact-body{padding-left:16px}.toolbar{position:static}.filters{grid-template-columns:repeat(2,minmax(0,1fr))}.filters label:first-child{grid-column:1/-1}dl{grid-template-columns:100px minmax(0,1fr)}}@media print{.layout{display:block}.sidebar{position:static;max-height:none}.toolbar{position:static}button,select,input,.filters,.filter-help,.toolbar label{display:none}}
 </style></head>
 <body>
 <!-- Original inline type glyphs; no network, fonts or third-party runtime required. -->
@@ -24,7 +24,18 @@
 <section class="context"><h2>Application &amp; features</h2><table><thead><tr><th scope="col">Application / Feature</th><th scope="col">Repository</th></tr></thead><tbody><tr><td>{{.Scope.Application}}</td><td>{{.Scope.Repository}}</td></tr>{{range .Features}}<tr><td>{{.Name}}</td><td>{{.Repository}}</td></tr>{{end}}</tbody></table></section>
 <section class="context"><h2>Deployment details</h2><dl>{{range .Context}}<dt>{{.Label}}</dt><dd>{{.Value}}</dd>{{end}}</dl></section>
 </aside><main class="main"><header class="toolbar"><h2>Artifacts</h2><label for="sort">Sort by</label><select id="sort"><option value="priority">Importance</option><option value="owner">Owner</option><option value="type">Type</option><option value="name">Name</option><option value="status">Status</option><option value="feature">Feature</option></select><button id="direction" type="button" aria-label="Reverse sort direction" aria-pressed="false">Ascending ↑</button><button id="expand" type="button">Expand all</button><button id="collapse" type="button">Collapse all</button></header>
-<noscript><p class="noscript">Sorting requires JavaScript. Artifact cards can still be expanded individually.</p></noscript>
+<section class="filters" aria-label="Filter artifacts">
+<label for="search">Search artifacts<input id="search" type="search" placeholder="Name, key, owner, type…" aria-describedby="filter-help"></label>
+<label for="filter-status">Status<select id="filter-status"><option value="">All statuses</option></select></label>
+<label for="filter-owner">Owner<select id="filter-owner"><option value="">All owners</option></select></label>
+<label for="filter-type">Type<select id="filter-type"><option value="">All types</option></select></label>
+<label for="filter-feature">Feature<select id="filter-feature"><option value="">All features</option></select></label>
+<button id="reset" type="button">Reset filters</button>
+</section>
+<p id="filter-help" class="filter-help">Filters combine. Matching children keep their ancestors; matching parents include all descendants. Expand cards to view children.</p>
+<p id="result-count" class="summary-counts" role="status" aria-live="polite" aria-atomic="true"></p>
+<p id="filter-empty" class="empty" hidden>No artifacts match these filters. Clear the search or reset filters to see more.</p>
+<noscript><p class="noscript">Sorting and filtering require JavaScript. Artifact cards can still be expanded individually.</p></noscript>
 {{if .Issues}}<details class="attention"><summary>Attention · {{len .Issues}} artifacts</summary>{{range .Issues}}<p>{{display .}}: {{.PlannedAction}}; <span class="status status-{{.Observation.Status}}">{{.Observation.Status}}</span> ({{.Observation.Reason}})</p>{{end}}</details>{{end}}
 {{range .Warnings}}<p class="warning">Warning: {{.}}</p>{{end}}
 <div id="artifact-list" class="artifact-list" aria-label="Artifact inventory">{{template "nodes" (dict .Nodes .Scope.Repository)}}</div>
@@ -39,6 +50,44 @@
 'use strict';
 const sort=document.getElementById('sort'),direction=document.getElementById('direction');
 let descending=false;
+const cards=Array.from(document.querySelectorAll('details.artifact'));
+const search=document.getElementById('search');
+const fields=['status','owner','type','feature'];
+const filters=fields.map(field=>{
+ const control=document.getElementById('filter-'+field);
+ const values=Array.from(new Set(cards.map(card=>card.dataset[field]||''))).sort();
+ values.forEach((value,index)=>{
+  const option=document.createElement('option');
+  option.value=String(index);option.textContent=value||'Not specified';control.appendChild(option);
+ });
+ control.addEventListener('change',applyFilters);
+ return {field,control,values};
+});
+const parents=new Map(cards.map(card=>[card,card.parentElement.closest('details.artifact')]));
+function applyFilters(){
+ const term=search.value.trim().toLowerCase();
+ const matches=new Set(cards.filter(card=>
+  filters.every(({field,control,values})=>control.value===''||(card.dataset[field]||'')===values[Number(control.value)])&&
+  (!term||['name','key','owner','type','status','feature'].some(field=>(card.dataset[field]||'').toLowerCase().includes(term)))
+ ));
+ const shown=new Set(matches);
+ // Include ancestors for context and descendants of direct matches. Do not
+ // expand a context ancestor's other branches or change native disclosure state.
+ cards.forEach(card=>{
+  for(let parent=parents.get(card);parent;parent=parents.get(parent)){
+   if(matches.has(card))shown.add(parent);
+   if(matches.has(parent))shown.add(card);
+  }
+ });
+ cards.forEach(card=>card.hidden=!shown.has(card));
+ document.getElementById('result-count').textContent=matches.size+' of '+cards.length+' artifacts match · '+shown.size+' shown with hierarchy';
+ document.getElementById('filter-empty').hidden=cards.length===0||shown.size!==0;
+}
+search.addEventListener('input',applyFilters);
+document.getElementById('reset').addEventListener('click',()=>{
+ search.value='';filters.forEach(({control})=>control.value='');applyFilters();
+});
+applyFilters();
 function reorder(){
  const field=sort.value,sign=descending?-1:1;
  document.querySelectorAll('.artifact-list').forEach(list=>{

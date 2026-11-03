@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"time"
 )
@@ -57,7 +58,19 @@ func issues(r Report) []Artifact {
 	return as
 }
 func artifactFields(a Artifact) []field {
-	return []field{{"Logical identity", a.Key}, {"Type", a.Type}, {"Provider ID", a.ProviderID}, {"Owner", a.Owner}, {"Feature", a.Feature}, {"Planned action", a.PlannedAction}, {"Presence", string(a.Observation.Status)}, {"Source", a.Observation.Source}, {"Observed", date(a.Observation.ObservedAt)}, {"Reason", string(a.Observation.Reason)}}
+	fields := []field{{"Logical identity", a.Key}, {"Type", a.Type}, {"Provider ID", a.ProviderID}, {"Owner", a.Owner}, {"Feature", a.Feature}, {"Planned action", a.PlannedAction}, {"Presence", string(a.Observation.Status)}, {"Source", a.Observation.Source}, {"Observed", date(a.Observation.ObservedAt)}, {"Reason", string(a.Observation.Reason)}}
+	if c := a.Configuration; c != nil {
+		fields = append(fields, field{"Recorded configuration", "Pulumi state outputs"}, field{"Configuration source", c.Source}, field{"Configuration state read at", date(c.ObservedAt)})
+		keys := make([]string, 0, len(c.Values))
+		for key := range c.Values {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			fields = append(fields, field{key, c.Values[key]})
+		}
+	}
+	return fields
 }
 func display(a Artifact) string {
 	if a.Name != "" {
@@ -87,7 +100,7 @@ func WriteMarkdown(w io.Writer, r Report) error {
 			a := n.Artifact
 			fmt.Fprintf(&b, "\n%s %s\n\n", strings.Repeat("#", min(d+2, 6)), markdown(display(a)))
 			for _, f := range artifactFields(a) {
-				fmt.Fprintf(&b, "- %s: %s\n", f.Label, markdown(f.Value))
+				fmt.Fprintf(&b, "- %s: %s\n", markdown(f.Label), markdown(f.Value))
 			}
 			walk(n.Children, d+1)
 		}
