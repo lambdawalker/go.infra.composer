@@ -19,3 +19,18 @@ go vet ./...
 ```
 
 The tests use the official SDK's `WithMocks` monitor and do not contact a cloud. They check native references, dependency registration, secrecy, exports, and preflight refusal. These mocks provide evidence about SDK registration only. They do not prove provider schemas, credentials, IAM permissions, readiness, bootstrap behavior, real infrastructure deployment, persistent jobs, or recovery. Trusted factories remain responsible for provider-specific schemas and for forwarding the adapter's resource options. Secrets remain plaintext in trusted process memory and must not be logged by factories.
+
+`reportpreview` is an optional offline adapter for native feature constructors.
+`Catalog(environment, feature, owner, callback)` uses official `pulumi.WithMocks`,
+allowlists only AWS region/caller-identity invokes, and retains safe metadata.
+Mock outputs exist only to resolve constructor dependencies; ProviderID and all
+presence evidence are cleared before return. `Archives` supplies private empty
+ZIP fixtures for the duration of an offline callback and removes them afterward.
+`Config` provides fixture-compatible secret outputs; no secret inputs enter reports.
+`RunCLI` provides shared nonsecret configuration, scoped explicit app-cache
+reconciliation and private `report.md`, `report.json`, `report.html` output files.
+Project, account and backend must be explicitly supplied for cached app evidence.
+The source scope and original evidence timestamps are retained; no provider check
+or account verification occurs. Exact feature/type/logical-name matches must be
+unique on both sides. Native S3 object logical names use URN suffixes, avoiding
+object path display-name mismatches.

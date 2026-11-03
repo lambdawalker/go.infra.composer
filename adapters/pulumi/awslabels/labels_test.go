@@ -49,7 +49,7 @@ func (m *monitor) NewResource(a pulumi.MockResourceArgs) (string, resource.Prope
 	return a.Name + "-id", a.Inputs, nil
 }
 func meta() ownership.Metadata {
-	return ownership.Metadata{Application: "attestra", Environment: "dev", Domain: "attestrabond.com", Feature: "application", Deployment: "attestra-dev"}
+	return ownership.Metadata{Owner: "go.attestra.aws", Application: "attestra", Environment: "dev", Domain: "attestrabond.com", Feature: "application", Deployment: "attestra-dev"}
 }
 func TestLabelsPreserveArgsOptionsAndInventory(t *testing.T) {
 	m := &monitor{items: map[string]pulumi.MockResourceArgs{}}
@@ -83,6 +83,9 @@ func TestLabelsPreserveArgsOptionsAndInventory(t *testing.T) {
 			found := false
 			for _, row := range rows {
 				record := row.(map[string]any)
+				if record["owner"] != "go.attestra.aws" {
+					t.Errorf("missing safe owner: %v", record)
+				}
 				if strings.Contains(record["type"].(string), "route") {
 					found = true
 					if record["tagging"] != "inventory-only" || record["parentId"] != "signup-id" {
@@ -114,7 +117,7 @@ func TestLabelsPreserveArgsOptionsAndInventory(t *testing.T) {
 	if fn.Inputs["name"].StringValue() != "unchanged-physical-name" || !fn.RegisterRPC.GetProtect() {
 		t.Fatal("identity or options changed")
 	}
-	if fn.Inputs["description"].StringValue() != "attestrabond.com DEV | verifyemail" {
+	if fn.Inputs["description"].StringValue() != "attestrabond.com DEV | go.attestra.aws" {
 		t.Fatal(fn.Inputs)
 	}
 	if original.Tags.(pulumi.StringMap)["ic:feature"] != nil {
