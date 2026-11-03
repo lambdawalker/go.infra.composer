@@ -218,7 +218,7 @@ func (t *Tracker) Export(ctx *pulumi.Context, name string) error {
 		}
 		tags, _ := r.metadata.Tags(r.name)
 		values = append(values, pulumi.All(r.resource.URN(), id, r.parent, parentURN).ApplyT(func(v []any) map[string]any {
-			return map[string]any{"type": r.kind, "logicalName": r.name, "urn": fmt.Sprint(v[0]), "id": fmt.Sprint(v[1]), "parentId": stringValue(v[2]), "parentUrn": fmt.Sprint(v[3]), "ownership": tags, "tagging": r.tagging, "taggingReason": taggingReason(r.tagging), "descriptionField": r.descriptionField}
+			return map[string]any{"type": r.kind, "logicalName": r.name, "urn": fmt.Sprint(v[0]), "id": fmt.Sprint(v[1]), "parentId": stringValue(v[2]), "parentUrn": fmt.Sprint(v[3]), "ownership": tags, "owner": r.metadata.Owner, "tagging": r.tagging, "taggingReason": taggingReason(r.tagging), "descriptionField": r.descriptionField}
 		}))
 	}
 	ctx.Export(name, values)

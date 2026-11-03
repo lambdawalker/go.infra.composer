@@ -42,15 +42,15 @@ func parentType(field, typ string) bool {
 		return kind == "bucket" || kind == "bucketv2"
 	case "apiId":
 		return kind == "api" || kind == "restapi"
-	case "role":
+	case "role", "roleArn":
 		return kind == "role"
-	case "function":
+	case "function", "functionArn":
 		return kind == "function"
-	case "userPoolId":
+	case "userPoolId", "userPoolArn":
 		return kind == "userpool"
-	case "rule":
+	case "rule", "ruleArn":
 		return kind == "eventrule" || kind == "rule"
-	case "secretId":
+	case "secretId", "secretArn":
 		return kind == "secret"
 	case "domainName":
 		return kind == "domainname" || kind == "domain"
@@ -87,8 +87,13 @@ func safeArtifacts(resources []resource, observation r.Observation) []r.Artifact
 			continue
 		}
 		byURN[s.URN] = s
-		if s.ID != "" {
-			ids[s.ID] = append(ids[s.ID], s)
+		// ARN is an internal, allowlisted alias only; never copied into the report.
+		aliases := map[string]bool{}
+		for _, alias := range []string{s.ID, plain(s.Outputs, "arn")} {
+			if alias != "" && !aliases[alias] {
+				ids[alias] = append(ids[alias], s)
+				aliases[alias] = true
+			}
 		}
 	}
 	for _, s := range resources {
@@ -112,15 +117,17 @@ func safeArtifacts(resources []resource, observation r.Observation) []r.Artifact
 			a.Parent = ""
 		}
 		if a.Parent == "" {
-			for _, field := range []string{"bucket", "apiId", "role", "function", "userPoolId", "rule", "secretId", "domainName"} {
+			for _, field := range []string{"bucket", "apiId", "role", "roleArn", "function", "functionArn", "userPoolId", "userPoolArn", "rule", "ruleArn", "secretId", "secretArn", "domainName"} {
 				id := plain(s.Outputs, field)
 				if id == "" {
 					id = plain(s.Inputs, field)
 				}
 				var candidates []string
+				seen := map[string]bool{}
 				for _, p := range ids[id] {
-					if p.URN != a.Key && parentType(field, p.Type) {
+					if p.URN != a.Key && parentType(field, p.Type) && !seen[p.URN] {
 						candidates = append(candidates, p.URN)
+						seen[p.URN] = true
 					}
 				}
 				if id != "" && len(candidates) == 1 {

@@ -162,3 +162,30 @@ func TestPreviewFiltersPseudoResourcesAndResolvesAcrossComponent(t *testing.T) {
 		}
 	}
 }
+
+func TestStateTypedParentMatchesInternalARNWithoutPersistingProperties(t *testing.T) {
+	input := `{"deployment":{"resources":[{"urn":"function","id":"reset-name","type":"aws:lambda/function:Function","outputs":{"arn":"arn:aws:lambda:us-east-2:123456789012:function:reset-name","secret":"do-not-persist"}},{"urn":"permission","id":"permission-id","type":"aws:lambda/permission:Permission","outputs":{"function":"arn:aws:lambda:us-east-2:123456789012:function:reset-name"}}]}}`
+	as, e := ReadState(strings.NewReader(input), time.Now())
+	if e != nil {
+		t.Fatal(e)
+	}
+	if len(as) != 2 || as[1].Parent != "function" {
+		t.Fatalf("ARN parent not matched: %#v", as)
+	}
+	var b strings.Builder
+	r.WriteJSON(&b, r.Report{Artifacts: as})
+	if strings.Contains(b.String(), "arn:aws:") || strings.Contains(b.String(), "do-not-persist") {
+		t.Fatal("internal alias/property persisted")
+	}
+}
+
+func TestStateARNAliasDeduplicatesURNAndRequiresExpectedType(t *testing.T) {
+	input := `{"deployment":{"resources":[{"urn":"function","id":"same-arn","type":"aws:lambda/function:Function","outputs":{"arn":"same-arn"}},{"urn":"role","id":"role-id","type":"aws:iam/role:Role","outputs":{"arn":"same-arn"}},{"urn":"permission","id":"p","type":"aws:lambda/permission:Permission","outputs":{"function":"same-arn"}}]}}`
+	as, e := ReadState(strings.NewReader(input), time.Now())
+	if e != nil {
+		t.Fatal(e)
+	}
+	if as[2].Parent != "function" {
+		t.Fatalf("alias duplicate or wrong type: %#v", as)
+	}
+}
