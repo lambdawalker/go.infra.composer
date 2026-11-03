@@ -3,7 +3,6 @@ package reporting
 import (
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"io"
 	"strings"
 	"time"
@@ -96,17 +95,4 @@ func WriteMarkdown(w io.Writer, r Report) error {
 	walk(Hierarchy(r.Artifacts), 0)
 	_, e := io.WriteString(w, b.String())
 	return e
-}
-
-var page = template.Must(template.New("report").Funcs(template.FuncMap{"fields": artifactFields, "display": display}).Parse(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Artifact report</title><style>body{font:16px system-ui;max-width:1050px;margin:3rem auto;padding:0 1rem;background:#f6f8fb;color:#172235}article,details,.attention{background:white;border:1px solid #ccd5df;border-radius:8px;padding:1rem;margin:.6rem 0}.attention{border-left:5px solid #b34b22}details details{margin-left:1rem}dl{display:grid;grid-template-columns:minmax(110px,1fr) 4fr;gap:.35rem}dt{font-weight:bold}dd{margin:0;overflow-wrap:anywhere}summary{cursor:pointer}small{color:#46556a}</style><h1>Artifact report</h1><p><strong>Outcome: {{.Metadata.Outcome}}</strong></p><p>{{.Summary}}</p><p>Cached evidence loaded: {{.CacheLoaded}}</p><dl>{{range .Context}}<dt>{{.Label}}</dt><dd>{{.Value}}</dd>{{end}}</dl>{{if .Issues}}<section class="attention"><h2>Attention</h2>{{range .Issues}}<p>{{display .}}: {{.PlannedAction}}; {{.Observation.Status}} ({{.Observation.Reason}})</p>{{end}}</section>{{end}}{{range .Warnings}}<p>Warning: {{.}}</p>{{end}}{{range .Nodes}}<article><h2>{{display .Artifact}} — {{.Artifact.Observation.Status}}</h2>{{template "fields" .Artifact}}{{template "children" .Children}}</article>{{end}}{{define "fields"}}<dl>{{range fields .}}<dt>{{.Label}}</dt><dd>{{.Value}}</dd>{{end}}</dl>{{end}}{{define "children"}}{{range .}}<details><summary>{{display .Artifact}} — {{.Artifact.Observation.Status}}</summary>{{template "fields" .Artifact}}{{template "children" .Children}}</details>{{end}}{{end}}</html>`))
-
-func WriteHTML(w io.Writer, r Report) error {
-	r = Normalize(r)
-	return page.Execute(w, struct {
-		Report
-		Nodes   []Node
-		Context []field
-		Summary string
-		Issues  []Artifact
-	}{r, Hierarchy(r.Artifacts), contextFields(r), summary(r), issues(r)})
 }

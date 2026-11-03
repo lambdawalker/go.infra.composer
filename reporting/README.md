@@ -55,3 +55,13 @@ ReadRefresh expects **only the output stream of a read-only refresh**, never gen
 CollectRefresh executes arguments `refresh --preview-only --non-interactive --json [--stack STACK] --event-log PRIVATE_FILE` through the injected Runner, discards stdout, reads the private 0600 event log and removes it on return. The runner should run the Pulumi executable in Dir and return an error on nonzero exit. Backend/environment authentication is the caller's responsibility. The Runner must also enable Pulumi hidden debug flags with `PULUMI_DEBUG_COMMANDS=true` for `--event-log` on versions that require it. Only this explicit caller action invokes a provider; no built-in runner or shell invocation exists. Failures return stable `ErrRefresh` without raw diagnostics. The returned artifact slice is always usable for a partial report. Existing observation timestamps are replaced for this attempted check, not relabeled as a fresh success.
 
 RunCLI is reusable for feature constructors' safe offline catalogs. It **never executes Pulumi or contacts providers**. Required `--scope FILE` loads a JSON Scope. Optional flags are `--cache-dir DIR`, `--output-dir DIR`, `--state FILE`, `--preview-events FILE`, `--feature CANONICAL_NAME`. It renders Markdown to stdout, optionally writes private `artifacts.md`, `artifacts.json`, `artifacts.html`, and reports unavailable optional evidence as warning codes. Cache is read-only; it does not save offline plans over live evidence. Scope files and catalogs are provided by the host; constructing native feature mocks remains in the optional Pulumi adapter.
+
+The self-contained HTML view has a responsive deployment sidebar with an
+application/feature repository table. All artifact cards start collapsed, showing
+name, colored text status, a type glyph and short owner. Expanded cards show the
+qualified owner and evidence fields. Sort by importance (default), owner, type,
+name, status or feature; reverse direction or expand/collapse all. Sorting is
+applied within each sibling list so subartifacts remain under their parents.
+Inline JavaScript only handles view controls; no requests or external assets are
+needed. Without JavaScript, native disclosure cards still work. Bare owner names
+are qualified with the organization of Scope.Repository when available.
