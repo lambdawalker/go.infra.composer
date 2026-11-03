@@ -81,6 +81,10 @@ go vet ./...
 
 Tests use official `pulumi.WithMocks`. They verify registration semantics, not cloud permissions, DNS readiness, provider replacement behavior or deployment recovery. No cloud deployment was performed for this milestone.
 
+## Deployment approvals
+
+The dependency-free [`approval`](approval/README.md) package supplies explicit/manual and opt-in timed approval policy. Applications provide prompts and deployment-tool integration. Only routine operations can auto-approve on the policy's own deadline; sensitive/destructive operations, cancellation and input failures always require an explicit decision or stop the operation. The default remains manual.
+
 ## All-environment teardown
 
 The dependency-free [`teardown`](teardown/README.md) package coordinates report-backed destruction across every configured application environment, then shared **admin/index** projects. The installed Pulumi/AWS CLI adapter verifies resource absence, continues independent targets after failures, and gates explicitly configured state-bucket/KMS cleanup on successful primary cleanup. A separate `infra-nuke` command provides typed scope confirmation, private reporting and full/remaining-only checks. It performs real teardown when authorized; `infra-compose` continues to simulate deployments.
