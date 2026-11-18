@@ -1,0 +1,22 @@
+{
+  "Version": 1,
+  "Title": "APEXFISSION / EMAIL VERIFICATION",
+  "Description": "Isolated email verification test host",
+  "Repository": "lambdawalker/go.apexfission.aws.email-verification",
+  "Feature": "email-verification",
+  "PulumiProject": "email-verification-testhost",
+  "PulumiDir": "infrastructure/cmd/testhost",
+  "StackPrefix": "test-",
+  "BucketPrefix": "testhost-state",
+  "BuildPackage": "./cmd/testhost",
+  "BuildDir": "dist/testhost",
+  "Outputs": ["testHostFunction", "testHostFunctionArn", "testHostTable", "testHostLogs", "senderVerificationRequired"],
+  "InputsFile": "testhost.json",
+  "Inputs": [
+    {"Name": "Sender", "Label": "Dedicated SES sender", "Kind": "email", "GitHubVariable": "BENCH_SENDER"},
+    {"Name": "Recipient", "Label": "Allowed test recipient", "Kind": "email", "GitHubVariable": "BENCH_RECIPIENT"},
+    {"Name": "Domain", "Label": "Ownership domain", "Kind": "domain", "GitHubVariable": "BENCH_DOMAIN"}
+  ],
+  "ConfigDefaults": {"policyJSON": "{}"},
+  "GitHub": {"Workflow": "testhost-deploy.yml", "EnvironmentPrefix": "testhost-"}
+}
