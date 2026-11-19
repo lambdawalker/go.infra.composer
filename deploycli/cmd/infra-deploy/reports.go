@@ -169,9 +169,9 @@ func (r *featureReport) finish(ctx context.Context, runErr error, refresh bool) 
 			return e
 		}
 	}
-	heading("Feature artifact report")
-	detail("HTML", filepath.Join(r.output, "artifacts.html"))
-	detail("JSON / MD", r.output)
+	wizard(ctx).heading("Feature artifact report")
+	wizard(ctx).detail("HTML", filepath.Join(r.output, "artifacts.html"))
+	wizard(ctx).detail("JSON / MD", r.output)
 	return nil
 }
 func writeFeatureBundle(dir string, r reporting.Report) error {

@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/lambdawalker/go.infra.composer/deploycli/internal/dnsprovider"
+	"github.com/lambdawalker/go.infra.composer/deploycli/internal/wizardweb"
 )
 
 type featureInput struct {
@@ -39,7 +40,7 @@ func (m manifest) inputFlags(fs *flag.FlagSet) featureInputs {
 
 type inputPrompt func(label, fallback, display string) (string, error)
 
-func (inputs featureInputs) collect(file, dir string, ci, reconfigure bool, ask inputPrompt) error {
+func (inputs featureInputs) collect(ctx context.Context, file, dir string, ci, reconfigure bool, ask inputPrompt) error {
 	if len(inputs) == 0 {
 		return nil
 	}
@@ -84,7 +85,7 @@ func (inputs featureInputs) collect(file, dir string, ci, reconfigure bool, ask 
 					break
 				}
 			}
-			field.raw, field.value, err = field.read(prior, values, ask)
+			field.raw, field.value, err = field.read(ctx, prior, values, ask)
 		}
 		if err != nil {
 			return err
@@ -97,7 +98,7 @@ func (inputs featureInputs) collect(file, dir string, ci, reconfigure bool, ask 
 	return nil
 }
 
-func (field featureInput) read(prior string, values map[string]string, ask inputPrompt) (string, string, error) {
+func (field featureInput) read(ctx context.Context, prior string, values map[string]string, ask inputPrompt) (string, string, error) {
 	fallback, display := prior, prior
 	if field.spec.Compose != nil {
 		display, _ = field.resolve(fallback, values)
@@ -112,6 +113,14 @@ func (field featureInput) read(prior string, values map[string]string, ask input
 		fallback, display = "", ""
 	}
 	label := field.spec.Label
+	if ui := wizard(ctx); ui.browser != nil && field.spec.Kind == "dnsProvider" && field.spec.Compose == nil {
+		var options []wizardweb.Option
+		for _, provider := range dnsprovider.All() {
+			options = append(options, wizardweb.Option{Value: provider.ID, Label: provider.Name})
+		}
+		raw, err := ui.selectOption(label, fallback, options)
+		return raw, raw, err
+	}
 	if field.spec.Kind == "dnsProvider" {
 		label += " (" + dnsprovider.Choices() + ")"
 		display = field.display(display)
@@ -128,7 +137,7 @@ func (field featureInput) read(prior string, values map[string]string, ask input
 			}
 			return raw, resolved, nil
 		}
-		note(err.Error())
+		wizard(ctx).note(err.Error())
 	}
 }
 
@@ -195,11 +204,11 @@ func (field featureInput) display(value string) string {
 	return value
 }
 
-func (inputs featureInputs) showDNSGuidance() {
+func (inputs featureInputs) showDNSGuidance(ctx context.Context) {
 	for _, field := range inputs {
 		if field.spec.Kind == "dnsProvider" {
 			if provider, ok := dnsprovider.Lookup(field.value); ok {
-				note(provider.Guidance)
+				wizard(ctx).note(provider.Guidance)
 			}
 		}
 	}

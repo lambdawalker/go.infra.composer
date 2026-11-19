@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/pbkdf2"
@@ -11,15 +12,15 @@ import (
 )
 
 // Re-encrypt legacy vault contents with fresh nonce and new path binding; preserve the source.
-func loadProjectVault(path, legacy, pass string) (string, error) {
+func loadProjectVault(ctx context.Context, path, legacy, pass string) (string, error) {
 	if _, e := os.Stat(path); e == nil {
-		return vault(path, pass)
+		return vault(ctx, path, pass)
 	} else if !os.IsNotExist(e) {
 		return "", e
 	}
 	b, e := os.ReadFile(legacy)
 	if os.IsNotExist(e) {
-		return vault(path, pass)
+		return vault(ctx, path, pass)
 	}
 	if e != nil {
 		return "", e
@@ -57,6 +58,6 @@ func loadProjectVault(path, legacy, pass string) (string, error) {
 	if e = atomicWrite(path, out); e != nil {
 		return "", e
 	}
-	note("Vault migrated to .deploy; original retained for recovery")
+	wizard(ctx).note("Vault migrated to .deploy; original retained for recovery")
 	return string(plain), nil
 }

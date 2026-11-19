@@ -230,13 +230,6 @@ func askWithDefault(label, def, displayDefault string, choice, hidden bool) (str
 	})
 }
 
-func prompt(label, def string) string {
-	v, e := ask(label, def, false, false)
-	if e != nil {
-		panic(e)
-	}
-	return v
-}
 func secret(label string) (string, error) { return ask(label, "", false, true) }
 func timedChoice(def bool) (bool, error) {
 	d := "no"

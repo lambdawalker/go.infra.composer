@@ -17,7 +17,7 @@ type projectRecord struct {
 }
 
 // projectPaths persists repository identity separately from the central nonsecret registry.
-func (cli deployCLI) projectPaths(root, name string, ci bool) (string, string, string, error) {
+func (cli deployCLI) projectPaths(ctx context.Context, root, name string, ci bool) (string, string, string, error) {
 	local := filepath.Join(root, ".deploy")
 	p := filepath.Join(local, "project.json")
 	var r projectRecord
@@ -39,7 +39,7 @@ func (cli deployCLI) projectPaths(root, name string, ci bool) (string, string, s
 		if ci {
 			return "", "", "", errors.New("--project required on first noninteractive run")
 		}
-		name = prompt("Project name", cli.spec.PulumiProject)
+		name = wizard(ctx).prompt("Project name", cli.spec.PulumiProject)
 	}
 	if !regexp.MustCompile(`^[a-z][a-z0-9-]{0,47}$`).MatchString(name) {
 		return "", "", "", errors.New("project name must be lowercase letters/digits/hyphens, starting with a letter")
@@ -136,7 +136,7 @@ func (cli deployCLI) ensureStack(ctx context.Context, dir, stack, receipt string
 		if !allowCreate {
 			return errors.New("stack does not exist; run setup/preview/deploy to initialize it")
 		}
-		note("First deployment: creating Pulumi stack " + stack)
+		wizard(ctx).note("First deployment: creating Pulumi stack " + stack)
 		if e = run("stack", "init", stack, "--secrets-provider", "passphrase", "--non-interactive"); e != nil {
 			return e
 		}

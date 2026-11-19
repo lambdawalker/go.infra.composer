@@ -56,6 +56,29 @@ CI uses explicit target arguments, an assumed role and a separate deploy
 approval. Deletion, replacement and teardown require deliberate interactive
 confirmation.
 
+## Run the browser wizard
+
+The terminal wizard is the default. Start the optional browser wizard from the
+target repository with `./deploy.sh --server` or `deploy.bat --server`.
+If the project calls the CLI directly, use `infra-deploy --server`.
+Add `--no-open` to copy the URL from the terminal without opening a browser.
+
+The wizard binds to a random loopback port and uses a private session URL.
+Vault and stack passphrases use password fields. Choose an action, enter missing
+settings, and review or edit the values before connecting to the cloud. With no
+`--action` argument, the browser prompts for a choice and preselects Preview.
+AWS sign-in instructions appear in the page when an SSO session needs renewal.
+
+The page follows the deployment stages, shows the resource operations from the
+saved Pulumi plan, and displays the outcome. Approvals in browser mode require
+an explicit click. Deletion or replacement still requires typing the stack
+name. Provider command diagnostics remain in the launching terminal.
+
+Use **Stop wizard** to cancel, and **Close wizard** to shut down the local server
+once the result is displayed. Pressing Ctrl+C in the terminal also stops the
+wizard. Closing the browser tab alone leaves the local process running.
+Browser mode is interactive and cannot be combined with `--non-interactive`.
+
 ## Compose deployment inputs
 
 A field's `Compose.Function` selects a built-in or project function.

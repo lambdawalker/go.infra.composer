@@ -113,7 +113,7 @@ func (m *manifest) validate() error {
 		name := strings.ToLower(input.Name)
 		// Reserve all built-in flags and the corresponding Pulumi configuration keys.
 		if !pattern(`^[A-Za-z][A-Za-z0-9]*$`, input.Name) || seenFlags[name] ||
-			strings.Contains("|environment|action|profile|region|account|backend|approve|project|workers|memory|archive|deploymentproject|deploymentenvironment|version|composeinputs|h|help|", "|"+name+"|") {
+			strings.Contains("|environment|action|profile|region|account|backend|approve|project|workers|memory|archive|server|deploymentproject|deploymentenvironment|version|composeinputs|h|help|", "|"+name+"|") {
 			return fmt.Errorf("invalid or duplicate feature flag %q", name)
 		}
 		if input.Label == "" || !inputKind(input.Kind) {

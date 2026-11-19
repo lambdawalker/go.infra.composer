@@ -71,7 +71,7 @@ func TestComposedInputsResolveAndPreserveRawValues(t *testing.T) {
 			return fallback, nil
 		}
 	}
-	if err := fields.collect(m.InputsFile, dir, false, false, ask); err != nil {
+	if err := fields.collect(t.Context(), m.InputsFile, dir, false, false, ask); err != nil {
 		t.Fatal(err)
 	}
 	if want := []string{m.Inputs[1].Label, m.Inputs[2].Label, m.Inputs[0].Label, m.Inputs[0].Label, m.Inputs[3].Label}; !slices.Equal(prompts, want) {
@@ -88,7 +88,7 @@ func TestComposedInputsResolveAndPreserveRawValues(t *testing.T) {
 		t.Fatalf("GitHub vars must use raw inputs: %v", want)
 	}
 	again := m.inputFlags(flag.NewFlagSet("second", flag.ContinueOnError))
-	if err := again.collect(m.InputsFile, dir, false, false, func(_, _, _ string) (string, error) {
+	if err := again.collect(t.Context(), m.InputsFile, dir, false, false, func(_, _, _ string) (string, error) {
 		return "", errors.New("saved inputs should be reused")
 	}); err != nil {
 		t.Fatal(err)
