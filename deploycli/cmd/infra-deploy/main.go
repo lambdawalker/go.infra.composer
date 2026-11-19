@@ -19,6 +19,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -31,6 +32,10 @@ type Settings struct {
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
+			if err, ok := r.(error); ok && errors.Is(err, errQuit) {
+				note("Wizard closed.")
+				return
+			}
 			fmt.Fprintln(os.Stderr, r)
 			os.Exit(1)
 		}
@@ -57,6 +62,10 @@ func main() {
 		}
 	}
 	if e != nil {
+		if errors.Is(e, errQuit) {
+			note("Wizard closed.")
+			return
+		}
 		if errors.Is(e, flag.ErrHelp) {
 			return
 		}
@@ -96,19 +105,18 @@ func atomicWrite(path string, b []byte) error {
 	}
 	return os.Rename(name, path)
 }
-func vault(path string) (string, error) {
+func vault(path, pass string) (string, error) {
 	b, e := os.ReadFile(path)
 	fresh := os.IsNotExist(e)
 	if e != nil && !fresh {
 		return "", e
 	}
-	pass, e := secret("Local vault unlock passphrase:")
-	if e != nil || pass == "" {
-		return "", errors.New("vault unlock cancelled")
-	}
 	if fresh {
 		again, e := secret("Confirm vault passphrase:")
-		if e != nil || again != pass {
+		if e != nil {
+			return "", e
+		}
+		if again != pass {
 			return "", errors.New("passphrases differ")
 		}
 		b = make([]byte, 20)
@@ -146,11 +154,17 @@ func vault(path string) (string, error) {
 		return string(plain), nil
 	}
 	pulumiPass, e := secret("Pulumi passphrase (use the existing passphrase for an existing stack):")
-	if e != nil || pulumiPass == "" {
+	if e != nil {
+		return "", e
+	}
+	if pulumiPass == "" {
 		return "", errors.New("Pulumi passphrase required")
 	}
 	again, e := secret("Confirm Pulumi passphrase:")
-	if e != nil || again != pulumiPass {
+	if e != nil {
+		return "", e
+	}
+	if again != pulumiPass {
 		return "", errors.New("passphrases differ")
 	}
 	nonce := make([]byte, g.NonceSize())
@@ -348,6 +362,24 @@ func (cli deployCLI) run() (runErr error) {
 	if e != nil {
 		return e
 	}
+	var vaultPassphrase string
+	if *exportPath == "" {
+		if *ci && os.Getenv("PULUMI_CONFIG_PASSPHRASE") == "" {
+			return errors.New("PULUMI_CONFIG_PASSPHRASE secret required")
+		}
+		if !*ci {
+			vaultPassphrase, e = secret("Local vault passphrase")
+			if e != nil {
+				return e
+			}
+			if vaultPassphrase == "" {
+				return errors.New("vault passphrase required")
+			}
+		}
+	}
+	if *ci && *action == "github-setup" {
+		return errors.New("GitHub setup requires interactive review")
+	}
 	projectName, local, central, e := cli.projectPaths(root, *project, *ci)
 	if e != nil {
 		return e
@@ -393,16 +425,6 @@ func (cli deployCLI) run() (runErr error) {
 	if _, e = os.Stat(filepath.Join(root, "go.mod")); e != nil {
 		return errors.New("run from repository root or use deploy launcher")
 	}
-	if *action == "build" {
-		_, e := cli.build(ctx, root, *force)
-		return e
-	}
-	projectFlags.Version = 1
-	projectFlags.Environment = *env
-	flagsBytes, _ := json.MarshalIndent(projectFlags, "", "  ")
-	if e = atomicWrite(projectFlagsPath, flagsBytes); e != nil {
-		return e
-	}
 	private := filepath.Join(central, "environments", *env)
 	localEnv := filepath.Join(local, "environments", *env)
 	if e = privateDirectory(localEnv); e != nil {
@@ -441,15 +463,6 @@ func (cli deployCLI) run() (runErr error) {
 		if *memory < 128 || *memory > 10240 {
 			return errors.New("memory must be 128..10240 MB")
 		}
-		deploymentFlags.Version = 1
-		deploymentFlags.Memory = *memory
-		fb, _ := json.MarshalIndent(deploymentFlags, "", "  ")
-		if e = atomicWrite(deploymentFlagsPath, fb); e != nil {
-			return e
-		}
-		if e = atomicWrite(filepath.Join(localEnv, "flags.json"), fb); e != nil {
-			return e
-		}
 	}
 	saved := Settings{Version: 1, Environment: *env}
 	path := filepath.Join(private, "settings.json")
@@ -476,6 +489,22 @@ func (cli deployCLI) run() (runErr error) {
 			return errors.New("no saved settings to export")
 		}
 		return exportSettings(*exportPath, projectName, saved)
+	}
+	if !*ci {
+		legacyVault := ""
+		if projectName == cli.spec.PulumiProject {
+			legacyVault = filepath.Join(legacy, "vault.bin")
+		}
+		pass, err := loadProjectVault(filepath.Join(localEnv, "vault.bin"), legacyVault, vaultPassphrase)
+		if err != nil {
+			return err
+		}
+		vaultPassphrase = ""
+		restorePassphrase, err := setRunEnv("PULUMI_CONFIG_PASSPHRASE", pass)
+		if err != nil {
+			return err
+		}
+		defer restorePassphrase()
 	}
 	if *importPath != "" {
 		imported, err := importSettings(*importPath, projectName, *env)
@@ -527,7 +556,6 @@ func (cli deployCLI) run() (runErr error) {
 		if e = choose(profile, saved.Profile, "AWS SSO profile", profileDefault); e != nil {
 			return e
 		}
-		os.Setenv("AWS_PROFILE", *profile)
 	}
 	for _, v := range []struct {
 		p               *string
@@ -537,19 +565,108 @@ func (cli deployCLI) run() (runErr error) {
 			return e
 		}
 	}
-	if !regexp.MustCompile(`^[a-z]{2}(-[a-z]+)+-\d$`).MatchString(*region) {
+	needsInputs := *action == "setup" || *action == "preview" || *action == "deploy" || *action == "github-setup"
+	canCreateBucket := *action == "setup" || *action == "preview" || *action == "deploy"
+	if !*ci {
+		if *account == "" {
+			*account = saved.Account
+		}
+		if *backend == "" {
+			*backend = saved.Backend
+		}
+	}
+	options := githubOptions{target: cli.spec, Root: root, Role: *githubRole, Repository: *githubRepo, Environment: *githubEnv, Project: projectName, Policy: *githubPolicy, SecretVersion: *githubSecretVersion, Force: *forceReconcile, Private: private}
+	var reconcile, offeredGitHub bool
+	if !*ci {
+		if *backend == "" {
+			def := ""
+			label := "S3 state URL (s3://bucket/prefix)"
+			if canCreateBucket {
+				def = "new"
+				label = "S3 state URL (s3://bucket/prefix or new)"
+			}
+			for {
+				*backend = prompt(label, def)
+				if validBackend(*backend) || (canCreateBucket && *backend == "new") {
+					break
+				}
+				note("Enter an S3 state URL with a bucket and a prefix.")
+			}
+		}
+		if *action == "github-setup" || (cli.spec.GitHub.Prompt && !*skipGitHub && (*action == "setup" || *action == "deploy")) {
+			offeredGitHub = true
+			reconcile, e = options.collectGitHub(*env, *action == "github-setup" || *reconfigure)
+			if e != nil {
+				return e
+			}
+		}
+	}
+	if needsInputs {
+		if e = inputs.collect(cli.spec.InputsFile, private, *ci, *reconfigure, askInput); e != nil {
+			return e
+		}
+	}
+	if !*ci {
+		regionField := textReviewField("AWS region", region, "", validRegion)
+		accountField := textReviewField("AWS account", account, "auto", func(s string) bool {
+			return s == "auto" || pattern(`^\d{12}$`, s)
+		})
+		stateField := textReviewField("S3 state URL", backend, "", func(s string) bool {
+			return validBackend(s) || (canCreateBucket && s == "new")
+		})
+		if saved.Account != "" {
+			// These values identify the existing stack.
+			regionField.edit, accountField.edit, stateField.edit = nil, nil, nil
+		}
+		rows := []reviewField{
+			{label: "Project", value: func() string { return projectName }},
+			{label: "Environment", value: func() string { return *env }},
+			{label: "Action", value: func() string { return *action }},
+			textReviewField("AWS SSO profile", profile, "", func(s string) bool {
+				return validInput("text", s)
+			}),
+			regionField, accountField, stateField,
+		}
+		if offeredGitHub && !reconcile {
+			rows = append(rows, reviewField{label: "GitHub setup", value: func() string { return "Skip" }})
+		}
+		if cli.spec.Memory != 0 {
+			memoryValue := fmt.Sprint(*memory)
+			rows = append(rows, textReviewField("Lambda memory (MB)", &memoryValue, "", func(s string) bool {
+				n, err := strconv.Atoi(s)
+				if err == nil && n >= 128 && n <= 10240 {
+					*memory = n
+					return true
+				}
+				return false
+			}))
+		}
+		if reconcile {
+			rows = append(rows, options.reviewGitHub()...)
+		}
+		if needsInputs {
+			rows = append(rows, inputs.reviewFields()...)
+		}
+		if e = reviewSettings(rows); e != nil {
+			return e
+		}
+		if *account == "auto" {
+			*account = ""
+		}
+	}
+	if !validRegion(*region) {
 		return errors.New("valid region required")
 	}
 	if *ci && (*account == "" || *backend == "") {
 		return errors.New("--account and --backend required in CI")
 	}
-	if *account == "" {
-		*account = saved.Account
+	if *account != "" && !pattern(`^\d{12}$`, *account) {
+		return errors.New("valid AWS account required")
 	}
-	if *backend == "" {
-		*backend = saved.Backend
+	newBucket := !*ci && canCreateBucket && *backend == "new"
+	if !newBucket && !validBackend(*backend) {
+		return errors.New("valid S3 state location required")
 	}
-
 	if e = verifySavedTarget(saved, *account, *region, *backend); e != nil {
 		return e
 	}
@@ -557,9 +674,19 @@ func (cli deployCLI) run() (runErr error) {
 		if e = verifySSOProfile(ctx, *profile); e != nil {
 			return e
 		}
+		restoreProfile, err := setRunEnv("AWS_PROFILE", *profile)
+		if err != nil {
+			return err
+		}
+		defer restoreProfile()
 	}
-	os.Setenv("AWS_REGION", *region)
-	os.Setenv("AWS_DEFAULT_REGION", *region)
+	for _, key := range []string{"AWS_REGION", "AWS_DEFAULT_REGION"} {
+		restore, err := setRunEnv(key, *region)
+		if err != nil {
+			return err
+		}
+		defer restore()
+	}
 	for _, tool := range []string{"aws", "pulumi", "go"} {
 		if _, e = exec.LookPath(tool); e != nil {
 			return fmt.Errorf("install %s and add it to PATH", tool)
@@ -593,7 +720,7 @@ func (cli deployCLI) run() (runErr error) {
 		return errors.New("invalid AWS identity")
 	}
 	if *account != "" && *account != who.Account {
-		return errors.New("AWS account differs from saved/explicit target; use --reconfigure to deliberately change it")
+		return errors.New("AWS account differs from the selected target; choose a matching SSO profile or separate deployment scope")
 	}
 	if *ci && !strings.Contains(who.Arn, ":assumed-role/") {
 		return errors.New("CI requires an assumed role")
@@ -619,32 +746,12 @@ func (cli deployCLI) run() (runErr error) {
 			return errors.New("account selection cancelled")
 		}
 	}
-	if *backend == "" {
-		if *ci {
-			return errors.New("--backend required in CI")
-		}
-		heading("Do you have an S3 bucket for deployment state? [y/N]")
-		note("No: create a private, encrypted, versioned bucket automatically.")
-		existing, err := timedChoice(false)
+	if newBucket {
+		name, err := bootstrapBucket(ctx, private, *account, *region, cli.spec.BucketPrefix)
 		if err != nil {
 			return err
 		}
-		if existing {
-			name := prompt("S3 bucket name", "")
-			*backend = "s3://" + name + "/infra-composer/" + projectName
-		} else {
-			if *action == "status" || *action == "destroy" || *action == "report" || *action == "github-setup" {
-				return errors.New("select an existing state bucket for status/destroy")
-			}
-			name, err := bootstrapBucket(ctx, private, *account, *region, cli.spec.BucketPrefix)
-			if err != nil {
-				return err
-			}
-			*backend = "s3://" + name + "/infra-composer/" + projectName
-		}
-	}
-	if !regexp.MustCompile(`^s3://[a-z0-9.-]+/[^?\s]+$`).MatchString(*backend) {
-		return errors.New("valid S3 state location required")
+		*backend = "s3://" + name + "/infra-composer/" + projectName
 	}
 	heading("Deployment state")
 	detail("S3 location", *backend)
@@ -723,37 +830,38 @@ func (cli deployCLI) run() (runErr error) {
 		return e
 	}
 
-	if os.Getenv("PULUMI_CONFIG_PASSPHRASE") == "" {
-		if *ci {
-			return errors.New("PULUMI_CONFIG_PASSPHRASE secret required")
+	projectFlags.Version = 1
+	projectFlags.Environment = *env
+	flagsBytes, _ := json.MarshalIndent(projectFlags, "", "  ")
+	if e = atomicWrite(projectFlagsPath, flagsBytes); e != nil {
+		return e
+	}
+	if cli.spec.Memory != 0 {
+		flags, _ := json.MarshalIndent(struct{ Version, Memory int }{1, *memory}, "", "  ")
+		for _, dir := range []string{private, localEnv} {
+			if e = atomicWrite(filepath.Join(dir, "flags.json"), flags); e != nil {
+				return e
+			}
 		}
-		vaultPath := filepath.Join(localEnv, "vault.bin")
-		legacyVault := ""
-		if projectName == cli.spec.PulumiProject {
-			legacyVault = filepath.Join(legacy, "vault.bin")
-		}
-		pass, e := loadProjectVault(vaultPath, legacyVault)
-		if e != nil {
+	}
+	if needsInputs {
+		if e = inputs.save(cli.spec.InputsFile, private); e != nil {
 			return e
 		}
-		os.Setenv("PULUMI_CONFIG_PASSPHRASE", pass)
-		defer os.Unsetenv("PULUMI_CONFIG_PASSPHRASE")
 	}
-	githubOpts := githubOptions{target: cli.spec, Root: root, Settings: Settings{1, *env, *profile, *region, *account, *backend}, Role: *githubRole, Repository: *githubRepo, Environment: *githubEnv, Project: projectName, Policy: *githubPolicy, SecretVersion: *githubSecretVersion, Force: *forceReconcile, Private: private}
+	if reconcile {
+		options.Settings = Settings{1, *env, *profile, *region, *account, *backend}
+		options.variables = inputs.githubVariables()
+		if e = options.applyGitHub(ctx); e != nil {
+			return e
+		}
+	} else if offeredGitHub {
+		if e = atomicWrite(filepath.Join(private, "github-skipped"), []byte("skipped\n")); e != nil {
+			return e
+		}
+	}
 	if *action == "github-setup" {
-		if *ci {
-			return errors.New("GitHub setup requires interactive review")
-		}
-		if e = inputs.load(cli.spec.InputsFile, private, *ci, *reconfigure); e != nil {
-			return e
-		}
-		githubOpts.variables = inputs.githubVariables()
-		return githubWizard(ctx, githubOpts, true)
-	}
-	if cli.spec.GitHub.Prompt && !*ci && !*skipGitHub && (*action == "setup" || *action == "deploy") {
-		if e = githubWizard(ctx, githubOpts, *reconfigure); e != nil {
-			return e
-		}
+		return nil
 	}
 
 	dir := filepath.Join(root, cli.spec.PulumiDir)
@@ -844,9 +952,6 @@ func (cli deployCLI) run() (runErr error) {
 	if *action != "preview" && *action != "deploy" && *action != "setup" {
 		return errors.New("unknown action")
 	}
-	if e = inputs.load(cli.spec.InputsFile, private, *ci, *reconfigure); e != nil {
-		return e
-	}
 	if e = cli.spec.setMissingConfig(ctx, dir, stack); e != nil {
 		return e
 	}
@@ -863,10 +968,10 @@ func (cli deployCLI) run() (runErr error) {
 		config = append(config, [2]string{"deploymentProject", projectName}, [2]string{"deploymentEnvironment", *env})
 	}
 	for _, field := range inputs {
-		config = append(config, [2]string{strings.ToLower(field.spec.Name), *field.value})
+		config = append(config, [2]string{strings.ToLower(field.spec.Name), field.value})
 	}
 	for _, pair := range config {
-		if e = command(ctx, dir, "pulumi", "config", "set", pair[0], pair[1], "--stack", stack, "--non-interactive"); e != nil {
+		if e = command(ctx, dir, "pulumi", "config", "set", "--stack", stack, "--non-interactive", "--", pair[0], pair[1]); e != nil {
 			return e
 		}
 	}

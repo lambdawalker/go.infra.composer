@@ -8,32 +8,41 @@ import (
 	"net/mail"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 type featureInput struct {
-	spec  inputSpec
-	value *string
+	plannedInput
+	flag  *string
+	raw   string
+	value string
 }
 
 type featureInputs []featureInput
 
 func (m manifest) inputFlags(fs *flag.FlagSet) featureInputs {
-	var fields featureInputs
-	for _, f := range m.Inputs {
-		fields = append(fields, featureInput{f, fs.String(strings.ToLower(f.Name), "", f.Label)})
+	fields := make(featureInputs, len(m.inputPlan))
+	for i, plan := range m.inputPlan {
+		fields[i].plannedInput = plan
+		if plan.acceptsInput() {
+			fields[i].flag = fs.String(strings.ToLower(plan.spec.Name), "", plan.spec.Label)
+		}
 	}
 	return fields
 }
 
-func (inputs featureInputs) load(file, dir string, ci, reconfigure bool) error {
+type inputPrompt func(label, fallback, display string) (string, error)
+
+func (inputs featureInputs) collect(file, dir string, ci, reconfigure bool, ask inputPrompt) error {
 	if len(inputs) == 0 {
 		return nil
 	}
-	path := filepath.Join(dir, file)
 	var saved map[string]json.RawMessage
-	if b, err := os.ReadFile(path); err == nil {
+	if b, err := os.ReadFile(filepath.Join(dir, file)); err == nil {
 		var version int
 		if json.Unmarshal(b, &saved) != nil || json.Unmarshal(saved["Version"], &version) != nil || version != 1 {
 			return fmt.Errorf("invalid saved feature settings")
@@ -41,39 +50,121 @@ func (inputs featureInputs) load(file, dir string, ci, reconfigure bool) error {
 	} else if !os.IsNotExist(err) {
 		return err
 	}
-
-	out := map[string]any{"Version": 1}
-	for _, f := range inputs {
-		var prior string
-		if v, ok := saved[f.spec.Name]; ok && json.Unmarshal(v, &prior) != nil {
-			return fmt.Errorf("invalid saved %s", f.spec.Name)
-		}
-		if *f.value == "" {
-			switch {
-			case ci:
-				return fmt.Errorf("--%s required in CI", strings.ToLower(f.spec.Name))
-			case prior != "" && !reconfigure:
-				*f.value = prior
-			default:
-				*f.value = prompt(f.spec.Label, prior)
-			}
-		}
-		if !f.spec.valid(*f.value) {
-			return fmt.Errorf("invalid %s", f.spec.Label)
-		}
-		out[f.spec.Name] = *f.value
+	var savedRaw map[string]string
+	if data, ok := saved["ComposeInputs"]; ok && json.Unmarshal(data, &savedRaw) != nil {
+		return fmt.Errorf("invalid saved composition inputs")
 	}
-	raw, _ := json.MarshalIndent(out, "", "  ")
-	return atomicWrite(path, raw)
+
+	values := make(map[string]string, len(inputs))
+	for i := range inputs {
+		field := &inputs[i]
+		var err error
+		switch {
+		case field.flag == nil:
+			field.value, err = field.resolve("", values)
+		case *field.flag != "":
+			field.raw = *field.flag
+			field.value, err = field.resolve(field.raw, values)
+		case ci:
+			return fmt.Errorf("--%s required in CI", strings.ToLower(field.spec.Name))
+		default:
+			prior := savedRaw[field.spec.Name]
+			if field.spec.Compose == nil {
+				data, ok := saved[field.spec.Name]
+				if ok && json.Unmarshal(data, &prior) != nil {
+					return fmt.Errorf("invalid saved %s", field.spec.Name)
+				}
+			}
+			if prior != "" && !reconfigure {
+				field.raw = prior
+				field.value, err = field.resolve(prior, values)
+				if err == nil || field.spec.Compose == nil {
+					break
+				}
+			}
+			field.raw, field.value, err = field.read(prior, values, ask)
+		}
+		if err != nil {
+			return err
+		}
+		values[field.spec.Name] = field.value
+	}
+	return nil
 }
 
-func (s inputSpec) valid(value string) bool {
-	switch s.Kind {
+func (field featureInput) read(prior string, values map[string]string, ask inputPrompt) (string, string, error) {
+	fallback, display := prior, prior
+	if field.spec.Compose != nil {
+		display, _ = field.resolve(fallback, values)
+		if display == "" {
+			fallback = field.spec.Compose.DefaultInput
+			display, _ = field.resolve(fallback, values)
+		}
+		if display == "" {
+			fallback = ""
+		}
+	} else if !validInput(field.spec.Kind, prior) {
+		fallback, display = "", ""
+	}
+	for {
+		raw, err := ask(field.spec.Label, fallback, display)
+		if err != nil {
+			return "", "", err
+		}
+		resolved, err := field.resolve(raw, values)
+		if err == nil {
+			return raw, resolved, nil
+		}
+		note(err.Error())
+	}
+}
+
+func (inputs featureInputs) save(file, dir string) error {
+	if len(inputs) == 0 {
+		return nil
+	}
+	out := map[string]any{"Version": 1}
+	rawInputs := make(map[string]string)
+	for _, field := range inputs {
+		out[field.spec.Name] = field.value
+		if field.spec.Compose != nil && field.acceptsInput() {
+			rawInputs[field.spec.Name] = field.raw
+		}
+	}
+	if len(rawInputs) > 0 {
+		out["ComposeInputs"] = rawInputs
+	}
+	raw, err := json.MarshalIndent(out, "", "  ")
+	if err != nil {
+		return err
+	}
+	return atomicWrite(filepath.Join(dir, file), raw)
+}
+
+func inputKind(kind string) bool {
+	return kind == "email" || kind == "domain" || kind == "text"
+}
+
+var domainLabel = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$`)
+
+func validInput(kind, value string) bool {
+	switch kind {
 	case "email":
 		address, err := mail.ParseAddress(value)
 		return err == nil && address.Address == value
 	case "domain":
-		return pattern(`^[a-z0-9][a-z0-9.-]*[a-z0-9]$`, value)
+		if len(value) > 253 {
+			return false
+		}
+		for _, label := range strings.Split(value, ".") {
+			if !domainLabel.MatchString(label) {
+				return false
+			}
+		}
+		return true
+	case "text":
+		return len(value) > 0 && len(value) <= 4096 && utf8.ValidString(value) &&
+			strings.IndexFunc(value, unicode.IsControl) < 0
 	default:
 		return false
 	}
@@ -81,8 +172,10 @@ func (s inputSpec) valid(value string) bool {
 
 func (inputs featureInputs) githubVariables() map[string]string {
 	result := make(map[string]string, len(inputs))
-	for _, f := range inputs {
-		result[f.spec.GitHubVariable] = *f.value
+	for _, field := range inputs {
+		if field.spec.GitHubVariable != "" {
+			result[field.spec.GitHubVariable] = field.raw
+		}
 	}
 	return result
 }

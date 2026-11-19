@@ -11,25 +11,21 @@ import (
 )
 
 // Re-encrypt legacy vault contents with fresh nonce and new path binding; preserve the source.
-func loadProjectVault(path, legacy string) (string, error) {
+func loadProjectVault(path, legacy, pass string) (string, error) {
 	if _, e := os.Stat(path); e == nil {
-		return vault(path)
+		return vault(path, pass)
 	} else if !os.IsNotExist(e) {
 		return "", e
 	}
 	b, e := os.ReadFile(legacy)
 	if os.IsNotExist(e) {
-		return vault(path)
+		return vault(path, pass)
 	}
 	if e != nil {
 		return "", e
 	}
 	if len(b) < 20 || string(b[:4]) != "OCV1" {
 		return "", errors.New("invalid legacy vault; original preserved")
-	}
-	pass, e := secret("Unlock previous deployment vault to migrate it into .deploy:")
-	if e != nil {
-		return "", e
 	}
 	key, e := pbkdf2.Key(sha256.New, pass, b[4:20], 600000, 32)
 	if e != nil {

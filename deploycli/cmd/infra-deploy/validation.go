@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 )
@@ -67,4 +68,22 @@ func verifySSOProfile(ctx context.Context, profile string) error {
 		}
 	}
 	return fmt.Errorf("profile %q is not configured for Identity Center; run aws configure sso --profile %s", profile, profile)
+}
+
+func validRegion(region string) bool { return pattern(`^[a-z]{2}(-[a-z]+)+-\d$`, region) }
+
+func validBackend(backend string) bool { return pattern(`^s3://[a-z0-9.-]+/[^?\s]+$`, backend) }
+
+func setRunEnv(key, value string) (func(), error) {
+	old, present := os.LookupEnv(key)
+	if err := os.Setenv(key, value); err != nil {
+		return nil, err
+	}
+	return func() {
+		if present {
+			_ = os.Setenv(key, old)
+		} else {
+			_ = os.Unsetenv(key)
+		}
+	}, nil
 }
