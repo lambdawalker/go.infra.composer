@@ -153,7 +153,7 @@ func (inputs featureInputs) reviewFields() []reviewField {
 	fields := make([]reviewField, 0, len(inputs))
 	for i := range inputs {
 		field := &inputs[i]
-		row := reviewField{label: field.spec.Label, value: func() string { return field.value }}
+		row := reviewField{label: field.spec.Label, value: func() string { return field.display(field.value) }}
 		if field.acceptsInput() {
 			row.edit = func() error { return inputs.edit(i) }
 		}

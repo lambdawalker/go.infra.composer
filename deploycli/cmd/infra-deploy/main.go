@@ -650,6 +650,7 @@ func (cli deployCLI) run() (runErr error) {
 		if e = reviewSettings(rows); e != nil {
 			return e
 		}
+		inputs.showDNSGuidance()
 		if *account == "auto" {
 			*account = ""
 		}

@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"text/template"
+
+	"github.com/lambdawalker/go.infra.composer/deploycli/internal/dnsprovider"
 )
 
 type composeSpec struct {
@@ -197,6 +199,12 @@ func emailOnDomain(args map[string]string) (string, error) {
 
 func (p plannedInput) resolve(raw string, fields map[string]string) (string, error) {
 	if p.spec.Compose == nil {
+		if p.spec.Kind == "dnsProvider" {
+			if provider, ok := dnsprovider.Lookup(raw); ok {
+				return provider.ID, nil
+			}
+			return "", fmt.Errorf("%s: choose %s", p.spec.Label, dnsprovider.Choices())
+		}
 		if !validInput(p.spec.Kind, raw) {
 			return "", fmt.Errorf("invalid %s", p.spec.Label)
 		}
@@ -222,6 +230,10 @@ func (p plannedInput) resolve(raw string, fields map[string]string) (string, err
 	}
 	if !validInput(p.spec.Kind, value) {
 		return "", fmt.Errorf("%s: %s did not produce a valid %s value", p.spec.Label, p.spec.Compose.Function, p.spec.Kind)
+	}
+	if p.spec.Kind == "dnsProvider" {
+		provider, _ := dnsprovider.Lookup(value)
+		return provider.ID, nil
 	}
 	return value, nil
 }

@@ -13,6 +13,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/lambdawalker/go.infra.composer/deploycli/internal/dnsprovider"
 )
 
 type featureInput struct {
@@ -87,6 +89,9 @@ func (inputs featureInputs) collect(file, dir string, ci, reconfigure bool, ask 
 		if err != nil {
 			return err
 		}
+		if field.spec.Compose == nil {
+			field.raw = field.value
+		}
 		values[field.spec.Name] = field.value
 	}
 	return nil
@@ -106,13 +111,21 @@ func (field featureInput) read(prior string, values map[string]string, ask input
 	} else if !validInput(field.spec.Kind, prior) {
 		fallback, display = "", ""
 	}
+	label := field.spec.Label
+	if field.spec.Kind == "dnsProvider" {
+		label += " (" + dnsprovider.Choices() + ")"
+		display = field.display(display)
+	}
 	for {
-		raw, err := ask(field.spec.Label, fallback, display)
+		raw, err := ask(label, fallback, display)
 		if err != nil {
 			return "", "", err
 		}
 		resolved, err := field.resolve(raw, values)
 		if err == nil {
+			if field.spec.Compose == nil {
+				raw = resolved
+			}
 			return raw, resolved, nil
 		}
 		note(err.Error())
@@ -142,7 +155,7 @@ func (inputs featureInputs) save(file, dir string) error {
 }
 
 func inputKind(kind string) bool {
-	return kind == "email" || kind == "domain" || kind == "text"
+	return kind == "email" || kind == "domain" || kind == "text" || kind == "dnsProvider"
 }
 
 var domainLabel = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$`)
@@ -162,11 +175,33 @@ func validInput(kind, value string) bool {
 			}
 		}
 		return true
+	case "dnsProvider":
+		_, ok := dnsprovider.Lookup(value)
+		return ok
 	case "text":
 		return len(value) > 0 && len(value) <= 4096 && utf8.ValidString(value) &&
 			strings.IndexFunc(value, unicode.IsControl) < 0
 	default:
 		return false
+	}
+}
+
+func (field featureInput) display(value string) string {
+	if field.spec.Kind == "dnsProvider" {
+		if provider, ok := dnsprovider.Lookup(value); ok {
+			return provider.Name
+		}
+	}
+	return value
+}
+
+func (inputs featureInputs) showDNSGuidance() {
+	for _, field := range inputs {
+		if field.spec.Kind == "dnsProvider" {
+			if provider, ok := dnsprovider.Lookup(field.value); ok {
+				note(provider.Guidance)
+			}
+		}
 	}
 }
 

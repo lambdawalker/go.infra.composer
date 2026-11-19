@@ -160,3 +160,28 @@ Run these commands in `deploycli/`. The two feature fixtures exercise the same
 engine with fake AWS/Pulumi/Go commands. The tests cover target discovery,
 saved plans, explicit CI approval, existing settings, prompt editing and
 report sanitization. The tests do not connect to cloud services.
+
+## Select a DNS provider
+
+For a project that needs a DNS hosting choice, add an input of kind
+`dnsProvider` to its `Inputs` list.
+
+```json
+{
+  "Name": "DNSProvider",
+  "Label": "Who hosts the domain's public DNS?",
+  "Kind": "dnsProvider",
+  "GitHubVariable": "BENCH_DNS_PROVIDER"
+}
+```
+
+The wizard offers AWS Route 53 and Cloudflare. Choose the service answering
+public DNS for the relevant zone, which can differ from the domain registrar.
+The choice is editable before sign-in and remembered per environment. The CLI
+stores the canonical ID (`route53` or `cloudflare`) and passes it as the
+`dnsprovider` Pulumi configuration key. CI passes it explicitly as
+`--dnsprovider`. Selecting the provider only saves the choice and displays
+instructions for adding records.
+
+DNS providers live in [`internal/dnsprovider`](internal/dnsprovider), with one
+source file per provider and a shared list of selectable providers.
