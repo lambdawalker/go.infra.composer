@@ -11,12 +11,14 @@ import (
 	"runtime"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/x/term"
 )
 
 var countdownStep = time.Second
 var errCancelled = errors.New("input closed or cancelled")
+var errQuit = errors.New("wizard closed")
 
 type inputEvent struct {
 	data []byte
@@ -27,24 +29,29 @@ type inputEvent struct {
 // over expiry; partial text disables the default timer until Enter is pressed.
 func askLoop(ctx context.Context, events <-chan inputEvent, ticks <-chan time.Time, def string, choice bool, render func(int, string)) (string, error) {
 	remaining := 5
-	value := ""
-	render(remaining, value)
+	entered := false
+	var value []byte
+	render(remaining, "")
 	consume := func(ev inputEvent) (string, bool, error) {
 		if ev.err != nil {
 			return "", true, errCancelled
 		}
 		for _, c := range ev.data {
 			switch c {
+			case 17:
+				return "", true, errQuit
 			case 3, 4, 27:
 				return "", true, errCancelled
 			case '\r', '\n':
-				if value == "" {
+				if len(value) == 0 {
 					return def, true, nil
 				}
-				return strings.TrimSpace(value), true, nil
+				return strings.TrimSpace(string(value)), true, nil
 			case 8, 127:
+				entered = true
 				if len(value) > 0 {
-					value = value[:len(value)-1]
+					_, size := utf8.DecodeLastRune(value)
+					value = value[:len(value)-size]
 				}
 			default:
 				if c < 32 {
@@ -62,10 +69,13 @@ func askLoop(ctx context.Context, events <-chan inputEvent, ticks <-chan time.Ti
 				if len(value) >= 4096 {
 					return "", true, errCancelled
 				}
-				value += string(c)
+				entered = true
+				value = append(value, c)
 			}
 		}
-		render(remaining, value)
+		if entered {
+			render(0, string(value))
+		}
 		return "", false, nil
 	}
 	for {
@@ -91,25 +101,32 @@ func askLoop(ctx context.Context, events <-chan inputEvent, ticks <-chan time.Ti
 				}
 			default:
 			}
-			if def == "" || value != "" {
+			if def == "" || entered {
 				continue
 			}
 			remaining--
 			if remaining == 0 {
 				return def, nil
 			}
-			render(remaining, value)
+			render(remaining, string(value))
 		}
 	}
 }
 
-// A cancellable child owns reads. Killing and joining it on EVERY exit avoids
-// readers surviving a prompt and consuming input intended for the next prompt.
 func ask(label, def string, choice, hidden bool) (string, error) {
+	return askWithDefault(label, def, def, choice, hidden)
+}
+
+func askInput(label, fallback, display string) (string, error) {
+	return askWithDefault(label, fallback, display, false, false)
+}
+
+// The read child is joined on every exit so a prompt cannot consume the next prompt's input.
+func withPromptInput(requireTerminal bool, read func(context.Context, <-chan inputEvent, bool) (string, error)) (string, error) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	terminal := term.IsTerminal(os.Stdin.Fd())
-	if hidden && !terminal {
+	if requireTerminal && !terminal {
 		return "", errors.New("secret input requires a terminal")
 	}
 	if terminal {
@@ -163,49 +180,56 @@ func ask(label, def string, choice, hidden bool) (string, error) {
 		}
 	}()
 	defer func() { cancel(); _ = c.Process.Kill(); _ = pipe.Close(); <-done; _ = c.Wait() }()
-	fmt.Printf("  %s", label)
-	if def != "" {
-		fmt.Printf(" [%s]; Enter accepts; default in 5 seconds", def)
-	} else {
-		fmt.Print(" (explicit input required; no timeout)")
-	}
-	if terminal {
-		fmt.Print("\r\n")
-	} else {
-		fmt.Print("\n")
-	}
-	live := interactiveOutput()
-	defer func() {
-		finishCountdown(os.Stdout, live)
-		if live {
-			fmt.Print("\r\n")
-		}
-	}()
-	var ticks <-chan time.Time
-	if def != "" {
-		ticker := time.NewTicker(countdownStep)
-		defer ticker.Stop()
-		ticks = ticker.C
-	}
-	result, err := askLoop(ctx, events, ticks, def, choice, func(n int, v string) {
-		if !live {
-			return
-		}
-		display := v
-		if hidden {
-			display = strings.Repeat("*", len(v))
-		}
-		if v == "" && def != "" {
-			fmt.Printf("\r  %-70.70s", fmt.Sprintf("Using %s in %ds | Enter accepts | Esc/Ctrl+C cancels", def, n))
-		} else {
-			fmt.Printf("\r  %-70.70s", "> "+display)
-		}
-	})
-	if errors.Is(err, io.EOF) {
-		err = errCancelled
-	}
-	return result, err
+	return read(ctx, events, terminal)
 }
+
+func askWithDefault(label, def, displayDefault string, choice, hidden bool) (string, error) {
+	return withPromptInput(hidden, func(ctx context.Context, events <-chan inputEvent, terminal bool) (string, error) {
+		fmt.Printf("  %s", label)
+		if def != "" {
+			fmt.Printf(" [%s]; Enter accepts; default in 5 seconds", displayDefault)
+		} else {
+			fmt.Print(" (explicit input required; no timeout)")
+		}
+		if terminal {
+			fmt.Print("\r\n")
+		} else {
+			fmt.Print("\n")
+		}
+		live := interactiveOutput()
+		defer func() {
+			finishCountdown(os.Stdout, live)
+			if live {
+				fmt.Print("\r\n")
+			}
+		}()
+		var ticks <-chan time.Time
+		if def != "" {
+			ticker := time.NewTicker(countdownStep)
+			defer ticker.Stop()
+			ticks = ticker.C
+		}
+		result, err := askLoop(ctx, events, ticks, def, choice, func(n int, v string) {
+			if !live {
+				return
+			}
+			display := v
+			if hidden {
+				display = strings.Repeat("*", len(v))
+			}
+			if n > 0 && v == "" && def != "" {
+				fmt.Printf("\r  %-70.70s", fmt.Sprintf("Using %s in %ds | Enter accepts | Ctrl+Q quits", displayDefault, n))
+			} else {
+				fmt.Printf("\r  %-70.70s", "> "+display)
+			}
+		})
+		if errors.Is(err, io.EOF) {
+			err = errCancelled
+		}
+		return result, err
+	})
+}
+
 func prompt(label, def string) string {
 	v, e := ask(label, def, false, false)
 	if e != nil {

@@ -56,7 +56,7 @@ func TestReadLegacyEmailHostSettings(t *testing.T) {
 	if err := os.WriteFile(path, old, 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := inputs.load(spec.InputsFile, dir, false, false); err != nil {
+	if err := inputs.collect(spec.InputsFile, dir, false, false, askInput); err != nil {
 		t.Fatal(err)
 	}
 	vars := inputs.githubVariables()

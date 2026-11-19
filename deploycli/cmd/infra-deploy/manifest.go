@@ -32,8 +32,10 @@ type manifest struct {
 	Outputs        []string
 	InputsFile     string
 	Inputs         []inputSpec
+	Functions      map[string]functionSpec
 	ConfigDefaults map[string]string
 	GitHub         githubSpec
+	inputPlan      []plannedInput
 }
 
 type githubSpec struct {
@@ -48,6 +50,7 @@ type inputSpec struct {
 	Label          string
 	Kind           string
 	GitHubVariable string
+	Compose        *composeSpec
 }
 
 type deployCLI struct{ spec manifest }
@@ -80,7 +83,7 @@ func readManifest(root string) (manifest, error) {
 	return m, nil
 }
 
-func (m manifest) validate() error {
+func (m *manifest) validate() error {
 	if m.Version != 1 {
 		return fmt.Errorf("unsupported deploy.json version %d", m.Version)
 	}
@@ -110,16 +113,30 @@ func (m manifest) validate() error {
 		name := strings.ToLower(input.Name)
 		// Reserve all built-in flags and the corresponding Pulumi configuration keys.
 		if !pattern(`^[A-Za-z][A-Za-z0-9]*$`, input.Name) || seenFlags[name] ||
-			strings.Contains("|environment|action|profile|region|account|backend|approve|project|workers|memory|archive|deploymentproject|deploymentenvironment|h|help|", "|"+name+"|") {
+			strings.Contains("|environment|action|profile|region|account|backend|approve|project|workers|memory|archive|deploymentproject|deploymentenvironment|version|composeinputs|h|help|", "|"+name+"|") {
 			return fmt.Errorf("invalid or duplicate feature flag %q", name)
 		}
-		if input.Label == "" || (input.Kind != "email" && input.Kind != "domain") {
+		if input.Label == "" || !inputKind(input.Kind) {
 			return fmt.Errorf("invalid feature input %q", name)
 		}
-		if !pattern(`^BENCH_[A-Z0-9_]+$`, input.GitHubVariable) || seenVariables[input.GitHubVariable] {
-			return fmt.Errorf("invalid or duplicate GitHub variable %q", input.GitHubVariable)
+		seenFlags[name] = true
+	}
+	plan, err := planInputs(m.Inputs, m.Functions)
+	if err != nil {
+		return err
+	}
+	for _, input := range plan {
+		variable := input.spec.GitHubVariable
+		if !input.acceptsInput() {
+			if variable != "" {
+				return fmt.Errorf("derived input %s cannot have a GitHub variable", input.spec.Name)
+			}
+			continue
 		}
-		seenFlags[name], seenVariables[input.GitHubVariable] = true, true
+		if !pattern(`^BENCH_[A-Z0-9_]+$`, variable) || seenVariables[variable] {
+			return fmt.Errorf("invalid or duplicate GitHub variable %q", variable)
+		}
+		seenVariables[variable] = true
 	}
 	for k := range m.ConfigDefaults {
 		if !pattern(`^[A-Za-z][A-Za-z0-9]*$`, k) || seenFlags[strings.ToLower(k)] ||
@@ -132,6 +149,7 @@ func (m manifest) validate() error {
 		(m.GitHub.ManagedPolicy != "" && !pattern(`^[A-Za-z0-9+=,.@_-]{1,128}$`, m.GitHub.ManagedPolicy)) {
 		return fmt.Errorf("invalid GitHub workflow, environment prefix or managed policy name")
 	}
+	m.inputPlan = plan
 	return nil
 }
 

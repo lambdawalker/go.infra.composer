@@ -22,7 +22,7 @@ writing identity configuration.
 | `BucketPrefix` | Name prefix for newly authorized S3 state storage |
 | `BuildPackage`, `BuildDir` | Go Lambda package and archive directory under `dist/` |
 | `Memory`, `StackIdentity` | Optional Lambda memory setting and opt-in ownership verification for programs with a compatible `deploymentIdentity` output |
-| `InputsFile`, `Inputs`, `ConfigDefaults` | Optional versioned nonsecret settings, validated input flags, and defaults written only for missing Pulumi keys |
+| `InputsFile`, `Inputs`, `Functions`, `ConfigDefaults` | Optional versioned nonsecret settings, validated input flags, composition functions, and defaults written only for missing Pulumi keys |
 | `Outputs` | Allowlist of nonsecret string outputs for status and persisted output receipts |
 | `GitHub` | Workflow and environment prefix. A managed policy name enables reviewed role/policy setup. Without one, GitHub setup uses an existing protected environment, OIDC provider and explicitly supplied role. |
 
@@ -40,10 +40,92 @@ infra-deploy --action preview --environment dev
 ```
 
 Run `--help` from that checkout to see its commands and input flags. Plain
-interactive use defaults to deploy. Text input stops the five-second default
-timer. CI uses explicit target arguments, an assumed role and a separate deploy
+interactive use defaults to deploy. The wizard asks for the local vault
+passphrase before collecting settings. On first use, it also asks you to
+confirm the vault passphrase and enter the Pulumi passphrase for the stack.
+
+The review screen displays nonsecret values before AWS or GitHub sign-in.
+Use Tab and Enter to open an editable field. Smaller terminals show a numbered
+menu. Choose Continue to sign in and run target checks. Project and environment
+select the vault and receipt scope at startup. An existing account, region and
+S3 state URL are tied to that scope. Use `--environment` for a different
+deployment environment. Ctrl+Q exits during prompts or review. Active external
+commands use Ctrl+C. Text input stops the five-second default timer.
+
+CI uses explicit target arguments, an assumed role and a separate deploy
 approval. Deletion, replacement and teardown require deliberate interactive
 confirmation.
+
+## Compose deployment inputs
+
+A field's `Compose.Function` selects a built-in or project function.
+`Compose.Parameters` binds the function's named arguments. Each argument
+can come from `userInput` (at most one per field), a resolved `field` by
+exact name, or a `literal` string. `DefaultInput` belongs to the prompt and
+supplies raw input when the user accepts the displayed composed default.
+Omit it to require input on the first run.
+
+This fragment uses the built-in `emailOnDomain` for the SES sender and
+declares a project function for deriving a hostname. Put these entries
+alongside the other fields in `deploy.json`.
+
+```json
+{
+  "Functions": {
+    "prefixedDomain": {
+      "Parameters": {"Prefix": "text", "Domain": "domain"},
+      "Result": "domain",
+      "Template": "{{lower .Prefix}}.{{.Domain}}"
+    }
+  },
+  "Inputs": [
+    {
+      "Name": "Sender", "Label": "SES sender", "Kind": "email",
+      "GitHubVariable": "BENCH_SENDER",
+      "Compose": {
+        "Function": "emailOnDomain",
+        "DefaultInput": "verify",
+        "Parameters": {
+          "Address": {"Source": "userInput"},
+          "Domain": {"Source": "field", "Name": "SenderDomain"}
+        }
+      }
+    },
+    {
+      "Name": "DemoHost", "Label": "Demo host", "Kind": "domain",
+      "Compose": {
+        "Function": "prefixedDomain",
+        "Parameters": {
+          "Prefix": {"Source": "literal", "Value": "demo"},
+          "Domain": {"Source": "field", "Name": "SenderDomain"}
+        }
+      }
+    },
+    {
+      "Name": "SenderDomain", "Label": "Sender domain", "Kind": "domain",
+      "GitHubVariable": "BENCH_SENDER_DOMAIN"
+    }
+  ]
+}
+```
+
+With `asdf.com`, Enter accepts `verify@asdf.com`, `email-verify` becomes
+`email-verify@asdf.com`, and a complete address on another domain is rejected.
+The derived `DemoHost` becomes `demo.asdf.com`. Input declaration order is
+flexible. The CLI resolves dependencies before their consumers and rejects
+unknown fields, repeated dependencies, and cycles before prompting.
+
+Project functions receive named string arguments with declared kinds
+(`text`, `email`, or `domain`). Their Go text templates evaluate locally
+with helpers `lower`, `trim`, and `reject`. Use `reject "message"` to
+return a validation error. The CLI validates the result against the output
+field's kind. Function names and parameter bindings are checked at startup.
+
+A field with no `userInput` binding is derived. Omit its `GitHubVariable`.
+For prompted fields, flags and GitHub variables carry the raw input. The CLI
+keeps the raw value for future edits and sends the resolved value to Pulumi.
+When migrating a plain field to a prompted composition, enter its raw value
+again or accept the new default. CI must supply all prompted values explicitly.
 
 ## Adopt an existing deployment
 
@@ -78,3 +160,28 @@ Run these commands in `deploycli/`. The two feature fixtures exercise the same
 engine with fake AWS/Pulumi/Go commands. The tests cover target discovery,
 saved plans, explicit CI approval, existing settings, prompt editing and
 report sanitization. The tests do not connect to cloud services.
+
+## Select a DNS provider
+
+For a project that needs a DNS hosting choice, add an input of kind
+`dnsProvider` to its `Inputs` list.
+
+```json
+{
+  "Name": "DNSProvider",
+  "Label": "Who hosts the domain's public DNS?",
+  "Kind": "dnsProvider",
+  "GitHubVariable": "BENCH_DNS_PROVIDER"
+}
+```
+
+The wizard offers AWS Route 53 and Cloudflare. Choose the service answering
+public DNS for the relevant zone, which can differ from the domain registrar.
+The choice is editable before sign-in and remembered per environment. The CLI
+stores the canonical ID (`route53` or `cloudflare`) and passes it as the
+`dnsprovider` Pulumi configuration key. CI passes it explicitly as
+`--dnsprovider`. Selecting the provider only saves the choice and displays
+instructions for adding records.
+
+DNS providers live in [`internal/dnsprovider`](internal/dnsprovider), with one
+source file per provider and a shared list of selectable providers.
