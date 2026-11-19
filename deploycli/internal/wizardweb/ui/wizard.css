@@ -1,0 +1,104 @@
+:root {
+  color-scheme: light;
+  --ink: #172339;
+  --hint: #526177;
+  --line: #dbe3eb;
+  --surface: #fff;
+  --accent: #2452a4;
+  --accent-hover: #1d4184;
+  --wash: #e8f0fd;
+  --green: #17694f;
+  --red: #9c2934;
+  --page: #f3f6fa;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--page); color: var(--ink); font-size: 15px; line-height: 1.55; }
+.topbar {
+  height: 64px; padding: 0 max(24px, calc((100vw - 1160px) / 2)); display: flex;
+  align-items: center; justify-content: space-between; background: #16253d; color: #f4f7ff;
+}
+.brand { display: flex; align-items: center; gap: 12px; font-weight: 680; letter-spacing: .01em; }
+.brand-mark { width: 18px; height: 18px; border-radius: 4px; background: #91b8ff; box-shadow: inset 0 -6px 0 #4d7bd2; }
+.local { display: flex; align-items: center; gap: 8px; font-size: .875rem; color: #d4dfef; }
+.local span { width: 8px; height: 8px; background: #78d8b5; border-radius: 50%; }
+.shell { max-width: 1208px; padding: 38px 24px 72px; margin: 0 auto; }
+.overview { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 26px; }
+.context { margin: 0 0 4px; font-size: .86rem; color: var(--accent); font-weight: 650; }
+h1, h2, p { margin-top: 0; }
+h1 { font-size: clamp(1.8rem, 4vw, 2.65rem); line-height: 1.16; letter-spacing: -.04em; margin-bottom: 0; overflow-wrap: anywhere; }
+h2 { font-size: 1.12rem; line-height: 1.35; letter-spacing: -.012em; margin-bottom: 0; }
+.layout { display: grid; grid-template-columns: minmax(158px, 208px) minmax(0, 1fr); align-items: start; gap: 24px; }
+.progress, .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.progress { padding: 19px 15px; }
+.progress h2 { margin: 0 0 12px 9px; font-size: .95rem; }
+.progress ol { list-style: none; padding: 0; margin: 0; }
+.progress li { padding: 8px 9px; display: flex; align-items: center; gap: 11px; color: var(--hint); border-radius: 8px; }
+.progress li + li { margin-top: 3px; }
+.progress li::before { content: ""; width: 10px; height: 10px; border-radius: 50%; border: 1px solid #8291a5; flex: none; }
+.progress li.active { background: var(--wash); color: var(--accent); font-weight: 650; }
+.progress li.active::before { border: 3px solid var(--accent); }
+.progress li.passed { color: var(--green); }
+.progress li.passed::before { border-color: var(--green); background: var(--green); }
+.content { display: grid; gap: 18px; }
+.panel { box-shadow: 0 4px 18px rgba(36, 56, 86, .045); overflow: hidden; }
+.panel-heading, .section-heading { padding: 22px 26px 0; }
+.section-heading p { margin: 4px 0 0; color: var(--hint); }
+.panel-heading h2 { font-size: 1.5rem; margin: 8px 0 0; overflow-wrap: anywhere; }
+.status { display: inline-block; border-radius: 999px; padding: 3px 9px; background: #edf2f7; color: #3d536d; font-weight: 650; font-size: .79rem; }
+.status[data-status="running"] { background: var(--wash); color: var(--accent); }
+.status[data-status="complete"] { background: #e3f4ec; color: var(--green); }
+.status[data-status="failed"] { background: #fce9ed; color: var(--red); }
+.panel-body { padding: 20px 26px 26px; min-height: 58px; }
+.panel-body p { margin: 0 0 14px; color: var(--hint); }
+form { display: grid; gap: 13px; max-width: 430px; }
+input, select, .button { font: inherit; min-height: 42px; }
+input, select {
+  display: block; width: 100%; padding: 9px 11px; border: 1px solid #9caac0;
+  border-radius: 8px; background: var(--surface); color: var(--ink);
+}
+input::placeholder { color: #627087; opacity: 1; }
+.button { border-radius: 8px; border: 1px solid transparent; padding: 8px 15px; font-weight: 650; cursor: pointer; text-decoration: none; }
+.button.primary { color: white; background: var(--accent); }
+.button.primary:hover { background: var(--accent-hover); }
+.button.outline { color: var(--ink); border-color: #aab7c9; background: var(--surface); }
+.button.outline:hover { background: #ecf2fc; }
+.button.small { min-height: 36px; padding: 5px 11px; font-size: .88rem; }
+.button:disabled { opacity: .55; cursor: default; }
+:focus-visible { outline: 3px solid #517ecb; outline-offset: 3px; }
+.buttons, #sign-in-actions { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; }
+form .button { justify-self: start; }
+.review, .changes { width: 100%; border-collapse: collapse; text-align: left; }
+.review { margin-bottom: 16px; }
+.review td, .review th, .changes td, .changes th { padding: 10px 0; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.review th { width: 45%; font-weight: 600; }
+.review td, .changes td { overflow-wrap: anywhere; }
+.review td:last-child { padding-left: 10px; text-align: right; }
+.changes th:first-child, .changes td:first-child { min-width: 106px; padding-right: 14px; }
+#preview-changes { padding: 14px 26px 24px; }
+#sign-in-actions { margin: 14px 26px; }
+pre, #events { white-space: pre-wrap; overflow-wrap: anywhere; }
+pre { margin: 0 26px 22px; color: var(--hint); }
+#events { margin: 14px 24px 22px 26px; padding: 0; list-style: none; max-height: 260px; overflow-y: auto; font-family: ui-monospace, monospace; color: var(--ink); font-size: .82rem; }
+#events li { padding: 7px 10px; border-bottom: 1px solid #e9eef4; }
+#events li:nth-child(odd) { background: #f7f9fc; }
+.muted { color: var(--hint); }
+.problem, .connection { color: var(--red) !important; overflow-wrap: anywhere; }
+.connection { margin: 0; padding: 0 26px 20px; }
+.sr-only { position: absolute; clip-path: inset(50%); width: 1px; height: 1px; overflow: hidden; white-space: nowrap; }
+@media (max-width: 720px) {
+  .topbar { padding: 0 16px; height: 55px; }
+  .shell { padding: 22px 14px 44px; }
+  .overview { align-items: flex-start; gap: 12px; }
+  .layout { grid-template-columns: 1fr; gap: 14px; }
+  .progress { padding: 9px; }
+  .progress h2 { position: absolute; clip-path: inset(50%); }
+  .progress ol { display: flex; overflow-x: auto; gap: 4px; }
+  .progress li, .progress li + li { margin: 0; flex: none; font-size: .83rem; gap: 5px; padding: 6px 8px; }
+  .progress li::before { width: 7px; height: 7px; }
+  .panel-heading, .panel-body, .section-heading, #preview-changes { padding-left: 16px; padding-right: 16px; }
+  #events { margin-left: 16px; margin-right: 16px; }
+  .review th { width: auto; }
+  .review td { padding-left: 8px; }
+}

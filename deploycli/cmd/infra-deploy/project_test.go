@@ -14,17 +14,17 @@ func TestProjectRememberedAndScoped(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	root := t.TempDir()
-	name, local, central, e := fixture(t, "ocr").projectPaths(root, "test-project", false)
+	name, local, central, e := fixture(t, "ocr").projectPaths(t.Context(), root, "test-project", false)
 	if e != nil || name != "test-project" || local != filepath.Join(root, ".deploy") || !strings.Contains(central, ".infra-composer") {
 		t.Fatal(name, local, central, e)
 	}
-	if _, _, _, e = fixture(t, "ocr").projectPaths(root, "", true); e != nil {
+	if _, _, _, e = fixture(t, "ocr").projectPaths(t.Context(), root, "", true); e != nil {
 		t.Fatal(e)
 	}
-	if _, _, _, e = fixture(t, "ocr").projectPaths(t.TempDir(), "test-project", true); e == nil {
+	if _, _, _, e = fixture(t, "ocr").projectPaths(t.Context(), t.TempDir(), "test-project", true); e == nil {
 		t.Fatal("project collision accepted")
 	}
-	if _, _, _, e = fixture(t, "ocr").projectPaths(root, "../escape", true); e == nil {
+	if _, _, _, e = fixture(t, "ocr").projectPaths(t.Context(), root, "../escape", true); e == nil {
 		t.Fatal("scope override accepted")
 	}
 }

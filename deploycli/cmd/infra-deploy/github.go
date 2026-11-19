@@ -42,9 +42,15 @@ func setupGitHub(ctx context.Context, o githubOptions) error {
 		}
 		return b, nil
 	}
+	ui := wizard(ctx)
+	ui.phase("prepare", "Review GitHub deployment setup")
 	return reconcileGitHub(o, run, func(plan string) error {
-		fmt.Println(plan)
-		return deliberate("Type the GitHub environment to authorize these setup changes", o.Environment)
+		if ui.browser != nil {
+			ui.note(plan)
+		} else {
+			fmt.Println(plan)
+		}
+		return wizard(ctx).deliberate("Type the GitHub environment to authorize these setup changes", o.Environment)
 	})
 }
 func canonicalHash(v any) string {

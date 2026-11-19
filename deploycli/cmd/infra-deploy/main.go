@@ -22,6 +22,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/lambdawalker/go.infra.composer/deploycli/internal/wizardweb"
 )
 
 type Settings struct {
@@ -105,14 +107,14 @@ func atomicWrite(path string, b []byte) error {
 	}
 	return os.Rename(name, path)
 }
-func vault(path, pass string) (string, error) {
+func vault(ctx context.Context, path, pass string) (string, error) {
 	b, e := os.ReadFile(path)
 	fresh := os.IsNotExist(e)
 	if e != nil && !fresh {
 		return "", e
 	}
 	if fresh {
-		again, e := secret("Confirm vault passphrase:")
+		again, e := wizard(ctx).secret("Confirm vault passphrase:")
 		if e != nil {
 			return "", e
 		}
@@ -153,14 +155,14 @@ func vault(path, pass string) (string, error) {
 		defer clear(plain)
 		return string(plain), nil
 	}
-	pulumiPass, e := secret("Pulumi passphrase (use the existing passphrase for an existing stack):")
+	pulumiPass, e := wizard(ctx).secret("Pulumi passphrase (use the existing passphrase for an existing stack):")
 	if e != nil {
 		return "", e
 	}
 	if pulumiPass == "" {
 		return "", errors.New("Pulumi passphrase required")
 	}
-	again, e := secret("Confirm Pulumi passphrase:")
+	again, e := wizard(ctx).secret("Confirm Pulumi passphrase:")
 	if e != nil {
 		return "", e
 	}
@@ -175,14 +177,13 @@ func vault(path, pass string) (string, error) {
 	b = g.Seal(b, nonce, []byte(pulumiPass), aad)
 	return pulumiPass, atomicWrite(path, b)
 }
-func confirm() error {
-	heading("Deploy the previewed changes? [Y/n]")
-	yes, err := timedChoice(true)
+func confirm(ctx context.Context, target ...string) error {
+	yes, err := wizard(ctx).choose("Deploy the previewed changes? [Y/n]", "Apply saved plan", true, target...)
 	if err != nil {
 		return err
 	}
 	if !yes {
-		return errors.New("deployment cancelled")
+		return wizard(ctx).declined("deployment cancelled")
 	}
 	return nil
 }
@@ -211,7 +212,7 @@ func (cli deployCLI) build(ctx context.Context, root string, force bool) (string
 	if b, e := os.ReadFile(archive); e == nil && !force {
 		sum := sha256.Sum256(b)
 		if old.Input == fingerprint && old.Artifact == hex.EncodeToString(sum[:]) {
-			note("Build: reusing verified Lambda archive")
+			wizard(ctx).note("Build: reusing verified Lambda archive")
 			return archive, nil
 		}
 	}
@@ -271,9 +272,14 @@ func (cli deployCLI) build(ctx context.Context, root string, force bool) (string
 	manifest, _ := json.Marshal(struct{ Input, Artifact string }{fingerprint, hex.EncodeToString(sum[:])})
 	return archive, atomicWrite(marker, manifest)
 }
-func (cli deployCLI) run() (runErr error) {
+func (cli deployCLI) run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
+	return cli.runWizard(ctx, os.Args[1:])
+}
+
+func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error) {
+	ui := wizard(ctx)
 	fs := flag.NewFlagSet("infra-deploy", flag.ContinueOnError)
 	env := fs.String("environment", "", "isolated environment")
 	action := fs.String("action", "", "setup, build, clean-cache, preview, deploy, status, destroy, github-setup, report (default: deploy interactively, preview in CI)")
@@ -282,6 +288,8 @@ func (cli deployCLI) run() (runErr error) {
 	account := fs.String("account", "", "expected AWS account")
 	backend := fs.String("backend", "", "s3://bucket/dedicated-prefix")
 	ci := fs.Bool("non-interactive", false, "complete explicit inputs required")
+	server := fs.Bool("server", false, "open the interactive wizard in a local web browser")
+	noOpen := fs.Bool("no-open", false, "print the browser URL without opening it (requires --server)")
 	approve := fs.Bool("approve", false, "explicit apply approval")
 	project := fs.String("project", "", "deployment project name (saved after first run)")
 	_ = fs.Bool("init-stack", false, "deprecated: stacks are detected automatically")
@@ -304,7 +312,7 @@ func (cli deployCLI) run() (runErr error) {
 	forceReconcile := fs.Bool("force-reconcile", false, "reconcile managed GitHub settings and redeliver the secret")
 	githubRepo := fs.String("github-repository", "", "verified repository")
 	githubEnv := fs.String("github-environment", "", "GitHub deployment environment")
-	if e := fs.Parse(os.Args[1:]); e != nil {
+	if e := fs.Parse(args); e != nil {
 		return e
 	}
 	if os.Getenv("CI") != "" {
@@ -313,6 +321,13 @@ func (cli deployCLI) run() (runErr error) {
 	if fs.NArg() != 0 {
 		return errors.New("unexpected positional argument")
 	}
+	if *noOpen && !*server {
+		return errors.New("--no-open requires --server")
+	}
+	if *ci && *server {
+		return errors.New("--server requires an interactive run")
+	}
+	actionExplicit := *action != ""
 	*action = defaultAction(*action, *ci)
 	if *ci && *action == "deploy" && !*approve {
 		return errors.New("noninteractive deploy requires explicit --action deploy --approve")
@@ -328,7 +343,18 @@ func (cli deployCLI) run() (runErr error) {
 	if !allowedActions[*action] {
 		return errors.New("unknown action")
 	}
-	banner(cli.spec, *action, *env)
+	if *server && ui.browser == nil {
+		return wizardweb.Serve(ctx, cli.spec.Title, !*noOpen, func(ctx context.Context, session *wizardweb.Session) error {
+			return cli.runWizard(context.WithValue(ctx, wizardKey{}, session), args)
+		})
+	}
+	if ui.browser != nil && (actionExplicit || *exportPath != "") {
+		ui.browser.Action(*action)
+	}
+	ui.phase("settings", "Configure deployment")
+	if ui.browser == nil {
+		banner(cli.spec, *action, *env)
+	}
 	if *action == "clean-cache" {
 		root, e := os.Getwd()
 		if e != nil {
@@ -351,6 +377,7 @@ func (cli deployCLI) run() (runErr error) {
 		return nil
 	}
 	if *action == "build" {
+		ui.phase("prepare", "Build Lambda")
 		root, e := os.Getwd()
 		if e != nil {
 			return e
@@ -368,7 +395,7 @@ func (cli deployCLI) run() (runErr error) {
 			return errors.New("PULUMI_CONFIG_PASSPHRASE secret required")
 		}
 		if !*ci {
-			vaultPassphrase, e = secret("Local vault passphrase")
+			vaultPassphrase, e = ui.secret("Local vault passphrase")
 			if e != nil {
 				return e
 			}
@@ -377,10 +404,25 @@ func (cli deployCLI) run() (runErr error) {
 			}
 		}
 	}
+	if ui.browser != nil && !actionExplicit && *exportPath == "" {
+		operation, err := ui.selectOption("What would you like to run?", "preview", []wizardweb.Option{
+			{Value: "preview", Label: "Preview changes"},
+			{Value: "deploy", Label: "Preview and deploy"},
+			{Value: "setup", Label: "Set up deployment"},
+			{Value: "status", Label: "Check deployment status"},
+			{Value: "report", Label: "Generate an artifact report"},
+			{Value: "github-setup", Label: "Configure GitHub deployment"},
+		})
+		if err != nil {
+			return err
+		}
+		*action = operation
+		ui.browser.Action(operation)
+	}
 	if *ci && *action == "github-setup" {
 		return errors.New("GitHub setup requires interactive review")
 	}
-	projectName, local, central, e := cli.projectPaths(root, *project, *ci)
+	projectName, local, central, e := cli.projectPaths(ctx, root, *project, *ci)
 	if e != nil {
 		return e
 	}
@@ -390,7 +432,7 @@ func (cli deployCLI) run() (runErr error) {
 		return e
 	}
 	defer workspaceUnlock()
-	detail("Project", projectName)
+	ui.detail("Project", projectName)
 	var projectFlags struct {
 		Version     int
 		Environment string
@@ -417,7 +459,7 @@ func (cli deployCLI) run() (runErr error) {
 				}
 			}
 		}
-		*env = prompt("Environment ("+strings.Join(names, ", ")+", or custom test name)", "dev")
+		*env = ui.prompt("Environment ("+strings.Join(names, ", ")+", or custom test name)", "dev")
 	}
 	if !regexp.MustCompile(`^[a-z][a-z0-9-]{0,30}$`).MatchString(*env) || *env == "prod" || *env == "production" {
 		return errors.New("use a validated non-production test environment")
@@ -473,7 +515,7 @@ func (cli deployCLI) run() (runErr error) {
 			if e = atomicWrite(path, previous); e != nil {
 				return e
 			}
-			note("Imported previous deployment settings")
+			ui.note("Imported previous deployment settings")
 		}
 	}
 
@@ -495,7 +537,7 @@ func (cli deployCLI) run() (runErr error) {
 		if projectName == cli.spec.PulumiProject {
 			legacyVault = filepath.Join(legacy, "vault.bin")
 		}
-		pass, err := loadProjectVault(filepath.Join(localEnv, "vault.bin"), legacyVault, vaultPassphrase)
+		pass, err := loadProjectVault(ctx, filepath.Join(localEnv, "vault.bin"), legacyVault, vaultPassphrase)
 		if err != nil {
 			return err
 		}
@@ -505,6 +547,9 @@ func (cli deployCLI) run() (runErr error) {
 			return err
 		}
 		defer restorePassphrase()
+		if ui.browser != nil {
+			ui.browser.Protect(pass)
+		}
 	}
 	if *importPath != "" {
 		imported, err := importSettings(*importPath, projectName, *env)
@@ -515,7 +560,7 @@ func (cli deployCLI) run() (runErr error) {
 			return err
 		}
 		saved = imported
-		note("Using compatible imported nonsecret settings; remote discovery remains required")
+		ui.note("Using compatible imported nonsecret settings; remote discovery remains required")
 	}
 	if e = verifySavedTarget(saved, *account, *region, *backend); e != nil {
 		return e
@@ -527,7 +572,7 @@ func (cli deployCLI) run() (runErr error) {
 		}
 		if !*ci && prior != "" && !*reconfigure {
 			*v = prior
-			note(label + ": using saved setting")
+			ui.note(label + ": using saved setting")
 			return nil
 		}
 		if *ci {
@@ -536,7 +581,7 @@ func (cli deployCLI) run() (runErr error) {
 		if prior != "" {
 			def = prior
 		}
-		*v = prompt(label, def)
+		*v = ui.prompt(label, def)
 		return nil
 	}
 	if !*ci {
@@ -545,7 +590,8 @@ func (cli deployCLI) run() (runErr error) {
 		if err != nil {
 			return fmt.Errorf("list AWS profiles; install AWS CLI v2 and run aws configure sso: %w", err)
 		}
-		for _, p := range strings.Fields(string(profiles)) {
+		names := strings.Fields(string(profiles))
+		for _, p := range names {
 			if profileDefault == "" || p == "default" {
 				profileDefault = p
 			}
@@ -553,7 +599,19 @@ func (cli deployCLI) run() (runErr error) {
 		if profileDefault == "" {
 			return errors.New("no AWS profiles; run aws configure sso first")
 		}
-		if e = choose(profile, saved.Profile, "AWS SSO profile", profileDefault); e != nil {
+		if ui.browser != nil && *profile == "" && (saved.Profile == "" || *reconfigure) {
+			profileOptions := make([]wizardweb.Option, 0, len(names))
+			for _, name := range names {
+				profileOptions = append(profileOptions, wizardweb.Option{Value: name, Label: name})
+				if name == saved.Profile {
+					profileDefault = name
+				}
+			}
+			*profile, e = ui.selectOption("AWS SSO profile", profileDefault, profileOptions)
+		} else {
+			e = choose(profile, saved.Profile, "AWS SSO profile", profileDefault)
+		}
+		if e != nil {
 			return e
 		}
 	}
@@ -586,32 +644,32 @@ func (cli deployCLI) run() (runErr error) {
 				label = "S3 state URL (s3://bucket/prefix or new)"
 			}
 			for {
-				*backend = prompt(label, def)
+				*backend = ui.prompt(label, def)
 				if validBackend(*backend) || (canCreateBucket && *backend == "new") {
 					break
 				}
-				note("Enter an S3 state URL with a bucket and a prefix.")
+				ui.note("Enter an S3 state URL with a bucket and a prefix.")
 			}
 		}
 		if *action == "github-setup" || (cli.spec.GitHub.Prompt && !*skipGitHub && (*action == "setup" || *action == "deploy")) {
 			offeredGitHub = true
-			reconcile, e = options.collectGitHub(*env, *action == "github-setup" || *reconfigure)
+			reconcile, e = options.collectGitHub(ctx, *env, *action == "github-setup" || *reconfigure)
 			if e != nil {
 				return e
 			}
 		}
 	}
 	if needsInputs {
-		if e = inputs.collect(cli.spec.InputsFile, private, *ci, *reconfigure, askInput); e != nil {
+		if e = inputs.collect(ctx, cli.spec.InputsFile, private, *ci, *reconfigure, ui.input); e != nil {
 			return e
 		}
 	}
 	if !*ci {
-		regionField := textReviewField("AWS region", region, "", validRegion)
-		accountField := textReviewField("AWS account", account, "auto", func(s string) bool {
+		regionField := textReviewField(ctx, "AWS region", region, "", validRegion)
+		accountField := textReviewField(ctx, "AWS account", account, "auto", func(s string) bool {
 			return s == "auto" || pattern(`^\d{12}$`, s)
 		})
-		stateField := textReviewField("S3 state URL", backend, "", func(s string) bool {
+		stateField := textReviewField(ctx, "S3 state URL", backend, "", func(s string) bool {
 			return validBackend(s) || (canCreateBucket && s == "new")
 		})
 		if saved.Account != "" {
@@ -622,7 +680,7 @@ func (cli deployCLI) run() (runErr error) {
 			{label: "Project", value: func() string { return projectName }},
 			{label: "Environment", value: func() string { return *env }},
 			{label: "Action", value: func() string { return *action }},
-			textReviewField("AWS SSO profile", profile, "", func(s string) bool {
+			textReviewField(ctx, "AWS SSO profile", profile, "", func(s string) bool {
 				return validInput("text", s)
 			}),
 			regionField, accountField, stateField,
@@ -632,7 +690,7 @@ func (cli deployCLI) run() (runErr error) {
 		}
 		if cli.spec.Memory != 0 {
 			memoryValue := fmt.Sprint(*memory)
-			rows = append(rows, textReviewField("Lambda memory (MB)", &memoryValue, "", func(s string) bool {
+			rows = append(rows, textReviewField(ctx, "Lambda memory (MB)", &memoryValue, "", func(s string) bool {
 				n, err := strconv.Atoi(s)
 				if err == nil && n >= 128 && n <= 10240 {
 					*memory = n
@@ -642,15 +700,15 @@ func (cli deployCLI) run() (runErr error) {
 			}))
 		}
 		if reconcile {
-			rows = append(rows, options.reviewGitHub()...)
+			rows = append(rows, options.reviewGitHub(ctx)...)
 		}
 		if needsInputs {
-			rows = append(rows, inputs.reviewFields()...)
+			rows = append(rows, inputs.reviewFields(ctx)...)
 		}
-		if e = reviewSettings(rows); e != nil {
+		if e = reviewSettings(ctx, rows); e != nil {
 			return e
 		}
-		inputs.showDNSGuidance()
+		inputs.showDNSGuidance(ctx)
 		if *account == "auto" {
 			*account = ""
 		}
@@ -671,6 +729,7 @@ func (cli deployCLI) run() (runErr error) {
 	if e = verifySavedTarget(saved, *account, *region, *backend); e != nil {
 		return e
 	}
+	ui.phase("connect", "Verify cloud access")
 	if !*ci {
 		if e = verifySSOProfile(ctx, *profile); e != nil {
 			return e
@@ -711,7 +770,13 @@ func (cli deployCLI) run() (runErr error) {
 	}); e != nil {
 		return e
 	}
-	identity, e := authenticatedIdentity(*ci, *profile, func() ([]byte, error) { return output(ctx, "aws", "sts", "get-caller-identity", "--output", "json") }, func() error { return command(ctx, root, "aws", "sso", "login", "--profile", *profile) })
+	identity, e := authenticatedIdentity(*ci, *profile, func() ([]byte, error) { return output(ctx, "aws", "sts", "get-caller-identity", "--output", "json") }, func() error {
+		args := []string{"aws", "sso", "login", "--profile", *profile}
+		if ui.browser != nil {
+			args = append(args, "--use-device-code", "--no-browser")
+		}
+		return ui.login(root, "AWS", args...)
+	})
 
 	if e != nil {
 		return e
@@ -730,21 +795,20 @@ func (cli deployCLI) run() (runErr error) {
 		return errors.New("interactive deployments require an IAM Identity Center SSO profile")
 	}
 	*account = who.Account
-	heading("AWS account")
-	detail("Account", *account)
-	detail("Identity", who.Arn)
-	detail("Region", *region)
-	detail("Environment", *env)
-	detail("Stack", cli.spec.StackPrefix+*env)
+	ui.heading("AWS account")
+	ui.detail("Account", *account)
+	ui.detail("Identity", who.Arn)
+	ui.detail("Region", *region)
+	ui.detail("Environment", *env)
+	ui.detail("Stack", cli.spec.StackPrefix+*env)
 
 	if !*ci {
-		heading("Proceed with this AWS account? [Y/n]")
-		yes, err := timedChoice(true)
+		yes, err := ui.choose("Proceed with this AWS account? [Y/n]", "Use this AWS account", true, "Account "+*account, "Region "+*region, "Stack "+cli.spec.StackPrefix+*env)
 		if err != nil {
 			return err
 		}
 		if !yes {
-			return errors.New("account selection cancelled")
+			return ui.declined("account selection cancelled")
 		}
 	}
 	if newBucket {
@@ -754,8 +818,9 @@ func (cli deployCLI) run() (runErr error) {
 		}
 		*backend = "s3://" + name + "/infra-composer/" + projectName
 	}
-	heading("Deployment state")
-	detail("S3 location", *backend)
+	ui.phase("prepare", "Verify deployment state")
+	ui.heading("Deployment state")
+	ui.detail("S3 location", *backend)
 
 	// Verify the existing state bucket before using it. Bootstrap is deliberately separate.
 	bucket := strings.Split(strings.TrimPrefix(*backend, "s3://"), "/")[0]
@@ -851,6 +916,7 @@ func (cli deployCLI) run() (runErr error) {
 		}
 	}
 	if reconcile {
+		ui.phase("prepare", "Prepare GitHub deployment")
 		options.Settings = Settings{1, *env, *profile, *region, *account, *backend}
 		options.variables = inputs.githubVariables()
 		if e = options.applyGitHub(ctx); e != nil {
@@ -865,6 +931,7 @@ func (cli deployCLI) run() (runErr error) {
 		return nil
 	}
 
+	ui.phase("prepare", "Prepare the Pulumi stack")
 	dir := filepath.Join(root, cli.spec.PulumiDir)
 	stack := cli.spec.StackPrefix + *env
 	if e = command(ctx, dir, "pulumi", "login", *backend, "--non-interactive"); e != nil {
@@ -895,7 +962,7 @@ func (cli deployCLI) run() (runErr error) {
 			if *ci {
 				return errors.New("legacy identity adoption requires interactive review")
 			}
-			if e = deliberate("Type the stack name after verifying its original ownership", stack); e != nil {
+			if e = ui.deliberate("Type the stack name after verifying its original ownership", stack); e != nil {
 				return e
 			}
 		}
@@ -934,19 +1001,20 @@ func (cli deployCLI) run() (runErr error) {
 		if e != nil {
 			return e
 		}
-		fmt.Println(string(safe))
+		ui.result(string(safe))
 		return nil
 	}
 	if *action == "destroy" {
 		if *ci {
 			return errors.New("interactive teardown confirmation required")
 		}
-		heading("Destroy this stack?")
-		detail("Stack", stack)
-		note("This removes stack resources; protected resources can still block deletion.")
-		if err := deliberate("Type the stack name to destroy", stack); err != nil {
+		ui.heading("Destroy this stack?")
+		ui.detail("Stack", stack)
+		ui.note("This removes stack resources; protected resources can still block deletion.")
+		if err := ui.deliberate("Type the stack name to destroy", stack); err != nil {
 			return err
 		}
+		ui.phase("apply", "Destroy the confirmed stack")
 		return command(ctx, dir, "pulumi", "destroy", "--stack", stack, "--yes")
 	}
 
@@ -956,7 +1024,8 @@ func (cli deployCLI) run() (runErr error) {
 	if e = cli.spec.setMissingConfig(ctx, dir, stack); e != nil {
 		return e
 	}
-	heading("Build Lambda")
+	ui.phase("prepare", "Build Lambda")
+	ui.heading("Build Lambda")
 	archive, e := cli.build(ctx, root, *force)
 	if e != nil {
 		return e
@@ -991,11 +1060,12 @@ func (cli deployCLI) run() (runErr error) {
 		return e
 	}
 	approvedArchive := sha256.Sum256(archiveBytes)
-	heading("Preview changes")
+	ui.phase("preview", "Preview changes with Pulumi")
+	ui.heading("Preview changes")
 	if e = command(ctx, dir, "pulumi", "preview", "--stack", stack, "--save-plan", plan, "--event-log", activeFeatureReport.previewLog, "--non-interactive"); e != nil {
 		return e
 	}
-	if *action == "preview" {
+	if *action == "preview" && ui.browser == nil {
 		return nil
 	}
 
@@ -1003,21 +1073,29 @@ func (cli deployCLI) run() (runErr error) {
 	if e != nil {
 		return e
 	}
+	if ui.browser != nil {
+		if err := ui.preview(planBytes); err != nil {
+			return err
+		}
+	}
+	if *action == "preview" {
+		return nil
+	}
 	destructive, e := destructivePlan(planBytes)
 	if e != nil {
 		return e
 	}
-	heading("Previewed target")
+	ui.heading("Previewed target")
 	for _, pair := range [][2]string{{"Project", projectName}, {"Account", *account}, {"Region", *region}, {"Environment", *env}, {"Stack", stack}, {"Backend", *backend}, {"Saved plan", plan}} {
-		detail(pair[0], pair[1])
+		ui.detail(pair[0], pair[1])
 	}
 	if destructive {
 		if *ci {
 			return errors.New("destructive plan requires separate operator review")
 		}
-		heading("This plan includes deletion or replacement")
-		detail("Stack", stack)
-		if e = deliberate("Type the stack name to approve deletion/replacement", stack); e != nil {
+		ui.heading("This plan includes deletion or replacement")
+		ui.detail("Stack", stack)
+		if e = ui.deliberate("Type the stack name to approve deletion/replacement", stack); e != nil {
 			return e
 		}
 	}
@@ -1027,7 +1105,7 @@ func (cli deployCLI) run() (runErr error) {
 			return errors.New("--approve required for noninteractive deploy")
 		}
 	} else if !destructive {
-		if e = confirm(); e != nil {
+		if e = confirm(ctx, "Account "+*account, "Region "+*region, "Stack "+stack); e != nil {
 			return e
 		}
 	}
@@ -1038,7 +1116,8 @@ func (cli deployCLI) run() (runErr error) {
 		return errors.New("artifact changed after preview; preview again")
 	}
 	activeFeatureReport.applied = true
-	heading("Apply previewed changes")
+	ui.phase("apply", "Apply the saved plan")
+	ui.heading("Apply previewed changes")
 	if e = command(ctx, dir, "pulumi", "up", "--stack", stack, "--plan", plan, "--yes", "--non-interactive"); e != nil {
 		return e
 	}
@@ -1061,8 +1140,8 @@ func (cli deployCLI) run() (runErr error) {
 	if e = atomicWrite(filepath.Join(private, "applied.json"), success); e != nil {
 		return e
 	}
-	heading("Deployment complete")
-	fmt.Println(string(outputs))
+	ui.heading("Deployment complete")
+	ui.result(string(outputs))
 	return nil
 }
 func outputIn(ctx context.Context, dir string, args ...string) ([]byte, error) {

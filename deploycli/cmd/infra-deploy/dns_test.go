@@ -18,7 +18,7 @@ func TestDNSProviderPromptAndSavedChoice(t *testing.T) {
 	fields := spec.inputFlags(flag.NewFlagSet("interactive", flag.ContinueOnError))
 	answers := []string{"unknown", "2"}
 	count := 0
-	if err := fields.collect(spec.InputsFile, dir, false, false, func(label, fallback, _ string) (string, error) {
+	if err := fields.collect(t.Context(), spec.InputsFile, dir, false, false, func(label, fallback, _ string) (string, error) {
 		if !strings.Contains(label, "1. AWS Route 53, 2. Cloudflare") || fallback != "" {
 			t.Fatalf("unexpected first-run prompt %q with fallback %q", label, fallback)
 		}
@@ -42,7 +42,7 @@ func TestDNSProviderPromptAndSavedChoice(t *testing.T) {
 		t.Fatal("wizard prompted for a saved or CI provider")
 		return "", nil
 	}
-	if err := newFields.collect(spec.InputsFile, dir, false, false, noPrompt); err != nil {
+	if err := newFields.collect(t.Context(), spec.InputsFile, dir, false, false, noPrompt); err != nil {
 		t.Fatal(err)
 	}
 	if got := newFields.githubVariables()["BENCH_DNS_PROVIDER"]; got != "cloudflare" {
@@ -51,13 +51,13 @@ func TestDNSProviderPromptAndSavedChoice(t *testing.T) {
 
 	flags := flag.NewFlagSet("ci", flag.ContinueOnError)
 	ciFields := spec.inputFlags(flags)
-	if err := ciFields.collect(spec.InputsFile, dir, true, false, noPrompt); err == nil {
+	if err := ciFields.collect(t.Context(), spec.InputsFile, dir, true, false, noPrompt); err == nil {
 		t.Fatal("CI accepted saved provider without an explicit argument")
 	}
 	if err := flags.Parse([]string{"--dnsprovider", "route53"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := ciFields.collect(spec.InputsFile, dir, true, false, noPrompt); err != nil {
+	if err := ciFields.collect(t.Context(), spec.InputsFile, dir, true, false, noPrompt); err != nil {
 		t.Fatal(err)
 	}
 	if got := ciFields.githubVariables()["BENCH_DNS_PROVIDER"]; got != "route53" {

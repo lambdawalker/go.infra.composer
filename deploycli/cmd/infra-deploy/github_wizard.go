@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 )
 
-func (o *githubOptions) collectGitHub(environment string, explicit bool) (bool, error) {
+func (o *githubOptions) collectGitHub(ctx context.Context, environment string, explicit bool) (bool, error) {
 	path := filepath.Join(o.Private, "github-settings.json")
 	var saved githubOptions
 	if b, err := os.ReadFile(path); err == nil {
@@ -21,8 +21,7 @@ func (o *githubOptions) collectGitHub(environment string, explicit bool) (bool, 
 		if _, err := os.Stat(filepath.Join(o.Private, "github-skipped")); err == nil {
 			return false, nil
 		}
-		heading("Configure GitHub deployment support? [y/N]")
-		yes, err := timedChoice(false)
+		yes, err := wizard(ctx).choose("Configure GitHub deployment support? [y/N]", "Configure GitHub", false)
 		if err != nil || !yes {
 			return false, err
 		}
@@ -42,13 +41,13 @@ func (o *githubOptions) collectGitHub(environment string, explicit bool) (bool, 
 		o.Repository = o.target.Repository
 	}
 	if o.Environment == "" {
-		o.Environment = prompt("GitHub protected environment", o.target.GitHub.EnvironmentPrefix+environment)
+		o.Environment = wizard(ctx).prompt("GitHub protected environment", o.target.GitHub.EnvironmentPrefix+environment)
 	}
 	if o.Role == "" && o.target.GitHub.ManagedPolicy == "" {
-		o.Role = prompt("Existing scoped GitHub OIDC role ARN", "")
+		o.Role = wizard(ctx).prompt("Existing scoped GitHub OIDC role ARN", "")
 	}
 	if o.target.GitHub.ManagedPolicy != "" && o.Policy == "" && saved.Repository == "" {
-		o.Policy = prompt("Reviewed deployment IAM policy file (Enter to reuse an existing policy)", "")
+		o.Policy = wizard(ctx).prompt("Reviewed deployment IAM policy file (Enter to reuse an existing policy)", "")
 	}
 	if o.SecretVersion == "" {
 		o.SecretVersion = "1"
@@ -56,24 +55,28 @@ func (o *githubOptions) collectGitHub(environment string, explicit bool) (bool, 
 	return true, nil
 }
 
-func (o *githubOptions) reviewGitHub() []reviewField {
+func (o *githubOptions) reviewGitHub(ctx context.Context) []reviewField {
 	return []reviewField{
 		{label: "GitHub repository", value: func() string { return o.Repository }},
-		textReviewField("GitHub environment", &o.Environment, "", func(s string) bool {
+		textReviewField(ctx, "GitHub environment", &o.Environment, "", func(s string) bool {
 			return pattern(`^[a-zA-Z0-9_-]{1,80}$`, s)
 		}),
-		textReviewField("GitHub OIDC role", &o.Role, "", func(s string) bool {
+		textReviewField(ctx, "GitHub OIDC role", &o.Role, "", func(s string) bool {
 			return s == "" || pattern(`^arn:aws:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_-]{1,64}$`, s)
 		}),
-		textReviewField("GitHub IAM policy file", &o.Policy, "", nil),
-		textReviewField("GitHub secret version", &o.SecretVersion, "", nil),
+		textReviewField(ctx, "GitHub IAM policy file", &o.Policy, "", nil),
+		textReviewField(ctx, "GitHub secret version", &o.SecretVersion, "", nil),
 	}
 }
 
 func (o githubOptions) applyGitHub(ctx context.Context) error {
 	if os.Getenv("GH_TOKEN") == "" && os.Getenv("GITHUB_TOKEN") == "" {
 		if _, err := output(ctx, "gh", "auth", "status", "--hostname", "github.com"); err != nil {
-			if err = command(ctx, o.Root, "gh", "auth", "login", "--hostname", "github.com", "--web"); err != nil {
+			args := []string{"gh", "auth", "login", "--hostname", "github.com", "--web"}
+			if wizard(ctx).browser != nil {
+				args = append(args, "--git-protocol", "https")
+			}
+			if err = wizard(ctx).login(o.Root, "GitHub", args...); err != nil {
 				return err
 			}
 		}

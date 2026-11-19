@@ -19,10 +19,10 @@ type reviewField struct {
 
 type rejectedEdit struct{ error }
 
-func reviewSettings(fields []reviewField) error {
+func reviewSettings(ctx context.Context, fields []reviewField) error {
 	message := ""
 	for {
-		selected, err := selectReviewField(fields, message)
+		selected, err := wizard(ctx).selectReviewField(fields, message)
 		if err != nil || selected == len(fields) {
 			return err
 		}
@@ -124,7 +124,7 @@ func selectReviewField(fields []reviewField, message string) (int, error) {
 	return selected, err
 }
 
-func textReviewField(label string, value *string, fallback string, validate func(string) bool) reviewField {
+func textReviewField(ctx context.Context, label string, value *string, fallback string, validate func(string) bool) reviewField {
 	return reviewField{label, func() string {
 		if *value == "" {
 			return fallback
@@ -136,7 +136,7 @@ func textReviewField(label string, value *string, fallback string, validate func
 			if initial == "" {
 				initial = fallback
 			}
-			candidate, err := ask(label, initial, false, false)
+			candidate, err := wizard(ctx).input(label, initial, initial)
 			if err != nil {
 				return err
 			}
@@ -144,25 +144,25 @@ func textReviewField(label string, value *string, fallback string, validate func
 				*value = candidate
 				return nil
 			}
-			note("Invalid " + label)
+			wizard(ctx).note("Invalid " + label)
 		}
 	}}
 }
 
-func (inputs featureInputs) reviewFields() []reviewField {
+func (inputs featureInputs) reviewFields(ctx context.Context) []reviewField {
 	fields := make([]reviewField, 0, len(inputs))
 	for i := range inputs {
 		field := &inputs[i]
 		row := reviewField{label: field.spec.Label, value: func() string { return field.display(field.value) }}
 		if field.acceptsInput() {
-			row.edit = func() error { return inputs.edit(i) }
+			row.edit = func() error { return inputs.edit(ctx, i) }
 		}
 		fields = append(fields, row)
 	}
 	return fields
 }
 
-func (inputs featureInputs) edit(index int) error {
+func (inputs featureInputs) edit(ctx context.Context, index int) error {
 	draft := slices.Clone(inputs)
 	values := make(map[string]string, len(inputs))
 	for i := range draft {
@@ -170,7 +170,7 @@ func (inputs featureInputs) edit(index int) error {
 		if i >= index {
 			value, err := field.resolve(field.raw, values)
 			if i == index || (err != nil && field.acceptsInput()) {
-				field.raw, value, err = field.read(field.raw, values, askInput)
+				field.raw, value, err = field.read(ctx, field.raw, values, wizard(ctx).input)
 				if err != nil {
 					return err
 				}
