@@ -70,10 +70,13 @@ without opening a browser. Build, cache cleanup, and settings export skip the
 interface question.
 
 The wizard binds to a random loopback port and uses a private session URL.
-Vault and stack passphrases use password fields. Choose an action, enter missing
-settings, and review or edit the values before connecting to the cloud. With no
-`--action` argument, the browser prompts for a choice and preselects Preview.
-AWS sign-in instructions appear in the page when an SSO session needs renewal.
+Vault and stack passphrases use password fields. With no `--action`, the
+browser presents action cards that explain each operation and selects Preview.
+After choosing the project and environment, review and edit the applicable
+settings in one form. Continue validates the full form and saves the accepted
+project inputs as defaults for that environment. Account, region, and state
+location for an existing deployment stay bound to its verified scope.
+AWS sign-in instructions appear when an SSO session needs renewal.
 
 The page follows the deployment stages, shows the resource operations from the
 saved Pulumi plan, and displays the outcome. Approvals in browser mode require

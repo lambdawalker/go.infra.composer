@@ -15,7 +15,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/lambdawalker/go.infra.composer/deploycli/internal/dnsprovider"
-	"github.com/lambdawalker/go.infra.composer/deploycli/internal/wizardweb"
 )
 
 type featureInput struct {
@@ -41,23 +40,10 @@ func (m manifest) inputFlags(fs *flag.FlagSet) featureInputs {
 type inputPrompt func(label, fallback, display string) (string, error)
 
 func (inputs featureInputs) collect(ctx context.Context, file, dir string, ci, reconfigure bool, ask inputPrompt) error {
-	if len(inputs) == 0 {
-		return nil
-	}
-	var saved map[string]json.RawMessage
-	if b, err := os.ReadFile(filepath.Join(dir, file)); err == nil {
-		var version int
-		if json.Unmarshal(b, &saved) != nil || json.Unmarshal(saved["Version"], &version) != nil || version != 1 {
-			return fmt.Errorf("invalid saved feature settings")
-		}
-	} else if !os.IsNotExist(err) {
+	defaults, err := inputs.defaults(file, dir)
+	if err != nil {
 		return err
 	}
-	var savedRaw map[string]string
-	if data, ok := saved["ComposeInputs"]; ok && json.Unmarshal(data, &savedRaw) != nil {
-		return fmt.Errorf("invalid saved composition inputs")
-	}
-
 	values := make(map[string]string, len(inputs))
 	for i := range inputs {
 		field := &inputs[i]
@@ -71,13 +57,7 @@ func (inputs featureInputs) collect(ctx context.Context, file, dir string, ci, r
 		case ci:
 			return fmt.Errorf("--%s required in CI", strings.ToLower(field.spec.Name))
 		default:
-			prior := savedRaw[field.spec.Name]
-			if field.spec.Compose == nil {
-				data, ok := saved[field.spec.Name]
-				if ok && json.Unmarshal(data, &prior) != nil {
-					return fmt.Errorf("invalid saved %s", field.spec.Name)
-				}
-			}
+			prior := defaults[field.spec.Name]
 			if prior != "" && !reconfigure {
 				field.raw = prior
 				field.value, err = field.resolve(prior, values)
@@ -98,6 +78,45 @@ func (inputs featureInputs) collect(ctx context.Context, file, dir string, ci, r
 	return nil
 }
 
+func (inputs featureInputs) defaults(file, dir string) (map[string]string, error) {
+	if len(inputs) == 0 {
+		return nil, nil
+	}
+	b, err := os.ReadFile(filepath.Join(dir, file))
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var saved map[string]json.RawMessage
+	var version int
+	if json.Unmarshal(b, &saved) != nil || json.Unmarshal(saved["Version"], &version) != nil || version != 1 {
+		return nil, fmt.Errorf("invalid saved feature settings")
+	}
+	var savedRaw map[string]string
+	if data, ok := saved["ComposeInputs"]; ok && json.Unmarshal(data, &savedRaw) != nil {
+		return nil, fmt.Errorf("invalid saved composition inputs")
+	}
+	defaults := make(map[string]string, len(inputs))
+	for _, field := range inputs {
+		name := field.spec.Name
+		if field.flag == nil {
+			continue
+		}
+		if *field.flag != "" || field.spec.Compose != nil {
+			defaults[name] = savedRaw[name]
+			continue
+		}
+		var value string
+		if data, ok := saved[name]; ok && json.Unmarshal(data, &value) != nil {
+			return nil, fmt.Errorf("invalid saved %s", name)
+		}
+		defaults[name] = value
+	}
+	return defaults, nil
+}
+
 func (field featureInput) read(ctx context.Context, prior string, values map[string]string, ask inputPrompt) (string, string, error) {
 	fallback, display := prior, prior
 	if field.spec.Compose != nil {
@@ -113,14 +132,6 @@ func (field featureInput) read(ctx context.Context, prior string, values map[str
 		fallback, display = "", ""
 	}
 	label := field.spec.Label
-	if ui := wizard(ctx); ui.browser != nil && field.spec.Kind == "dnsProvider" && field.spec.Compose == nil {
-		var options []wizardweb.Option
-		for _, provider := range dnsprovider.All() {
-			options = append(options, wizardweb.Option{Value: provider.ID, Label: provider.Name})
-		}
-		raw, err := ui.selectOption(label, fallback, options)
-		return raw, raw, err
-	}
 	if field.spec.Kind == "dnsProvider" {
 		label += " (" + dnsprovider.Choices() + ")"
 		display = field.display(display)

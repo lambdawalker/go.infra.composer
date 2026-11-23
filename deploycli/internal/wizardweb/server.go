@@ -138,18 +138,18 @@ func (s *Session) handler(host, key string) http.Handler {
 			_ = json.NewEncoder(w).Encode(current)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/answer":
 			var answer struct {
-				ID    uint64
-				Value string
+				ID uint64 `json:"id"`
+				reply
 			}
-			r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
+			r.Body = http.MaxBytesReader(w, r.Body, 128<<10)
 			d := json.NewDecoder(r.Body)
 			d.DisallowUnknownFields()
 			if d.Decode(&answer) != nil || d.Decode(new(any)) != io.EOF ||
-				len(answer.Value) > 4096 || !validAnswer(answer.Value) {
+				!validReply(answer.reply) {
 				http.Error(w, "Invalid response", http.StatusBadRequest)
 				return
 			}
-			if !s.answer(answer.ID, answer.Value) {
+			if !s.answer(answer.ID, answer.reply) {
 				http.Error(w, "This question has already changed", http.StatusConflict)
 				return
 			}
@@ -163,7 +163,25 @@ func (s *Session) handler(host, key string) http.Handler {
 	})
 }
 
+func validReply(answer reply) bool {
+	if answer.Value != nil {
+		return answer.Values == nil && validAnswer(*answer.Value)
+	}
+	if answer.Values == nil {
+		return false
+	}
+	for _, value := range answer.Values {
+		if !validAnswer(value) {
+			return false
+		}
+	}
+	return true
+}
+
 func validAnswer(value string) bool {
+	if len(value) > 4096 {
+		return false
+	}
 	for _, c := range value {
 		if c < 32 || c == 127 {
 			return false
