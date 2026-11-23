@@ -289,6 +289,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 	backend := fs.String("backend", "", "s3://bucket/dedicated-prefix")
 	ci := fs.Bool("non-interactive", false, "complete explicit inputs required")
 	server := fs.Bool("server", false, "open the interactive wizard in a local web browser")
+	terminal := fs.Bool("terminal", false, "use the terminal wizard without asking which interface to open")
 	noOpen := fs.Bool("no-open", false, "print the browser URL without opening it (requires --server)")
 	approve := fs.Bool("approve", false, "explicit apply approval")
 	project := fs.String("project", "", "deployment project name (saved after first run)")
@@ -321,6 +322,9 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 	if fs.NArg() != 0 {
 		return errors.New("unexpected positional argument")
 	}
+	if *server && *terminal {
+		return errors.New("--server and --terminal cannot be combined")
+	}
 	if *noOpen && !*server {
 		return errors.New("--no-open requires --server")
 	}
@@ -342,6 +346,20 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 	allowedActions := map[string]bool{"setup": true, "build": true, "clean-cache": true, "preview": true, "deploy": true, "status": true, "destroy": true, "github-setup": true, "report": true}
 	if !allowedActions[*action] {
 		return errors.New("unknown action")
+	}
+	if ui.browser == nil && !*ci && !*terminal && !*server && *exportPath == "" &&
+		*action != "build" && *action != "clean-cache" {
+		serverSpecified := false
+		fs.Visit(func(f *flag.Flag) {
+			serverSpecified = serverSpecified || f.Name == "server"
+		})
+		if !serverSpecified {
+			web, err := chooseWizardMode(ctx)
+			if err != nil {
+				return err
+			}
+			*server = web
+		}
 	}
 	if *server && ui.browser == nil {
 		return wizardweb.Serve(ctx, cli.spec.Title, !*noOpen, func(ctx context.Context, session *wizardweb.Session) error {

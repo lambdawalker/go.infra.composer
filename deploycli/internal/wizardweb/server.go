@@ -14,8 +14,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -93,23 +91,6 @@ func runSession(ctx context.Context, session *Session, run func(context.Context,
 		session.finish(err)
 	}()
 	return run(ctx, session)
-}
-
-func openBrowser(ctx context.Context, url string) {
-	openCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	defer cancel()
-	var args []string
-	switch runtime.GOOS {
-	case "windows":
-		args = []string{"rundll32", "url.dll,FileProtocolHandler", url}
-	case "darwin":
-		args = []string{"open", url}
-	default:
-		args = []string{"xdg-open", url}
-	}
-	if err := exec.CommandContext(openCtx, args[0], args[1:]...).Run(); err != nil && ctx.Err() == nil {
-		fmt.Fprintln(os.Stderr, "Open the deployment wizard URL above in your browser.")
-	}
 }
 
 func (s *Session) handler(host, key string) http.Handler {
