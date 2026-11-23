@@ -18,6 +18,7 @@ writing identity configuration.
 | Manifest fields | Responsibility |
 | --- | --- |
 | `Version`, `Repository`, `Feature`, `Title`, `Description` | Schema version, canonical GitHub owner/repo, report ownership, and console labels |
+| `DefaultProject` | Optional project name suggested on the first interactive run. Defaults to `PulumiProject`. |
 | `PulumiProject`, `PulumiDir`, `StackPrefix` | Existing Pulumi project name, relative program directory, and stack prefix |
 | `BucketPrefix` | Name prefix for newly authorized S3 state storage |
 | `BuildPackage`, `BuildDir` | Go Lambda package and archive directory under `dist/` |

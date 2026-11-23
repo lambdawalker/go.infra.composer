@@ -21,6 +21,7 @@ type manifest struct {
 	Description    string
 	Repository     string
 	Feature        string
+	DefaultProject string
 	PulumiProject  string
 	PulumiDir      string
 	StackPrefix    string
@@ -94,6 +95,9 @@ func (m *manifest) validate() error {
 	if !pattern(`^[a-z][a-z0-9-]{0,47}$`, m.PulumiProject) || !pattern(`^[a-z][a-z0-9-]{0,47}$`, m.Feature) ||
 		!pattern(`^[a-z][a-z0-9-]{0,15}-$`, m.StackPrefix) || !pattern(`^[a-z][a-z0-9-]{0,29}$`, m.BucketPrefix) {
 		return fmt.Errorf("invalid project, feature, stack prefix or bucket prefix")
+	}
+	if m.DefaultProject != "" && !validProjectName(m.DefaultProject) {
+		return fmt.Errorf("invalid DefaultProject %q", m.DefaultProject)
 	}
 	if !repoPath(m.PulumiDir) || !repoPath(m.BuildDir) || !strings.HasPrefix(m.BuildDir, "dist/") ||
 		!strings.HasPrefix(m.BuildPackage, "./") || !repoPath(strings.TrimPrefix(m.BuildPackage, "./")) {
