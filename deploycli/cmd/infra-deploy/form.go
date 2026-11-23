@@ -13,6 +13,8 @@ import (
 
 type deploymentForm struct {
 	project, action string
+	root            string
+	canConfigureSSO bool
 	target, saved   Settings
 	profiles        []wizardweb.Option
 	canCreateBucket bool
@@ -28,17 +30,21 @@ func (f *deploymentForm) collect(ctx context.Context) error {
 	fields := f.fields()
 	message := ""
 	for {
-		replies, err := wizard(ctx).browser.AskForm(ctx, wizardweb.Prompt{
+		replies, action, err := wizard(ctx).browser.AskForm(ctx, wizardweb.Prompt{
 			Label: "Deployment settings", Message: message, Fields: fields,
 		})
 		if err != nil {
 			return err
 		}
-		issues := f.apply(replies)
-		if len(issues) == 0 {
-			return nil
+		var issues map[string]string
+		if action == "" {
+			issues = f.apply(replies)
+			if len(issues) == 0 {
+				return nil
+			}
+		} else if err := f.refreshProfiles(ctx, action, replies); err != nil {
+			issues = map[string]string{"profile": err.Error()}
 		}
-		// Keep this failed submission on screen without updating the run's settings.
 		message = issues[""]
 		fields = slices.Clone(fields)
 		for i := range fields {
@@ -47,6 +53,9 @@ func (f *deploymentForm) collect(ctx context.Context) error {
 				field.Value = value
 			}
 			field.Error = issues[field.Name]
+			if field.Name == "profile" {
+				field.Options = f.profiles
+			}
 		}
 	}
 }
@@ -64,7 +73,7 @@ func (f deploymentForm) fields() []wizardweb.Field {
 	fields := []wizardweb.Field{
 		{Name: "project", Group: "Target", Label: "Project", Value: f.project, ReadOnly: true},
 		{Name: "environment", Group: "Target", Label: "Environment", Value: f.target.Environment, ReadOnly: true},
-		{Name: "profile", Group: "AWS", Label: "AWS SSO profile", Value: f.target.Profile, Options: f.profiles},
+		f.profileField(),
 		{Name: "region", Group: "AWS", Label: "AWS region", Value: f.target.Region, ReadOnly: bound},
 		{Name: "account", Group: "AWS", Label: "AWS account", Value: f.target.Account, ReadOnly: bound,
 			Help: accountHelp},
@@ -89,7 +98,7 @@ func (f deploymentForm) fields() []wizardweb.Field {
 				value = input.spec.Compose.DefaultInput
 			}
 		}
-		field := wizardweb.Field{Name: "feature." + name, Group: "Project inputs", Label: input.spec.Label, Kind: kind, Value: value}
+		field := wizardweb.Field{Name: "feature." + name, Group: "Project inputs", Label: input.spec.Label, Kind: kind, Value: value, Help: input.spec.Help}
 		if kind == "dnsProvider" {
 			for _, provider := range dnsprovider.All() {
 				field.Options = append(field.Options, wizardweb.Option{Value: provider.ID, Label: provider.Name})
@@ -113,7 +122,7 @@ func (f *deploymentForm) apply(values map[string]string) map[string]string {
 	issues := map[string]string{}
 	target := f.target
 	target.Profile = values["profile"]
-	if !slices.ContainsFunc(f.profiles, func(option wizardweb.Option) bool { return option.Value == target.Profile }) {
+	if !hasAWSProfile(f.profiles, target.Profile) {
 		issues["profile"] = "Select an AWS profile."
 	}
 	if f.saved.Account == "" {

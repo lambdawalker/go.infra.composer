@@ -136,6 +136,9 @@ func (field featureInput) read(ctx context.Context, prior string, values map[str
 		label += " (" + dnsprovider.Choices() + ")"
 		display = field.display(display)
 	}
+	if field.spec.Help != "" {
+		wizard(ctx).note(field.spec.Help)
+	}
 	for {
 		raw, err := ask(label, fallback, display)
 		if err != nil {

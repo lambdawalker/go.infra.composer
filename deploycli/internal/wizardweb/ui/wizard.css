@@ -89,6 +89,15 @@ form .button { justify-self: start; }
 }
 .settings-group legend { padding: 0 6px; font-weight: 700; }
 .settings-field { display: grid; min-width: 0; align-content: start; gap: 4px; }
+.settings-field[data-field="backend"] { grid-column: 1 / -1; }
+.settings-group[data-group="Project inputs"] { grid-template-columns: minmax(0, 1fr); }
+.settings-group[data-group="Project inputs"] .settings-field {
+  grid-template-columns: minmax(140px, 1fr) minmax(0, 3fr);
+  column-gap: 16px;
+}
+.settings-group[data-group="Project inputs"] label { align-self: center; }
+.settings-group[data-group="Project inputs"] .field-help,
+.settings-group[data-group="Project inputs"] .field-error { grid-column: 2; }
 .settings-field label { font-weight: 600; }
 .settings-field input[readonly] { background: #f3f6fa; color: var(--hint); }
 .settings-field [aria-invalid="true"] { border-color: var(--red); }
@@ -122,4 +131,9 @@ pre { margin: 0 26px 22px; color: var(--hint); }
   .panel-heading, .panel-body, .section-heading, #preview-changes { padding-left: 16px; padding-right: 16px; }
   #events { margin-left: 16px; margin-right: 16px; }
 
+}
+@media (max-width: 520px) {
+  .settings-group[data-group="Project inputs"] .settings-field { grid-template-columns: minmax(0, 1fr); }
+  .settings-group[data-group="Project inputs"] .field-help,
+  .settings-group[data-group="Project inputs"] .field-error { grid-column: 1; }
 }

@@ -600,24 +600,19 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 	var profiles []wizardweb.Option
 	profileDefault := ""
 	if !*ci {
-		raw, err := output(ctx, "aws", "configure", "list-profiles")
-		if err != nil {
-			return fmt.Errorf("list AWS profiles; install AWS CLI v2 and run aws configure sso: %w", err)
+		profiles, e = listAWSProfiles(ctx)
+		if e != nil {
+			return e
 		}
-		for _, name := range strings.Fields(string(raw)) {
-			profiles = append(profiles, wizardweb.Option{Value: name, Label: name})
-			if profileDefault == "" || name == "default" {
-				profileDefault = name
-			}
-		}
-		if profileDefault == "" {
+		profileDefault = defaultAWSProfile(profiles)
+		if profileDefault == "" && ui.browser == nil {
 			return errors.New("no AWS profiles; run aws configure sso first")
 		}
 	}
 
 	if ui.browser != nil && !*ci {
 		form := deploymentForm{
-			project: projectName, action: *action, saved: saved, profiles: profiles,
+			project: projectName, action: *action, root: root, saved: saved, profiles: profiles, canConfigureSSO: profileSetupTerminal(),
 			target:          Settings{Version: 1, Environment: *env, Profile: *profile, Region: *region, Account: *account, Backend: *backend},
 			canCreateBucket: canCreateBucket, memory: *memory, hasMemory: cli.spec.Memory != 0,
 		}
