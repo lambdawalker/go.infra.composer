@@ -14,12 +14,17 @@ func TestProjectRememberedAndScoped(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	root := t.TempDir()
-	name, local, central, e := fixture(t, "ocr").projectPaths(t.Context(), root, "test-project", false)
+	cli := fixture(t, "ocr")
+	cli.spec.DefaultProject = "test-host"
+	name, local, central, e := cli.projectPaths(t.Context(), root, "test-project", false)
 	if e != nil || name != "test-project" || local != filepath.Join(root, ".deploy") || !strings.Contains(central, ".infra-composer") {
 		t.Fatal(name, local, central, e)
 	}
-	if _, _, _, e = fixture(t, "ocr").projectPaths(t.Context(), root, "", true); e != nil {
-		t.Fatal(e)
+	if remembered, _, _, err := cli.projectPaths(t.Context(), root, "", false); err != nil || remembered != "test-project" {
+		t.Fatalf("saved project = %q, err = %v", remembered, err)
+	}
+	if _, _, _, e = cli.projectPaths(t.Context(), t.TempDir(), "", true); e == nil {
+		t.Fatal("CI accepted an implicit project on a fresh checkout")
 	}
 	if _, _, _, e = fixture(t, "ocr").projectPaths(t.Context(), t.TempDir(), "test-project", true); e == nil {
 		t.Fatal("project collision accepted")

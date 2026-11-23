@@ -16,6 +16,10 @@ type projectRecord struct {
 	Name, Root string
 }
 
+var projectNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,47}$`)
+
+func validProjectName(name string) bool { return projectNamePattern.MatchString(name) }
+
 // projectPaths persists repository identity separately from the central nonsecret registry.
 func (cli deployCLI) projectPaths(ctx context.Context, root, name string, ci bool) (string, string, string, error) {
 	local := filepath.Join(root, ".deploy")
@@ -39,9 +43,13 @@ func (cli deployCLI) projectPaths(ctx context.Context, root, name string, ci boo
 		if ci {
 			return "", "", "", errors.New("--project required on first noninteractive run")
 		}
-		name = wizard(ctx).prompt("Project name", cli.spec.PulumiProject)
+		fallback := cli.spec.DefaultProject
+		if fallback == "" {
+			fallback = cli.spec.PulumiProject
+		}
+		name = wizard(ctx).prompt("Project name", fallback)
 	}
-	if !regexp.MustCompile(`^[a-z][a-z0-9-]{0,47}$`).MatchString(name) {
+	if !validProjectName(name) {
 		return "", "", "", errors.New("project name must be lowercase letters/digits/hyphens, starting with a letter")
 	}
 	home, e := os.UserHomeDir()
