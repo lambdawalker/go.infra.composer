@@ -11,14 +11,21 @@ import (
 )
 
 type Option struct {
-	Value string `json:"value"`
-	Label string `json:"label"`
+	Value       string `json:"value"`
+	Label       string `json:"label"`
+	Description string `json:"description,omitempty"`
 }
 
 type Field struct {
-	Label    string `json:"label"`
-	Value    string `json:"value"`
-	Editable bool   `json:"editable"`
+	Name     string   `json:"name"`
+	Group    string   `json:"group"`
+	Label    string   `json:"label"`
+	Value    string   `json:"value"`
+	Kind     string   `json:"kind"`
+	Options  []Option `json:"options,omitempty"`
+	ReadOnly bool     `json:"readOnly,omitempty"`
+	Help     string   `json:"help,omitempty"`
+	Error    string   `json:"error,omitempty"`
 }
 
 type Prompt struct {
@@ -53,10 +60,15 @@ type view struct {
 	Reviewed   bool     `json:"reviewed"`
 }
 
+type reply struct {
+	Value  *string           `json:"value"`
+	Values map[string]string `json:"values"`
+}
+
 type Session struct {
 	mu       sync.Mutex
 	view     view
-	response chan string
+	response chan reply
 	cancel   context.CancelFunc
 	close    context.CancelFunc
 	secrets  []string
@@ -70,33 +82,63 @@ func newSession(title string, cancel, close context.CancelFunc) *Session {
 }
 
 func (s *Session) Ask(ctx context.Context, prompt Prompt) (string, error) {
+	answer, err := s.ask(ctx, prompt)
+	if answer.Value == nil {
+		return "", err
+	}
+	return *answer.Value, err
+}
+
+func (s *Session) AskForm(ctx context.Context, prompt Prompt) (map[string]string, error) {
+	prompt.Kind = "form"
+	answer, err := s.ask(ctx, prompt)
+	return answer.Values, err
+}
+
+func (s *Session) ask(ctx context.Context, prompt Prompt) (reply, error) {
 	s.mu.Lock()
 	s.view.Revision++
 	prompt.ID = s.view.Revision
 	s.view.Prompt = &prompt
-	reply := make(chan string, 1)
-	s.response = reply
+	response := make(chan reply, 1)
+	s.response = response
 	s.mu.Unlock()
 
 	select {
 	case <-ctx.Done():
-		return "", ctx.Err()
-	case value := <-reply:
+		return reply{}, ctx.Err()
+	case value := <-response:
 		return value, ctx.Err()
 	}
 }
 
-func (s *Session) answer(id uint64, value string) bool {
+func (s *Session) answer(id uint64, answer reply) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	prompt := s.view.Prompt
 	if prompt == nil || prompt.ID != id || s.view.Status != "running" {
 		return false
 	}
-	if prompt.Kind == "secret" && value != "" && !slices.Contains(s.secrets, value) {
+	if prompt.Kind == "form" {
+		count := 0
+		for _, field := range prompt.Fields {
+			if field.ReadOnly {
+				continue
+			}
+			if _, ok := answer.Values[field.Name]; !ok {
+				return false
+			}
+			count++
+		}
+		if answer.Value != nil || answer.Values == nil || len(answer.Values) != count {
+			return false
+		}
+	} else if answer.Value == nil || answer.Values != nil {
+		return false
+	} else if value := *answer.Value; prompt.Kind == "secret" && value != "" && !slices.Contains(s.secrets, value) {
 		s.secrets = append(s.secrets, value)
 	}
-	s.response <- value
+	s.response <- answer
 	s.response = nil
 	s.view.Prompt = nil
 	s.view.Revision++

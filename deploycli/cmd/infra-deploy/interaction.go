@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
-	"strconv"
 	"strings"
 	"time"
 
@@ -121,9 +120,9 @@ func (w interaction) deliberate(label, expected string) error {
 	return nil
 }
 
-func (w interaction) selectOption(label, def string, options []wizardweb.Option) (string, error) {
+func (w interaction) selectAction(label, def string, options []wizardweb.Option) (string, error) {
 	for {
-		value, err := w.browser.Ask(w.ctx, wizardweb.Prompt{Kind: "select", Label: label, Default: def, Options: options})
+		value, err := w.browser.Ask(w.ctx, wizardweb.Prompt{Kind: "actions", Label: label, Default: def, Options: options})
 		if err != nil {
 			return "", err
 		}
@@ -131,26 +130,6 @@ func (w interaction) selectOption(label, def string, options []wizardweb.Option)
 			if option.Value == value {
 				return value, nil
 			}
-		}
-	}
-}
-
-func (w interaction) selectReviewField(fields []reviewField, message string) (int, error) {
-	if w.browser == nil {
-		return selectReviewField(fields, message)
-	}
-	rows := make([]wizardweb.Field, 0, len(fields))
-	for _, field := range fields {
-		rows = append(rows, wizardweb.Field{Label: field.label, Value: field.value(), Editable: field.edit != nil})
-	}
-	for {
-		value, err := w.browser.Ask(w.ctx, wizardweb.Prompt{Kind: "review", Label: "Review deployment settings", Fields: rows, Message: message})
-		if err != nil || value == "continue" {
-			return len(fields), err
-		}
-		i, err := strconv.Atoi(value)
-		if err == nil && i >= 0 && i < len(fields) && fields[i].edit != nil {
-			return i, nil
 		}
 	}
 }

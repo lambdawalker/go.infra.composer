@@ -27,7 +27,7 @@ func request(handler http.Handler, method, path, host, origin, token, body strin
 func TestLoopbackWizardProtectsStateAndReplies(t *testing.T) {
 	session := newSession("test wizard", func() {}, func() {})
 	session.view.Prompt = &Prompt{ID: 7, Kind: "secret", Label: "Vault passphrase"}
-	session.response = make(chan string, 1)
+	session.response = make(chan reply, 1)
 	replies := session.response
 	handler := session.handler(testHost, "known-token")
 
@@ -59,7 +59,7 @@ func TestLoopbackWizardProtectsStateAndReplies(t *testing.T) {
 	if got := post(`{"id":7,"value":"local-passphrase"}`); got != http.StatusNoContent {
 		t.Fatalf("valid reply returned %d", got)
 	}
-	if got := <-replies; got != "local-passphrase" {
+	if got := <-replies; got.Value == nil || *got.Value != "local-passphrase" {
 		t.Fatalf("reply was not delivered")
 	}
 	if got := post(`{"id":7,"value":"duplicate"}`); got != http.StatusConflict {
@@ -101,5 +101,33 @@ func TestStopCancelsRunBeforeClosingPage(t *testing.T) {
 	session.stop()
 	if page.Err() == nil {
 		t.Fatal("close did not end the browser session")
+	}
+}
+
+func TestFormAcceptsOnlyEditableFieldsAsOneReply(t *testing.T) {
+	session := newSession("test wizard", func() {}, func() {})
+	session.view.Prompt = &Prompt{ID: 9, Kind: "form", Fields: []Field{
+		{Name: "sender"}, {Name: "recipient"}, {Name: "account", ReadOnly: true},
+	}}
+	session.response = make(chan reply, 1)
+	replies := session.response
+	handler := session.handler(testHost, "known-token")
+	post := func(body string) int {
+		return request(handler, http.MethodPost, "/api/answer", testHost, "http://"+testHost, "known-token", body).Code
+	}
+	for _, body := range []string{
+		`{"id":9,"value":"continue"}`,
+		`{"id":9,"values":{"sender":"one"}}`,
+		`{"id":9,"values":{"sender":"one","recipient":"two","account":"override"}}`,
+	} {
+		if got := post(body); got != http.StatusConflict {
+			t.Fatalf("malformed form returned %d for %s", got, body)
+		}
+	}
+	if got := post(`{"id":9,"values":{"sender":"one","recipient":"two"}}`); got != http.StatusNoContent {
+		t.Fatalf("valid form returned %d", got)
+	}
+	if got := <-replies; got.Values["sender"] != "one" || got.Values["recipient"] != "two" {
+		t.Fatalf("form reply was not sent as a batch: %+v", got)
 	}
 }

@@ -59,7 +59,8 @@ async function answer(prompt, value) {
   const controls = Array.from(get("interaction").querySelectorAll("button"));
   controls.forEach((control) => { control.disabled = true; });
   try {
-    const response = await post("/api/answer", {id: prompt.id, value});
+    const payload = prompt.kind === "form" ? {id: prompt.id, values: value} : {id: prompt.id, value};
+    const response = await post("/api/answer", payload);
     if (!response.ok && response.status !== 409) throw new Error("The wizard couldn’t accept this response.");
     await refresh();
   } catch (error) {
@@ -68,36 +69,17 @@ async function answer(prompt, value) {
   }
 }
 
-function renderForm(container, prompt) {
+function renderSingleInput(container, prompt) {
   const form = node("form");
-  let field;
-  if (prompt.kind === "select") {
-    field = node("select");
-    field.required = true;
-    if (!prompt.default) {
-      const placeholder = node("option", "Choose an option");
-      placeholder.value = "";
-      placeholder.disabled = true;
-      placeholder.selected = true;
-      field.append(placeholder);
-    }
-    for (const option of prompt.options) {
-      const item = node("option", option.label);
-      item.value = option.value;
-      item.selected = option.value === prompt.default;
-      field.append(item);
-    }
-  } else {
-    field = node("input");
-    field.type = prompt.kind === "secret" ? "password" : "text";
-    field.autocomplete = "off";
-    field.spellcheck = false;
-    field.required = prompt.kind === "secret" || prompt.kind === "deliberate";
-    field.maxLength = 4096;
-    if (prompt.default) {
-      field.placeholder = prompt.default;
-      form.append(node("div", "Default · " + prompt.default, "muted"));
-    }
+  const field = node("input");
+  field.type = prompt.kind === "secret" ? "password" : "text";
+  field.autocomplete = "off";
+  field.spellcheck = false;
+  field.required = prompt.kind === "secret" || prompt.kind === "deliberate";
+  field.maxLength = 4096;
+  if (prompt.default) {
+    field.placeholder = prompt.default;
+    form.append(node("div", "Default · " + prompt.default, "muted"));
   }
   field.setAttribute("aria-labelledby", "panel-title");
   form.append(field, button(prompt.kind === "deliberate" ? "Confirm" : "Continue", "primary", "submit"));
@@ -111,28 +93,105 @@ function renderForm(container, prompt) {
   field.focus();
 }
 
-function renderReview(container, prompt) {
-  const table = node("table", "", "review");
-  const caption = node("caption", "Deployment settings", "sr-only");
-  const body = node("tbody");
-  prompt.fields.forEach((field, index) => {
-    const row = node("tr");
-    const label = node("th", field.label);
-    label.scope = "row";
-    const edit = node("td");
-    if (field.editable) {
-      const control = button("Edit", "outline small");
-      control.setAttribute("aria-label", "Edit " + field.label);
-      control.addEventListener("click", () => answer(prompt, String(index)));
-      edit.append(control);
-    }
-    row.append(label, node("td", field.value || "—"), edit);
-    body.append(row);
+function renderActions(container, prompt) {
+  const form = node("form", "", "wide-form");
+  const grid = node("fieldset", "", "action-grid");
+  grid.append(node("legend", prompt.label, "sr-only"));
+  prompt.options.forEach((option, index) => {
+    const card = node("label", "", "action-card");
+    const radio = node("input");
+    const title = node("span", option.label, "action-title");
+    const description = node("span", option.description, "action-description");
+    title.id = "action-title-" + index;
+    description.id = "action-description-" + index;
+    radio.type = "radio";
+    radio.name = "action";
+    radio.value = option.value;
+    radio.required = true;
+    radio.checked = option.value === prompt.default;
+    radio.setAttribute("aria-labelledby", title.id);
+    radio.setAttribute("aria-describedby", description.id);
+    card.append(radio, title, description);
+    grid.append(card);
   });
-  table.append(caption, body);
-  const proceed = button("Continue to sign-in", "primary");
-  proceed.addEventListener("click", () => answer(prompt, "continue"));
-  container.append(table, proceed);
+  form.append(grid, button("Continue", "primary", "submit"));
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    answer(prompt, new FormData(form).get("action"));
+  });
+  container.append(form);
+  grid.querySelector(":checked")?.focus();
+}
+
+function renderSettings(container, prompt) {
+  const form = node("form", "", "wide-form settings-form");
+  form.noValidate = true;
+  const groups = new Map();
+  prompt.fields.forEach((field, index) => {
+    if (!groups.has(field.group)) {
+      const group = node("fieldset", "", "settings-group");
+      group.append(node("legend", field.group));
+      groups.set(field.group, group);
+      form.append(group);
+    }
+    const row = node("div", "", "settings-field");
+    const id = "setting-" + index;
+    const label = node("label", field.label);
+    label.htmlFor = id;
+    let control;
+    if (field.options?.length) {
+      control = node("select");
+      control.append(new Option("Choose an option", "", false, true));
+      for (const option of field.options) {
+        control.append(new Option(option.label, option.value, false, option.value === field.value));
+      }
+    } else {
+      control = node("input");
+      control.type = "text";
+      control.value = field.value;
+      control.maxLength = 4096;
+      control.autocomplete = "off";
+      control.spellcheck = false;
+      if (field.kind === "email") control.inputMode = "email";
+      if (field.kind === "number") control.inputMode = "numeric";
+    }
+    control.id = id;
+    if (field.readOnly) {
+      control.readOnly = true;
+    } else {
+      control.name = field.name;
+    }
+    row.append(label, control);
+    const descriptions = [];
+    if (field.help) {
+      const help = node("div", field.help, "field-help");
+      help.id = id + "-help";
+      descriptions.push(help.id);
+      row.append(help);
+    }
+    if (field.error) {
+      const error = node("div", field.error, "field-error");
+      error.id = id + "-error";
+      descriptions.push(error.id);
+      control.setAttribute("aria-invalid", "true");
+      row.append(error);
+    }
+    if (descriptions.length) control.setAttribute("aria-describedby", descriptions.join(" "));
+    groups.get(field.group).append(row);
+  });
+  const hasErrors = prompt.fields.some((field) => field.error);
+  if (hasErrors) {
+    const warning = node("p", "Check the highlighted fields and continue.", "problem");
+    warning.setAttribute("role", "alert");
+    form.prepend(warning);
+  }
+  form.append(button("Continue", "primary", "submit"));
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    answer(prompt, Object.fromEntries(new FormData(form)));
+  });
+  container.append(form);
+  if (hasErrors) form.querySelector('[aria-invalid="true"]')?.focus();
 }
 
 function renderPrompt(view) {
@@ -153,9 +212,11 @@ function renderPrompt(view) {
     return;
   }
   title.textContent = prompt.label;
-  if (prompt.message) content.append(node("p", prompt.message, prompt.kind === "review" ? "problem" : ""));
-  if (prompt.kind === "review") {
-    renderReview(content, prompt);
+  if (prompt.message) content.append(node("p", prompt.message, prompt.kind === "form" ? "problem" : ""));
+  if (prompt.kind === "actions") {
+    renderActions(content, prompt);
+  } else if (prompt.kind === "form") {
+    renderSettings(content, prompt);
   } else if (prompt.kind === "confirm") {
     const buttons = node("div", "", "buttons");
     for (const option of prompt.options) {
@@ -165,7 +226,7 @@ function renderPrompt(view) {
     }
     content.append(buttons);
   } else {
-    renderForm(content, prompt);
+    renderSingleInput(content, prompt);
   }
 }
 

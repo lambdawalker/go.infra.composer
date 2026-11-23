@@ -22,7 +22,7 @@ type rejectedEdit struct{ error }
 func reviewSettings(ctx context.Context, fields []reviewField) error {
 	message := ""
 	for {
-		selected, err := wizard(ctx).selectReviewField(fields, message)
+		selected, err := selectReviewField(fields, message)
 		if err != nil || selected == len(fields) {
 			return err
 		}

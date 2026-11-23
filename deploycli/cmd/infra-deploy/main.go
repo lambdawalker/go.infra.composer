@@ -423,13 +423,13 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 		}
 	}
 	if ui.browser != nil && !actionExplicit && *exportPath == "" {
-		operation, err := ui.selectOption("What would you like to run?", "preview", []wizardweb.Option{
-			{Value: "preview", Label: "Preview changes"},
-			{Value: "deploy", Label: "Preview and deploy"},
-			{Value: "setup", Label: "Set up deployment"},
-			{Value: "status", Label: "Check deployment status"},
-			{Value: "report", Label: "Generate an artifact report"},
-			{Value: "github-setup", Label: "Configure GitHub deployment"},
+		operation, err := ui.selectAction("What would you like to run?", "preview", []wizardweb.Option{
+			{Value: "preview", Label: "Preview changes", Description: "Build and see what Pulumi plans to change. The run stops after the preview."},
+			{Value: "deploy", Label: "Preview and deploy", Description: "Review the Pulumi plan, then approve it to make changes in AWS."},
+			{Value: "setup", Label: "Set up deployment", Description: "Prepare the state bucket, Pulumi stack, and deployment settings."},
+			{Value: "status", Label: "Check deployment status", Description: "Read the published outputs from the selected Pulumi stack."},
+			{Value: "report", Label: "Generate an artifact report", Description: "Save a report of the deployment artifacts recorded for the selected stack."},
+			{Value: "github-setup", Label: "Configure GitHub deployment", Description: "Review and configure the GitHub environment and AWS role used by deployment workflows."},
 		})
 		if err != nil {
 			return err
@@ -584,63 +584,6 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 		return e
 	}
 
-	choose := func(v *string, prior, label, def string) error {
-		if *v != "" {
-			return nil
-		}
-		if !*ci && prior != "" && !*reconfigure {
-			*v = prior
-			ui.note(label + ": using saved setting")
-			return nil
-		}
-		if *ci {
-			return fmt.Errorf("%s required in CI", label)
-		}
-		if prior != "" {
-			def = prior
-		}
-		*v = ui.prompt(label, def)
-		return nil
-	}
-	if !*ci {
-		profileDefault := ""
-		profiles, err := output(ctx, "aws", "configure", "list-profiles")
-		if err != nil {
-			return fmt.Errorf("list AWS profiles; install AWS CLI v2 and run aws configure sso: %w", err)
-		}
-		names := strings.Fields(string(profiles))
-		for _, p := range names {
-			if profileDefault == "" || p == "default" {
-				profileDefault = p
-			}
-		}
-		if profileDefault == "" {
-			return errors.New("no AWS profiles; run aws configure sso first")
-		}
-		if ui.browser != nil && *profile == "" && (saved.Profile == "" || *reconfigure) {
-			profileOptions := make([]wizardweb.Option, 0, len(names))
-			for _, name := range names {
-				profileOptions = append(profileOptions, wizardweb.Option{Value: name, Label: name})
-				if name == saved.Profile {
-					profileDefault = name
-				}
-			}
-			*profile, e = ui.selectOption("AWS SSO profile", profileDefault, profileOptions)
-		} else {
-			e = choose(profile, saved.Profile, "AWS SSO profile", profileDefault)
-		}
-		if e != nil {
-			return e
-		}
-	}
-	for _, v := range []struct {
-		p               *string
-		old, label, def string
-	}{{region, saved.Region, "region", "us-east-2"}} {
-		if e = choose(v.p, v.old, v.label, v.def); e != nil {
-			return e
-		}
-	}
 	needsInputs := *action == "setup" || *action == "preview" || *action == "deploy" || *action == "github-setup"
 	canCreateBucket := *action == "setup" || *action == "preview" || *action == "deploy"
 	if !*ci {
@@ -652,80 +595,189 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 		}
 	}
 	options := githubOptions{target: cli.spec, Root: root, Role: *githubRole, Repository: *githubRepo, Environment: *githubEnv, Project: projectName, Policy: *githubPolicy, SecretVersion: *githubSecretVersion, Force: *forceReconcile, Private: private}
-	var reconcile, offeredGitHub bool
+	var reconcile bool
+	offeredGitHub := !*ci && (*action == "github-setup" || (cli.spec.GitHub.Prompt && !*skipGitHub && (*action == "setup" || *action == "deploy")))
+	var profiles []wizardweb.Option
+	profileDefault := ""
 	if !*ci {
-		if *backend == "" {
-			def := ""
-			label := "S3 state URL (s3://bucket/prefix)"
-			if canCreateBucket {
-				def = "new"
-				label = "S3 state URL (s3://bucket/prefix or new)"
-			}
-			for {
-				*backend = ui.prompt(label, def)
-				if validBackend(*backend) || (canCreateBucket && *backend == "new") {
-					break
-				}
-				ui.note("Enter an S3 state URL with a bucket and a prefix.")
+		raw, err := output(ctx, "aws", "configure", "list-profiles")
+		if err != nil {
+			return fmt.Errorf("list AWS profiles; install AWS CLI v2 and run aws configure sso: %w", err)
+		}
+		for _, name := range strings.Fields(string(raw)) {
+			profiles = append(profiles, wizardweb.Option{Value: name, Label: name})
+			if profileDefault == "" || name == "default" {
+				profileDefault = name
 			}
 		}
-		if *action == "github-setup" || (cli.spec.GitHub.Prompt && !*skipGitHub && (*action == "setup" || *action == "deploy")) {
-			offeredGitHub = true
-			reconcile, e = options.collectGitHub(ctx, *env, *action == "github-setup" || *reconfigure)
+		if profileDefault == "" {
+			return errors.New("no AWS profiles; run aws configure sso first")
+		}
+	}
+
+	if ui.browser != nil && !*ci {
+		form := deploymentForm{
+			project: projectName, action: *action, saved: saved, profiles: profiles,
+			target:          Settings{Version: 1, Environment: *env, Profile: *profile, Region: *region, Account: *account, Backend: *backend},
+			canCreateBucket: canCreateBucket, memory: *memory, hasMemory: cli.spec.Memory != 0,
+		}
+		if form.target.Profile == "" {
+			form.target.Profile = profileDefault
+			for _, option := range profiles {
+				if option.Value == saved.Profile {
+					form.target.Profile = saved.Profile
+					break
+				}
+			}
+		}
+		if form.target.Region == "" {
+			form.target.Region = saved.Region
+			if form.target.Region == "" {
+				form.target.Region = "us-east-2"
+			}
+		}
+		if *account == "" {
+			form.target.Account = "auto"
+		}
+		if *backend == "" && canCreateBucket {
+			form.target.Backend = "new"
+		}
+		if needsInputs {
+			form.inputs = inputs
+			form.defaults, e = inputs.defaults(cli.spec.InputsFile, private)
 			if e != nil {
 				return e
 			}
 		}
-	}
-	if needsInputs {
-		if e = inputs.collect(ctx, cli.spec.InputsFile, private, *ci, *reconfigure, ui.input); e != nil {
+		if offeredGitHub {
+			previous, err := readGitHubSettings(private)
+			if err != nil {
+				return err
+			}
+			options.fillDefaults(previous, *env)
+			form.github = &options
+			form.configureGitHub = previous.Repository != "" || *reconfigure
+		}
+		if e = form.collect(ctx); e != nil {
 			return e
+		}
+		*profile, *region, *account, *backend = form.target.Profile, form.target.Region, form.target.Account, form.target.Backend
+		*memory, reconcile = form.memory, form.configureGitHub
+		if needsInputs {
+			if e = ctx.Err(); e != nil {
+				return e
+			}
+			if e = inputs.save(cli.spec.InputsFile, private); e != nil {
+				return e
+			}
+		}
+	} else {
+		choose := func(v *string, prior, label, def string) error {
+			if *v != "" {
+				return nil
+			}
+			if !*ci && prior != "" && !*reconfigure {
+				*v = prior
+				ui.note(label + ": using saved setting")
+				return nil
+			}
+			if *ci {
+				return fmt.Errorf("%s required in CI", label)
+			}
+			if prior != "" {
+				def = prior
+			}
+			*v = ui.prompt(label, def)
+			return nil
+		}
+		if !*ci {
+			if e = choose(profile, saved.Profile, "AWS SSO profile", profileDefault); e != nil {
+				return e
+			}
+		}
+		for _, v := range []struct {
+			p               *string
+			old, label, def string
+		}{{region, saved.Region, "region", "us-east-2"}} {
+			if e = choose(v.p, v.old, v.label, v.def); e != nil {
+				return e
+			}
+		}
+		if !*ci {
+			if *backend == "" {
+				def := ""
+				label := "S3 state URL (s3://bucket/prefix)"
+				if canCreateBucket {
+					def = "new"
+					label = "S3 state URL (s3://bucket/prefix or new)"
+				}
+				for {
+					*backend = ui.prompt(label, def)
+					if validBackend(*backend) || (canCreateBucket && *backend == "new") {
+						break
+					}
+					ui.note("Enter an S3 state URL with a bucket and a prefix.")
+				}
+			}
+			if offeredGitHub {
+				reconcile, e = options.collectGitHub(ctx, *env, *action == "github-setup" || *reconfigure)
+				if e != nil {
+					return e
+				}
+			}
+		}
+		if needsInputs {
+			if e = inputs.collect(ctx, cli.spec.InputsFile, private, *ci, *reconfigure, ui.input); e != nil {
+				return e
+			}
+		}
+		if !*ci {
+			regionField := textReviewField(ctx, "AWS region", region, "", validRegion)
+			accountField := textReviewField(ctx, "AWS account", account, "auto", func(s string) bool {
+				return s == "auto" || pattern(`^\d{12}$`, s)
+			})
+			stateField := textReviewField(ctx, "S3 state URL", backend, "", func(s string) bool {
+				return validBackend(s) || (canCreateBucket && s == "new")
+			})
+			if saved.Account != "" {
+				// These values identify the existing stack.
+				regionField.edit, accountField.edit, stateField.edit = nil, nil, nil
+			}
+			rows := []reviewField{
+				{label: "Project", value: func() string { return projectName }},
+				{label: "Environment", value: func() string { return *env }},
+				{label: "Action", value: func() string { return *action }},
+				textReviewField(ctx, "AWS SSO profile", profile, "", func(s string) bool {
+					return validInput("text", s)
+				}),
+				regionField, accountField, stateField,
+			}
+			if offeredGitHub && !reconcile {
+				rows = append(rows, reviewField{label: "GitHub setup", value: func() string { return "Skip" }})
+			}
+			if cli.spec.Memory != 0 {
+				memoryValue := fmt.Sprint(*memory)
+				rows = append(rows, textReviewField(ctx, "Lambda memory (MB)", &memoryValue, "", func(s string) bool {
+					n, err := strconv.Atoi(s)
+					if err == nil && n >= 128 && n <= 10240 {
+						*memory = n
+						return true
+					}
+					return false
+				}))
+			}
+			if reconcile {
+				rows = append(rows, options.reviewGitHub(ctx)...)
+			}
+			if needsInputs {
+				rows = append(rows, inputs.reviewFields(ctx)...)
+			}
+			if e = reviewSettings(ctx, rows); e != nil {
+				return e
+			}
 		}
 	}
 	if !*ci {
-		regionField := textReviewField(ctx, "AWS region", region, "", validRegion)
-		accountField := textReviewField(ctx, "AWS account", account, "auto", func(s string) bool {
-			return s == "auto" || pattern(`^\d{12}$`, s)
-		})
-		stateField := textReviewField(ctx, "S3 state URL", backend, "", func(s string) bool {
-			return validBackend(s) || (canCreateBucket && s == "new")
-		})
-		if saved.Account != "" {
-			// These values identify the existing stack.
-			regionField.edit, accountField.edit, stateField.edit = nil, nil, nil
-		}
-		rows := []reviewField{
-			{label: "Project", value: func() string { return projectName }},
-			{label: "Environment", value: func() string { return *env }},
-			{label: "Action", value: func() string { return *action }},
-			textReviewField(ctx, "AWS SSO profile", profile, "", func(s string) bool {
-				return validInput("text", s)
-			}),
-			regionField, accountField, stateField,
-		}
-		if offeredGitHub && !reconcile {
-			rows = append(rows, reviewField{label: "GitHub setup", value: func() string { return "Skip" }})
-		}
-		if cli.spec.Memory != 0 {
-			memoryValue := fmt.Sprint(*memory)
-			rows = append(rows, textReviewField(ctx, "Lambda memory (MB)", &memoryValue, "", func(s string) bool {
-				n, err := strconv.Atoi(s)
-				if err == nil && n >= 128 && n <= 10240 {
-					*memory = n
-					return true
-				}
-				return false
-			}))
-		}
-		if reconcile {
-			rows = append(rows, options.reviewGitHub(ctx)...)
-		}
-		if needsInputs {
-			rows = append(rows, inputs.reviewFields(ctx)...)
-		}
-		if e = reviewSettings(ctx, rows); e != nil {
-			return e
-		}
 		inputs.showDNSGuidance(ctx)
 		if *account == "auto" {
 			*account = ""
@@ -928,7 +980,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 			}
 		}
 	}
-	if needsInputs {
+	if needsInputs && ui.browser == nil {
 		if e = inputs.save(cli.spec.InputsFile, private); e != nil {
 			return e
 		}
