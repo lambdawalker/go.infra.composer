@@ -23,6 +23,7 @@ type Field struct {
 	Value    string   `json:"value"`
 	Kind     string   `json:"kind"`
 	Options  []Option `json:"options,omitempty"`
+	Action   *Option  `json:"action,omitempty"`
 	ReadOnly bool     `json:"readOnly,omitempty"`
 	Help     string   `json:"help,omitempty"`
 	Error    string   `json:"error,omitempty"`
@@ -63,6 +64,7 @@ type view struct {
 type reply struct {
 	Value  *string           `json:"value"`
 	Values map[string]string `json:"values"`
+	Action string            `json:"action,omitempty"`
 }
 
 type Session struct {
@@ -89,10 +91,10 @@ func (s *Session) Ask(ctx context.Context, prompt Prompt) (string, error) {
 	return *answer.Value, err
 }
 
-func (s *Session) AskForm(ctx context.Context, prompt Prompt) (map[string]string, error) {
+func (s *Session) AskForm(ctx context.Context, prompt Prompt) (map[string]string, string, error) {
 	prompt.Kind = "form"
 	answer, err := s.ask(ctx, prompt)
-	return answer.Values, err
+	return answer.Values, answer.Action, err
 }
 
 func (s *Session) ask(ctx context.Context, prompt Prompt) (reply, error) {
@@ -121,7 +123,11 @@ func (s *Session) answer(id uint64, answer reply) bool {
 	}
 	if prompt.Kind == "form" {
 		count := 0
+		actionAvailable := answer.Action == ""
 		for _, field := range prompt.Fields {
+			if field.Action != nil && field.Action.Value == answer.Action {
+				actionAvailable = true
+			}
 			if field.ReadOnly {
 				continue
 			}
@@ -130,10 +136,10 @@ func (s *Session) answer(id uint64, answer reply) bool {
 			}
 			count++
 		}
-		if answer.Value != nil || answer.Values == nil || len(answer.Values) != count {
+		if answer.Value != nil || answer.Values == nil || len(answer.Values) != count || !actionAvailable {
 			return false
 		}
-	} else if answer.Value == nil || answer.Values != nil {
+	} else if answer.Value == nil || answer.Values != nil || answer.Action != "" {
 		return false
 	} else if value := *answer.Value; prompt.Kind == "secret" && value != "" && !slices.Contains(s.secrets, value) {
 		s.secrets = append(s.secrets, value)

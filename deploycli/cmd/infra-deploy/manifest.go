@@ -46,6 +46,7 @@ type githubSpec struct {
 }
 
 type inputSpec struct {
+	Help           string
 	Name           string // Stable saved record key. Lowercase form is the flag and Pulumi config key.
 	Label          string
 	Kind           string

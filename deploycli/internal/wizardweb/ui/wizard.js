@@ -55,11 +55,11 @@ async function post(path, payload = null) {
   });
 }
 
-async function answer(prompt, value) {
+async function answer(prompt, value, action) {
   const controls = Array.from(get("interaction").querySelectorAll("button"));
   controls.forEach((control) => { control.disabled = true; });
   try {
-    const payload = prompt.kind === "form" ? {id: prompt.id, values: value} : {id: prompt.id, value};
+    const payload = prompt.kind === "form" ? {id: prompt.id, values: value, action} : {id: prompt.id, value};
     const response = await post("/api/answer", payload);
     if (!response.ok && response.status !== 409) throw new Error("The wizard couldn’t accept this response.");
     await refresh();
@@ -130,19 +130,21 @@ function renderSettings(container, prompt) {
   prompt.fields.forEach((field, index) => {
     if (!groups.has(field.group)) {
       const group = node("fieldset", "", "settings-group");
+      group.dataset.group = field.group;
       group.append(node("legend", field.group));
       groups.set(field.group, group);
       form.append(group);
     }
     const row = node("div", "", "settings-field");
+    row.dataset.field = field.name;
     const id = "setting-" + index;
     const label = node("label", field.label);
     label.htmlFor = id;
     let control;
-    if (field.options?.length) {
+    if (field.kind === "select" || field.options?.length) {
       control = node("select");
       control.append(new Option("Choose an option", "", false, true));
-      for (const option of field.options) {
+      for (const option of field.options || []) {
         control.append(new Option(option.label, option.value, false, option.value === field.value));
       }
     } else {
@@ -177,6 +179,13 @@ function renderSettings(container, prompt) {
       row.append(error);
     }
     if (descriptions.length) control.setAttribute("aria-describedby", descriptions.join(" "));
+    if (field.action) {
+      const action = button(field.action.label, "outline small");
+      action.addEventListener("click", () => {
+        answer(prompt, Object.fromEntries(new FormData(form)), field.action.value);
+      });
+      row.append(action);
+    }
     groups.get(field.group).append(row);
   });
   const hasErrors = prompt.fields.some((field) => field.error);

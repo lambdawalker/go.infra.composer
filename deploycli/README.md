@@ -76,6 +76,10 @@ After choosing the project and environment, review and edit the applicable
 settings in one form. Continue validates the full form and saves the accepted
 project inputs as defaults for that environment. Account, region, and state
 location for an existing deployment stay bound to its verified scope.
+Choose **Add AWS SSO profile** to run the AWS CLI setup in the launching
+terminal. The browser keeps your form edits and refreshes the profile list
+when setup finishes. When run without an attached terminal, configure the
+profile separately with `aws configure sso`, then choose **Refresh AWS profiles**.
 AWS sign-in instructions appear when an SSO session needs renewal.
 
 The page follows the deployment stages, shows the resource operations from the
@@ -89,6 +93,9 @@ wizard. Closing the browser tab alone leaves the local process running.
 Browser mode is interactive and cannot be combined with `--non-interactive`.
 
 ## Compose deployment inputs
+
+Use `Label` for the field name and optional `Help` for instructions shown below
+the field in the browser form.
 
 A field's `Compose.Function` selects a built-in or project function.
 `Compose.Parameters` binds the function's named arguments. Each argument

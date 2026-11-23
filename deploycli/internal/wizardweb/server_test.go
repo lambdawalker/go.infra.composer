@@ -107,7 +107,7 @@ func TestStopCancelsRunBeforeClosingPage(t *testing.T) {
 func TestFormAcceptsOnlyEditableFieldsAsOneReply(t *testing.T) {
 	session := newSession("test wizard", func() {}, func() {})
 	session.view.Prompt = &Prompt{ID: 9, Kind: "form", Fields: []Field{
-		{Name: "sender"}, {Name: "recipient"}, {Name: "account", ReadOnly: true},
+		{Name: "sender", Action: &Option{Value: "refresh-profiles"}}, {Name: "recipient"}, {Name: "account", ReadOnly: true},
 	}}
 	session.response = make(chan reply, 1)
 	replies := session.response
@@ -119,15 +119,16 @@ func TestFormAcceptsOnlyEditableFieldsAsOneReply(t *testing.T) {
 		`{"id":9,"value":"continue"}`,
 		`{"id":9,"values":{"sender":"one"}}`,
 		`{"id":9,"values":{"sender":"one","recipient":"two","account":"override"}}`,
+		`{"id":9,"values":{"sender":"one","recipient":"two"},"action":"unknown"}`,
 	} {
 		if got := post(body); got != http.StatusConflict {
 			t.Fatalf("malformed form returned %d for %s", got, body)
 		}
 	}
-	if got := post(`{"id":9,"values":{"sender":"one","recipient":"two"}}`); got != http.StatusNoContent {
+	if got := post(`{"id":9,"values":{"sender":"one","recipient":"two"},"action":"refresh-profiles"}`); got != http.StatusNoContent {
 		t.Fatalf("valid form returned %d", got)
 	}
-	if got := <-replies; got.Values["sender"] != "one" || got.Values["recipient"] != "two" {
+	if got := <-replies; got.Values["sender"] != "one" || got.Values["recipient"] != "two" || got.Action != "refresh-profiles" {
 		t.Fatalf("form reply was not sent as a batch: %+v", got)
 	}
 }
