@@ -40,8 +40,8 @@ infra-deploy --action preview --environment dev
 ```
 
 Run `--help` from that checkout to see its commands and input flags. Plain
-interactive use defaults to deploy. The wizard asks for the local vault
-passphrase before collecting settings. On first use, it also asks you to
+terminal use defaults to deploy. After the interface choice, the wizard asks
+for the local vault passphrase before collecting settings. On first use, it also asks you to
 confirm the vault passphrase and enter the Pulumi passphrase for the stack.
 
 The review screen displays nonsecret values before AWS or GitHub sign-in.
@@ -58,10 +58,16 @@ confirmation.
 
 ## Run the browser wizard
 
-The terminal wizard is the default. Start the optional browser wizard from the
-target repository with `./deploy.sh --server` or `deploy.bat --server`.
-If the project calls the CLI directly, use `infra-deploy --server`.
-Add `--no-open` to copy the URL from the terminal without opening a browser.
+In a local desktop terminal, the shared CLI first asks whether to continue in
+the terminal or launch the web interface. Press Enter or wait five seconds to
+stay in the terminal. Headless and SSH sessions skip the question and go
+straight to the terminal wizard. CI stays noninteractive.
+
+Use `--terminal` to skip the choice and stay in the terminal, or `--server` to
+start the browser wizard directly. Both flags work with `infra-deploy`,
+`./deploy.sh`, and `deploy.bat`. Add `--no-open` to `--server` to print the URL
+without opening a browser. Build, cache cleanup, and settings export skip the
+interface question.
 
 The wizard binds to a random loopback port and uses a private session URL.
 Vault and stack passphrases use password fields. Choose an action, enter missing
