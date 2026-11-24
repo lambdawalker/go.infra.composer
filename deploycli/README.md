@@ -51,7 +51,7 @@ menu. Choose Continue to sign in and run target checks. Project and environment
 select the vault and receipt scope at startup. An existing account, region and
 S3 state URL are tied to that scope. Use `--environment` for a different
 deployment environment. Ctrl+Q exits during prompts or review. Active external
-commands use Ctrl+C. Text input stops the five-second default timer.
+commands use Ctrl+C. Text input stops the 15-second default timer.
 
 CI uses explicit target arguments, an assumed role and a separate deploy
 approval. Deletion, replacement and teardown require deliberate interactive
@@ -60,7 +60,7 @@ confirmation.
 ## Run the browser wizard
 
 In a local desktop terminal, the shared CLI first asks whether to continue in
-the terminal or launch the web interface. Press Enter or wait five seconds to
+the terminal or launch the web interface. Press Enter or wait 15 seconds to
 stay in the terminal. Headless and SSH sessions skip the question and go
 straight to the terminal wizard. CI stays noninteractive.
 
@@ -92,13 +92,21 @@ when setup finishes. When run without an attached terminal, configure the
 profile separately with `aws configure sso`, then choose **Refresh AWS profiles**.
 AWS sign-in instructions appear when an SSO session needs renewal.
 
-The page follows the deployment stages, shows the resource operations from the
-saved Pulumi plan, and displays the outcome. Approvals in browser mode require
-an explicit click. Deletion or replacement still requires typing the stack
-name. On a failed or stopped action, **Copy diagnostics** copies the action,
-stage, error, and recent output from supported failed commands. It redacts
-known secrets and common credential formats. It leaves out sign-in transcripts,
-command arguments, and raw configuration or state outputs.
+The page follows the deployment stages. The plan groups artifacts by service
+and shows each artifact's type, name, purpose where known, and operation.
+Expand an artifact name to see its full Pulumi URN.
+
+The fixed bottom bar keeps the current actions and countdown in view.
+Browser prompts with a routine default wait 15 seconds. A deployment settings
+form with resolved, valid defaults waits 30 seconds. Typing, clicking, or
+scrolling pauses the countdown, as does leaving the tab. The action menu
+stays open after returning from an operation. Passwords, account confirmation,
+and deployment approvals require explicit input. Provider command diagnostics
+remain in the launching terminal. On a failed or stopped action,
+**Copy diagnostics** copies the action, stage, error, and recent output from
+supported failed commands. It redacts known secrets and common credential
+formats. It leaves out sign-in transcripts, command arguments, and raw
+configuration or state outputs.
 
 After any action finishes, fails, or is stopped, review the result and choose
 **Back to main page** to open the action cards in the same tab. The wizard waits

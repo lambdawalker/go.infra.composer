@@ -16,6 +16,8 @@ import (
 	"github.com/charmbracelet/x/term"
 )
 
+const defaultCountdownSeconds = 15
+
 var countdownStep = time.Second
 var errCancelled = errors.New("input closed or cancelled")
 var errQuit = errors.New("wizard closed")
@@ -28,7 +30,7 @@ type inputEvent struct {
 // askLoop contains no terminal or wall-clock dependencies. Every input error wins
 // over expiry; partial text disables the default timer until Enter is pressed.
 func askLoop(ctx context.Context, events <-chan inputEvent, ticks <-chan time.Time, def string, choice bool, render func(int, string)) (string, error) {
-	remaining := 5
+	remaining := defaultCountdownSeconds
 	entered := false
 	var value []byte
 	render(remaining, "")
@@ -187,7 +189,7 @@ func askWithDefault(label, def, displayDefault string, choice, hidden bool) (str
 	return withPromptInput(hidden, func(ctx context.Context, events <-chan inputEvent, terminal bool) (string, error) {
 		fmt.Printf("  %s", label)
 		if def != "" {
-			fmt.Printf(" [%s]; Enter accepts; default in 5 seconds", displayDefault)
+			fmt.Printf(" [%s]; Enter accepts; default in %d seconds", displayDefault, defaultCountdownSeconds)
 		} else {
 			fmt.Print(" (explicit input required; no timeout)")
 		}

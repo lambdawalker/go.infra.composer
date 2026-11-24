@@ -31,12 +31,17 @@ type deploymentForm struct {
 func (f *deploymentForm) collect(ctx context.Context, issues map[string]string, check func(Settings) (string, error)) error {
 	fields := f.fields()
 	ui := wizard(ctx)
+	countdown := len(issues) == 0 && f.canContinueWithDefaults(fields)
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 		fields = slices.Clone(fields)
 		prompt := wizardweb.Prompt{Label: "Deployment settings", Message: issues[""], Fields: fields}
+		if countdown {
+			prompt.CountdownSeconds = 2 * defaultCountdownSeconds
+			countdown = false
+		}
 		for i := range fields {
 			field := &fields[i]
 			field.Error = issues[field.Name]
@@ -89,6 +94,26 @@ func (f *deploymentForm) collect(ctx context.Context, issues map[string]string, 
 			}
 		}
 	}
+}
+
+func (f deploymentForm) canContinueWithDefaults(fields []wizardweb.Field) bool {
+	values := make(map[string]string, len(fields))
+	for _, field := range fields {
+		if !field.ReadOnly && field.Kind != "password" {
+			values[field.Name] = field.Value
+		}
+	}
+	draft, issues := f.validate(values)
+	if len(issues) != 0 || draft.target.Account == "" || draft.target.Backend == "new" {
+		return false
+	}
+	for _, field := range draft.inputs {
+		if field.spec.Kind == "dnsProvider" && field.value == "cloudflare" &&
+			!f.credentials.configured(cloudflareField) {
+			return false
+		}
+	}
+	return true
 }
 
 func (f deploymentForm) preview(values map[string]string) wizardweb.FormPreview {

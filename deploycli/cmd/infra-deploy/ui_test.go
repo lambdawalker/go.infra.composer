@@ -8,17 +8,17 @@ import (
 
 func TestCountdownInPlace(t *testing.T) {
 	var b bytes.Buffer
-	for i := 5; i > 0; i-- {
+	for i := defaultCountdownSeconds; i > 0; i-- {
 		writeCountdown(&b, i, true, true)
 	}
 	finishCountdown(&b, true)
-	if strings.Contains(b.String(), "\n") || strings.Count(b.String(), "\r") != 7 || !strings.Contains(b.String(), "in 1s") {
+	if strings.Contains(b.String(), "\n") || strings.Count(b.String(), "\r") != defaultCountdownSeconds+2 || !strings.Contains(b.String(), "in 1s") {
 		t.Fatal("countdown must repaint one line", b.String())
 	}
 }
 func TestCountdownRedirected(t *testing.T) {
 	var b bytes.Buffer
-	for i := 5; i > 0; i-- {
+	for i := defaultCountdownSeconds; i > 0; i-- {
 		writeCountdown(&b, i, false, false)
 	}
 	finishCountdown(&b, false)

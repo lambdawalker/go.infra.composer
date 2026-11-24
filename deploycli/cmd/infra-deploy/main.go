@@ -370,7 +370,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 		})
 	}
 	if showActions {
-		operation, err := ui.selectAction()
+		operation, err := ui.selectAction(false)
 		if err != nil {
 			return err
 		}
@@ -434,7 +434,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 		}
 	}
 	if ui.browser != nil && !showActions && !actionExplicit && *exportPath == "" {
-		*action, e = ui.selectAction()
+		*action, e = ui.selectAction(true)
 		if e != nil {
 			return e
 		}

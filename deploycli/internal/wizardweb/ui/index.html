@@ -27,7 +27,6 @@
         <p class="context" id="action">Deployment wizard</p>
         <h1 id="project">Deployment wizard</h1>
       </div>
-      <button id="stop" class="button outline" type="button" hidden>Stop wizard</button>
     </div>
     <div class="layout">
       <aside class="progress" aria-label="Deployment progress">
@@ -54,7 +53,6 @@
             <h2 id="sign-in-title">Browser sign-in</h2>
             <p>Complete the provider’s sign-in to continue.</p>
           </div>
-          <div id="sign-in-actions"></div>
           <pre id="sign-in-output"></pre>
         </section>
         <section class="panel" id="preview" aria-labelledby="preview-title" hidden>
@@ -71,5 +69,18 @@
       </div>
     </div>
   </main>
+  <footer class="action-bar" id="action-bar" aria-label="Wizard actions" hidden>
+    <div class="action-bar-inner">
+      <div class="countdown" id="countdown" hidden>
+        <span id="countdown-text" role="timer"></span>
+        <button class="button outline small" id="pause-countdown" type="button">Pause countdown</button>
+      </div>
+      <div class="buttons wizard-actions">
+        <button id="stop" class="button outline" type="button">Stop wizard</button>
+        <div id="sign-in-actions" class="buttons"></div>
+        <div id="prompt-actions" class="buttons"></div>
+      </div>
+    </div>
+  </footer>
 </body>
 </html>
