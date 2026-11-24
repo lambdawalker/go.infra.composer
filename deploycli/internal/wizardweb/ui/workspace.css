@@ -315,3 +315,18 @@ body:has(#vault-lock:not([hidden])) .theme-control select { min-height:27px; bac
 :root[data-theme="light"] body:has(#vault-lock:not([hidden])) .brand-mark { background:#e9edf2; color:#1e65c6; border-color:#cfd4dc; }
 :root[data-theme="light"] body:has(.preview-workspace:not([hidden])) .theme-control select,
 :root[data-theme="light"] body:has(#vault-lock:not([hidden])) .theme-control select { background:#e9edf2; color:#24272d; border-color:#cfd4dc; }
+.preview-workspace #panel .status { border-radius:4px; padding:2px 6px; font-size:10px; }
+.preview-workspace #panel .wide-form { gap:12px; }
+.preview-workspace #panel .settings-group { padding:10px 12px 12px; border-radius:5px; gap:10px 12px; }
+.preview-workspace #panel .settings-group legend { font-size:12px; }
+.preview-workspace #panel .settings-field { gap:3px; }
+.preview-workspace #panel .settings-field label { font-size:12px; }
+.preview-workspace #panel .field-help,
+.preview-workspace #panel .field-error { font-size:11px; }
+.preview-workspace #panel input,
+.preview-workspace #panel select { min-height:34px; border-radius:5px; padding:6px 9px; font-size:12px; }
+.preview-workspace #panel .action-grid { gap:7px; }
+.preview-workspace #panel .action-card { min-height:83px; padding:10px; border-radius:5px; gap:4px 8px; }
+.preview-workspace #panel .action-title { font-size:12px; }
+.preview-workspace #panel .action-description { font-size:11px; }
+.preview-workspace #panel .action-card input { width:15px; height:15px; min-height:0; }
