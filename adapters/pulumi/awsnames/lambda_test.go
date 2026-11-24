@@ -86,3 +86,16 @@ func TestLambdaFunctionNameChecksComputedInput(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateLambdaStatementID(t *testing.T) {
+	for _, id := range []string{"testhost-app-demo-permission-status", "Worker_1", strings.Repeat("a", 100)} {
+		if err := ValidateLambdaStatementID(id); err != nil {
+			t.Errorf("valid statement ID %q rejected: %v", id, err)
+		}
+	}
+	for _, id := range []string{"", "testhost.app-demo-permission-status", "worker permission", "función", strings.Repeat("a", 101)} {
+		if err := ValidateLambdaStatementID(id); err == nil {
+			t.Errorf("invalid statement ID %q accepted", id)
+		}
+	}
+}

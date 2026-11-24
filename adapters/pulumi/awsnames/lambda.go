@@ -8,7 +8,19 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-var lambdaName = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+var (
+	lambdaName        = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+	lambdaStatementID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,100}$`)
+)
+
+// ValidateLambdaStatementID checks a Lambda permission statement ID or the
+// logical name used as the base for Pulumi's default statement ID auto-naming.
+func ValidateLambdaStatementID(id string) error {
+	if !lambdaStatementID.MatchString(id) {
+		return fmt.Errorf("Lambda permission statement ID %q must contain 1–100 ASCII letters, digits, hyphens, or underscores", id)
+	}
+	return nil
+}
 
 // LambdaFunctionName checks the name for creating an AWS Lambda function.
 // With no explicit name, it checks the logical name as the base of Pulumi's
