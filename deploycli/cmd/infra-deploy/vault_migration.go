@@ -2,11 +2,7 @@ package main
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/pbkdf2"
 	"crypto/rand"
-	"crypto/sha256"
 	"errors"
 	"os"
 )
@@ -28,16 +24,7 @@ func loadProjectVault(ctx context.Context, path, legacy, pass string) (string, e
 	if len(b) < 20 || string(b[:4]) != "OCV1" {
 		return "", errors.New("invalid legacy vault; original preserved")
 	}
-	key, e := pbkdf2.Key(sha256.New, pass, b[4:20], 600000, 32)
-	if e != nil {
-		return "", e
-	}
-	defer clear(key)
-	block, e := aes.NewCipher(key)
-	if e != nil {
-		return "", e
-	}
-	g, e := cipher.NewGCM(block)
+	g, e := vaultCipher(pass, b[4:20])
 	if e != nil {
 		return "", e
 	}

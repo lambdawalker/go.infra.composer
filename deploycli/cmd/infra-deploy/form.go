@@ -25,6 +25,7 @@ type deploymentForm struct {
 	configureGitHub bool
 	inputs          featureInputs
 	defaults        map[string]string
+	credentials     providerCredentials
 }
 
 func (f *deploymentForm) collect(ctx context.Context, issues map[string]string, check func(Settings) (string, error)) error {
@@ -39,7 +40,7 @@ func (f *deploymentForm) collect(ctx context.Context, issues map[string]string, 
 		for i := range fields {
 			field := &fields[i]
 			field.Error = issues[field.Name]
-			if !field.ReadOnly {
+			if !field.ReadOnly && field.Kind != "password" {
 				prompt.PreviewFields = append(prompt.PreviewFields, field.Name)
 			}
 		}
@@ -50,6 +51,8 @@ func (f *deploymentForm) collect(ctx context.Context, issues map[string]string, 
 		if err != nil {
 			return err
 		}
+		f.credentials.takeFormValues(replies)
+		ui.browser.Protect(f.credentials.Cloudflare, f.credentials.GitHub)
 		issues = nil
 		if action == "" {
 			var draft deploymentForm
@@ -74,6 +77,10 @@ func (f *deploymentForm) collect(ctx context.Context, issues map[string]string, 
 		fields = slices.Clone(fields)
 		for i := range fields {
 			field := &fields[i]
+			if field.Kind == "password" {
+				field.Saved = f.credentials.configured(field.Name)
+				continue
+			}
 			if value, ok := replies[field.Name]; ok {
 				field.Value = value
 			}
@@ -148,7 +155,7 @@ func (f deploymentForm) fields() []wizardweb.Field {
 	if f.github != nil {
 		fields = append(fields, f.github.formFields(f.action == "github-setup", f.configureGitHub)...)
 	}
-	return fields
+	return append(fields, f.credentials.fields()...)
 }
 
 func (f deploymentForm) validate(values map[string]string) (deploymentForm, map[string]string) {

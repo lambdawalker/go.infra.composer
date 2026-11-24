@@ -21,6 +21,7 @@ type Field struct {
 	Label    string   `json:"label"`
 	Value    string   `json:"value"`
 	Kind     string   `json:"kind"`
+	Saved    bool     `json:"saved,omitempty"`
 	Options  []Option `json:"options,omitempty"`
 	Action   *Option  `json:"action,omitempty"`
 	ReadOnly bool     `json:"readOnly,omitempty"`
@@ -115,6 +116,17 @@ func (s *Session) Ask(ctx context.Context, prompt Prompt) (string, error) {
 
 func (s *Session) AskForm(ctx context.Context, prompt Prompt) (map[string]string, string, error) {
 	prompt.Kind = "form"
+	prompt.Fields = slices.Clone(prompt.Fields)
+	prompt.PreviewFields = slices.Clone(prompt.PreviewFields)
+	for i := range prompt.Fields {
+		field := &prompt.Fields[i]
+		if field.Kind == "password" {
+			field.Value = ""
+			prompt.PreviewFields = slices.DeleteFunc(prompt.PreviewFields, func(name string) bool {
+				return name == field.Name
+			})
+		}
+	}
 	answer, err := s.ask(ctx, prompt)
 	return answer.Values, answer.Action, err
 }
@@ -165,10 +177,15 @@ func (s *Session) answer(id uint64, answer reply) bool {
 		if answer.Value != nil || answer.Values == nil || len(answer.Values) != count || !actionAvailable {
 			return false
 		}
+		for _, field := range prompt.Fields {
+			if field.Kind == "password" {
+				s.protect(answer.Values[field.Name])
+			}
+		}
 	} else if answer.Value == nil || answer.Values != nil || answer.Action != "" {
 		return false
-	} else if value := *answer.Value; prompt.Kind == "secret" && value != "" && !slices.Contains(s.secrets, value) {
-		s.secrets = append(s.secrets, value)
+	} else if prompt.Kind == "secret" {
+		s.protect(*answer.Value)
 	}
 	s.response <- answer
 	s.response = nil
@@ -207,6 +224,11 @@ func (s *Session) redact(text string) string {
 func (s *Session) Protect(values ...string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.protect(values...)
+}
+
+// protect adds redactions while the caller holds the session mutex.
+func (s *Session) protect(values ...string) {
 	for _, value := range values {
 		if value != "" && !slices.Contains(s.secrets, value) {
 			s.secrets = append(s.secrets, value)

@@ -74,7 +74,13 @@ The wizard binds to a random loopback port and uses a private session URL.
 Use **Theme** in the header to choose **System**, **Light**, or **Dark**.
 New wizard sessions follow your system appearance. A manual choice stays in
 the current browser tab when you reload.
-Vault and stack passphrases use password fields. With no `--action`, the
+Vault and stack passphrases use password fields. The **Credentials** panel
+accepts Cloudflare and GitHub tokens. After you confirm the AWS account, new
+tokens are encrypted locally with the vault passphrase for that project and
+environment. Later runs show `*****` as a placeholder. Leave the field blank
+to keep the existing token or enter a new value to replace it. Saved tokens
+are used for the corresponding tool in preference to its environment token.
+Noninteractive runs continue to use their externally supplied credentials. With no `--action`, the
 browser presents action cards that explain each operation and selects Preview.
 After choosing the project and environment, review and edit the applicable
 settings in one form. Continue validates the full form and saves the accepted

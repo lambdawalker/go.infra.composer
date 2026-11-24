@@ -4,9 +4,6 @@ package main
 import (
 	"archive/zip"
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/pbkdf2"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -137,16 +134,7 @@ func vault(ctx context.Context, path, pass string) (string, error) {
 	if len(b) < 20 || string(b[:4]) != "OCV1" {
 		return "", errors.New("invalid vault; restore backup")
 	}
-	key, e := pbkdf2.Key(sha256.New, pass, b[4:20], 600000, 32)
-	if e != nil {
-		return "", e
-	}
-	defer clear(key)
-	block, e := aes.NewCipher(key)
-	if e != nil {
-		return "", e
-	}
-	g, e := cipher.NewGCM(block)
+	g, e := vaultCipher(pass, b[4:20])
 	if e != nil {
 		return "", e
 	}
@@ -564,6 +552,8 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 		}
 		return exportSettings(*exportPath, projectName, saved)
 	}
+	var credentials, submittedCredentials providerCredentials
+	credentialPath := filepath.Join(localEnv, "credentials.bin")
 	if !*ci {
 		legacyVault := ""
 		if projectName == cli.spec.PulumiProject {
@@ -573,14 +563,18 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 		if err != nil {
 			return err
 		}
-		vaultPassphrase = ""
+		credentials, err = readCredentials(credentialPath, vaultPassphrase)
+		if err != nil {
+			return err
+		}
+		submittedCredentials = credentials
 		restorePassphrase, err := setRunEnv("PULUMI_CONFIG_PASSPHRASE", pass)
 		if err != nil {
 			return err
 		}
 		defer restorePassphrase()
 		if ui.browser != nil {
-			ui.browser.Protect(pass)
+			ui.browser.Protect(pass, credentials.Cloudflare, credentials.GitHub)
 		}
 	}
 	if *importPath != "" {
@@ -631,6 +625,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 			project: projectName, action: *action, root: root, saved: saved, profiles: profiles, canConfigureSSO: profileSetupTerminal(),
 			target:          Settings{Version: 1, Environment: *env, Profile: *profile, Region: *region, Account: *account, Backend: *backend},
 			canCreateBucket: canCreateBucket, memory: *memory, hasMemory: cli.spec.Memory != 0,
+			credentials: credentials,
 		}
 		if form.target.Profile == "" {
 			form.target.Profile = profileDefault
@@ -685,6 +680,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 		*profile, *region, *account, *backend = form.target.Profile, form.target.Region, form.target.Account, form.target.Backend
 		*memory, reconcile = form.memory, form.configureGitHub
 		inputs = form.inputs
+		submittedCredentials = form.credentials
 		if form.github != nil {
 			options = *form.github
 		}
@@ -845,6 +841,13 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 			return ui.declined("account selection cancelled")
 		}
 	}
+	if submittedCredentials != credentials {
+		if err := saveCredentials(credentialPath, vaultPassphrase, submittedCredentials); err != nil {
+			return fmt.Errorf("save provider credentials: %w", err)
+		}
+	}
+	vaultPassphrase = ""
+	ctx = context.WithValue(ctx, credentialsKey{}, submittedCredentials)
 	if newBucket {
 		name, err := bootstrapBucket(ctx, private, *account, *region, cli.spec.BucketPrefix)
 		if err != nil {
@@ -944,7 +947,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 
 	// Restore authoritative encrypted configuration before setting nonsecret values.
 	if e = restoreStackConfig(func() ([]byte, error) {
-		cmd := exec.CommandContext(ctx, "pulumi", "config", "refresh", "--force", "--stack", stack, "--non-interactive")
+		cmd := toolCommand(ctx, "pulumi", "config", "refresh", "--force", "--stack", stack, "--non-interactive")
 		cmd.Dir = dir
 		return cmd.CombinedOutput()
 	}); e != nil {
