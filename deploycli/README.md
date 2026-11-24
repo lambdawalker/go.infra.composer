@@ -97,9 +97,11 @@ a local desktop. You can also use **Open AWS sign-in** in the web wizard,
 including when it runs over SSH. Complete the sign-in in your browser to continue.
 
 The web wizard uses a resizable workspace throughout the run. The left pane
-tracks progress and deployment context. The editor has Overview, Actions,
-Inputs, and Process output tabs; the right pane shows artifact details and a
-searchable hierarchy. The workspace loads the last saved target and report
+tracks progress and deployment context. The editor has Actions, Settings,
+Overview, and Process output tabs; the right pane shows artifact details and a
+searchable hierarchy. Settings is available from startup with the saved target
+summary, and the wizard places its editable configuration form there when needed.
+The workspace loads the last saved target and report
 before asking for credentials, when available. Those cached artifacts are
 marked unchecked until the selected stack is read. During Preview, recorded
 state remains visible while Pulumi prepares the plan, then proposed operations
@@ -107,7 +109,8 @@ appear in Overview. Pulumi presence is recorded state, not a live AWS check.
 Vault passphrase and short confirmation prompts use a blocking dialog. An
 inactivity lock keeps the workspace visible behind the dialog.
 
-The fixed bottom bar keeps the current actions and countdown in view.
+The fixed bottom bar keeps the current actions in view. The Continue button
+displays the remaining countdown beside a Pause button.
 Browser prompts with a routine default wait 15 seconds. A deployment settings
 form with resolved, valid defaults waits 30 seconds. Typing, clicking, or
 scrolling pauses the countdown, as does leaving the tab. The action menu

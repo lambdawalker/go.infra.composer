@@ -123,6 +123,13 @@
       table.append(body);app.append(table);
     }
     const panel=$("deployment-details-view");panel.replaceChildren();const dl=el("dl");for(const [label,value] of [["Environment",i.environment],["Account",i.account],["Region",i.region],["Backend",i.backend],["Project",i.project],["Stack",i.stack],["Revision",i.revision]])if(value){dl.append(el("dt",label),el("dd",value));}panel.append(dl);
+    const settings=$("settings-summary"),values=$("settings-values");
+    settings.hidden=view.prompt?.kind==="form";
+    values.replaceChildren();
+    for(const [label,value] of [["Project",i.project],["Environment",i.environment],["AWS account",i.account],["AWS region",i.region],["S3 state URL",i.backend]])if(value){values.append(el("dt",label),el("dd",value));}
+    $("settings-note").textContent=i.environment ?
+      "Saved target values. You can edit the deployment inputs when the wizard opens its form." :
+      "No saved target yet. Select an action to configure this deployment.";
     $("artifact-total").textContent=String(i.artifacts?.length || 0);
     $("change-total").textContent=view.reviewed ? String(view.total || 0) : "—";
     $("unknown-total").textContent=String((i.artifacts || []).filter(a=>a.presence==="unknown").length);
@@ -168,13 +175,12 @@
     setDialog(modal);
     if(!modal && panel.parentNode!==target) target.prepend(panel);
     $("actions-empty").hidden=kind==="actions";
-    $("inputs-empty").hidden=kind==="form";
     const nextRoute=view.run+":"+(view.prompt?.id||view.phase+":"+view.status);
     if(routeKey!==nextRoute) {
       routeKey=nextRoute;
       if(kind==="actions") activate($("actions-tab"));
       else if(kind==="form") activate($("inputs-tab"));
-      else if(!modal) activate($("overview-tab"));
+      else if(!modal && view.action) activate($("overview-tab"));
       if(modal) (dialog.querySelector("input:not([type=hidden])") || dialog.querySelector("button"))?.focus();
     }
     const key=view.run+":"+JSON.stringify(view.inventory)+":"+JSON.stringify(view.changes);

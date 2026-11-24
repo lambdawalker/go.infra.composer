@@ -99,6 +99,13 @@
 .preview-workspace .editor-panel #panel .panel-heading h2 {font-size:17px;margin:4px 0 0}
 .preview-workspace .editor-panel #panel .panel-body {padding:12px 0 0}
 .preview-workspace .editor-panel #panel form {max-width:none}
+.preview-workspace #inputs-panel #panel .panel-heading {position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;padding:0;border:0}
+.preview-workspace #inputs-panel #panel .panel-body {padding-top:0}
+.preview-workspace .settings-summary {border:1px solid var(--line);border-radius:5px;background:var(--surface);padding:14px 16px;max-width:700px}
+.preview-workspace .settings-summary p {margin:0 0 12px;font-size:12px}
+.preview-workspace .settings-summary dl {display:grid;grid-template-columns:minmax(110px,160px) minmax(0,1fr);gap:8px 16px;margin:0;font-size:12px}
+.preview-workspace .settings-summary dt {color:var(--muted)}
+.preview-workspace .settings-summary dd {margin:0;overflow-wrap:anywhere}
 .preview-workspace .empty-tab {color:var(--muted);font-size:12px}
 .preview-workspace #proposed-changes {display:flex;flex-direction:column;gap:10px}
 .preview-workspace .section-title {display:flex;align-items:flex-start;justify-content:space-between;gap:9px}

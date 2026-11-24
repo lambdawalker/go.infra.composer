@@ -61,9 +61,9 @@
       </aside>
       <div class="divider" role="separator" tabindex="0" aria-label="Resize context panel" aria-orientation="vertical" data-side="left"></div>
       <div class="panel main">
-        <div class="tabs" role="tablist" aria-label="Deployment panels"><button class="tab" id="overview-tab" type="button" role="tab" aria-controls="overview-panel" aria-selected="true" tabindex="0">Overview</button><button class="tab" id="actions-tab" type="button" role="tab" aria-controls="actions-panel" aria-selected="false" tabindex="-1">Actions</button><button class="tab" id="inputs-tab" type="button" role="tab" aria-controls="inputs-panel" aria-selected="false" tabindex="-1">Inputs</button><button class="tab" id="console-tab" type="button" role="tab" aria-controls="console-panel" aria-selected="false" tabindex="-1">Process output</button></div>
+        <div class="tabs" role="tablist" aria-label="Deployment panels"><button class="tab" id="actions-tab" type="button" role="tab" aria-controls="actions-panel" aria-selected="false" tabindex="-1">Actions</button><button class="tab" id="inputs-tab" type="button" role="tab" aria-controls="inputs-panel" aria-selected="true" tabindex="0">Settings</button><button class="tab" id="overview-tab" type="button" role="tab" aria-controls="overview-panel" aria-selected="false" tabindex="-1">Overview</button><button class="tab" id="console-tab" type="button" role="tab" aria-controls="console-panel" aria-selected="false" tabindex="-1">Process output</button></div>
         <span class="sr-only" id="tab-reorder-help">Drag tabs to reorder. Keyboard: Alt Shift Left or Right.</span>
-        <section class="tab-panel overview" id="overview-panel" role="tabpanel" aria-labelledby="overview-tab" tabindex="0">
+        <section class="tab-panel overview" id="overview-panel" role="tabpanel" aria-labelledby="overview-tab" tabindex="0" hidden>
           <div id="preview-interaction-slot"></div>
           <div id="preview-summary">
           <div class="section-title"><div><h2>Backend at a glance</h2><p>Recorded deployment and proposed changes</p></div><span class="badge same" id="plan-state">Loading</span></div>
@@ -73,7 +73,7 @@
           </div>
         </section>
         <section class="tab-panel editor-panel" id="actions-panel" role="tabpanel" aria-labelledby="actions-tab" tabindex="0" hidden><div id="actions-slot"></div><p class="empty-tab" id="actions-empty">Choose an action when the wizard is ready.</p></section>
-        <section class="tab-panel editor-panel" id="inputs-panel" role="tabpanel" aria-labelledby="inputs-tab" tabindex="0" hidden><div id="inputs-slot"></div><p class="empty-tab" id="inputs-empty">The deployment inputs appear here when configuration is needed.</p></section>
+        <section class="tab-panel editor-panel" id="inputs-panel" role="tabpanel" aria-labelledby="inputs-tab" tabindex="0"><div id="inputs-slot"></div><div id="settings-summary" class="settings-summary" aria-label="Saved deployment settings"><p id="settings-note" class="muted">Loading saved settings…</p><dl id="settings-values"></dl></div></section>
         <section class="tab-panel console-panel" id="console-panel" role="tabpanel" aria-labelledby="console-tab" tabindex="0" hidden><div class="console-intro"><div><h2>Process output</h2><p>Recent wizard activity</p></div><span class="badge same" id="console-status"></span></div><div class="console-shell"><div class="console-toolbar"><span>All stages · <span id="line-count">0</span> lines</span><button class="console-action" id="wrap-output" type="button" aria-pressed="false">Wrap lines</button></div><div class="console-output" id="console-output" role="log" aria-label="Recent process output"></div></div></section>
       </div>
       <div class="divider" role="separator" tabindex="0" aria-label="Resize artifact panel" aria-orientation="vertical" data-side="right"></div>
