@@ -113,17 +113,21 @@ function renderVaultLock(locked) {
   const wizard = get("wizard");
   const input = get("vault-unlock-input");
   if (locked) focusBeforeLock = document.activeElement;
-  screen.hidden = !locked;
+  screen.hidden = true;
+  if (locked && get("preview-workspace").hidden) {
+    window.updatePreviewWorkspace?.({title: "Deployment wizard", status: "running", activity: []});
+  }
   wizard.hidden = locked;
-  if (locked) get("preview-workspace").hidden = true;
   footer.hidden = locked;
   input.value = "";
   get("vault-unlock-error").hidden = true;
   if (locked) {
     resetCountdown();
     document.querySelectorAll('#wizard input[type="password"], #preview-workspace input[type="password"]').forEach(field => { field.value = ""; });
+    window.setWizardDialog?.("vault");
     input.focus();
   } else {
+    window.setWizardDialog?.(null);
     focusBeforeLock?.focus();
     focusBeforeLock = undefined;
   }

@@ -96,13 +96,16 @@ When an AWS SSO session needs renewal, the AWS CLI opens the sign-in page on
 a local desktop. You can also use **Open AWS sign-in** in the web wizard,
 including when it runs over SSH. Complete the sign-in in your browser to continue.
 
-The web wizard uses the same resizable workspace for action selection, settings,
-connection, preparation, preview, apply, and completion. The left pane tracks
-progress and deployment context; the editor has Overview and Process output
-tabs; the right pane shows artifact details and a searchable hierarchy. Artifact
-inventory appears after the stack is connected. During Preview, recorded state
-remains visible while Pulumi prepares the plan, then proposed operations appear
-in the editor. Recorded presence comes from Pulumi state, not a live AWS check.
+The web wizard uses a resizable workspace throughout the run. The left pane
+tracks progress and deployment context. The editor has Overview, Actions,
+Inputs, and Process output tabs; the right pane shows artifact details and a
+searchable hierarchy. The workspace loads the last saved target and report
+before asking for credentials, when available. Those cached artifacts are
+marked unchecked until the selected stack is read. During Preview, recorded
+state remains visible while Pulumi prepares the plan, then proposed operations
+appear in Overview. Pulumi presence is recorded state, not a live AWS check.
+Vault passphrase and short confirmation prompts use a blocking dialog. An
+inactivity lock keeps the workspace visible behind the dialog.
 
 The fixed bottom bar keeps the current actions and countdown in view.
 Browser prompts with a routine default wait 15 seconds. A deployment settings

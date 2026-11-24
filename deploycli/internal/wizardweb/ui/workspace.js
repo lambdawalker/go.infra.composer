@@ -4,17 +4,44 @@
   const $ = id => document.getElementById(id);
   const el = (tag, text, cls) => { const n = document.createElement(tag); n.textContent = text || ""; if (cls) n.className = cls; return n; };
   const icon = symbol => { const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"); svg.classList.add("icon"); svg.setAttribute("aria-hidden", "true"); const use = document.createElementNS(svg.namespaceURI, "use"); use.setAttribute("href", "#ws-" + symbol); svg.append(use); return svg; };
-  const operation = value => (value || "same").toLowerCase();
-  const badge = action => el("span", action === "same" ? "Unchanged" : action.replaceAll("-", " "), "badge " + (action.includes("delete") || action.includes("replace") ? "delete" : action.includes("create") ? "create" : action.includes("update") ? "update" : "same"));
+  const operation = value => (value || "unknown").toLowerCase();
+  const badge = action => el("span", action === "same" ? "Unchanged" : action === "unknown" ? "Not planned" : action.replaceAll("-", " "), "badge " + (action.includes("delete") || action.includes("replace") ? "delete" : action.includes("create") ? "create" : action.includes("update") ? "update" : action === "unknown" ? "unknown" : "same"));
   const symbolFor = type => /route53|cloudflare|acm|domain|apiGateway/i.test(type) ? "globe" : /dynamodb|s3|storage/i.test(type) ? "database" : /iam|secret|cognito|kms|authorizer/i.test(type) ? "shield" : /ses|email/i.test(type) ? "mail" : /lambda|eventRule|eventTarget/i.test(type) ? "bolt" : "layers";
   const purposeFor = type => ({Function:"Runs backend code", Table:"Stores application data", Key:"Signs or encrypts data", EmailIdentity:"Identifies the SES sender", Api:"Exposes the application API", UserPool:"Manages demo identities", Certificate:"Secures the public endpoint", DnsRecord:"Publishes DNS records", Role:"Grants service access", LogGroup:"Stores diagnostic logs"})[type.split(":").at(-1)] || "Managed deployment resource";
   const state = { selected:null, expanded:new Set(), detailOpen:true, progressOpen:true, deploymentView:"application", inventory:null, plan:[], nodes:[], roots:[], reportRun:null };
-  const workspace = $("preview-workspace"), wizard = $("wizard"), slot = $("preview-interaction-slot"), panel = $("panel"), signIn = $("sign-in"), originalParent = panel.parentNode, originalNext = signIn.nextSibling;
+  const workspace = $("preview-workspace"), wizard = $("wizard"), slot = $("preview-interaction-slot"), panel = $("panel"), signIn = $("sign-in"), originalParent = panel.parentNode;
+  const dialog = $("workspace-dialog"), dialogContent = $("dialog-content"), promptActions = $("prompt-actions"), countdown = $("countdown"), stop = $("stop"), lockPanel = document.querySelector("#vault-lock .lock-panel");
+  const actionHome = promptActions.parentNode, countdownHome = countdown.parentNode, stopHome = stop.parentNode, lockHome = $("vault-lock");
+  let routeKey = null;
+  dialog.addEventListener("cancel", event => event.preventDefault());
+  function setDialog(mode) {
+    if ((mode || "") === (dialog.dataset.mode || "") && (!mode || dialog.open)) return;
+    if (dialog.open) dialog.close();
+    lockHome.append(lockPanel);
+    if (panel.parentNode === dialogContent) slot.prepend(panel);
+    countdownHome.prepend(countdown);
+    stopHome.prepend(stop);
+    actionHome.append(promptActions);
+    dialog.dataset.mode = mode || "";
+    if (!mode) return;
+    dialog.setAttribute("aria-labelledby", mode === "vault" ? "vault-lock-title" : "panel-title");
+    if (mode === "vault") {
+      dialogContent.append(lockPanel);
+    } else {
+      dialogContent.append(panel);
+      $("dialog-countdown").append(countdown);
+      $("dialog-actions").append(stop, promptActions);
+    }
+    dialog.showModal();
+  }
+  window.setWizardDialog = setDialog;
   function showWorkspace(view) {
     const show = !view.closed;
-    if (show && panel.parentNode !== slot) slot.prepend(panel, signIn);
-    if (!show && panel.parentNode !== originalParent) originalParent.insertBefore(panel, originalNext);
-    if (!show && signIn.parentNode !== originalParent) originalParent.insertBefore(signIn, originalNext);
+    if (!show) setDialog(null);
+    if (show && !workspace.contains(panel)) slot.prepend(panel);
+    if (show && !workspace.contains(signIn)) slot.append(signIn);
+    if (!show && signIn.parentNode !== originalParent) originalParent.prepend(signIn);
+    if (!show && panel.parentNode !== originalParent) originalParent.insertBefore(panel, signIn);
     wizard.hidden = show; workspace.hidden = !show;
     $("brand-title").textContent = view.title || "Deployment wizard";
     $("brand-operation").textContent = view.phase === "preview" ? "Preview" : view.phase === "apply" ? "Apply" :
@@ -45,7 +72,7 @@
   function details() {
     const box = $("detail-content"); box.replaceChildren();
     const a = state.selected;
-    if (!a) { box.append(el("p", "Artifact details appear when a deployment stack is connected.", "muted")); return; }
+    if (!a) { box.append(el("p", "No recorded artifacts for this target yet. Connect to a deployment stack to check.", "muted")); return; }
     box.append(el("div", a.name || a.key, "detail-name"), el("div", a.type || "Resource", "kind"), el("p", purposeFor(a.type || ""), "artifact-description"));
     const tags = el("div", "", "detail-actions"); tags.append(badge(a.action), el("span", a.feature || state.inventory?.repository?.split("/").at(-1) || "Project", "depth-label")); box.append(tags);
     const dl = el("dl", "", "data-grid");
@@ -59,12 +86,12 @@
     else { const list=el("ul","","detail-tree"); for (const child of a.children) { const item=el("li"); const button=el("button",child.name || child.key,"detail-tree-entry"); button.type="button"; button.onclick=()=>select(child); item.append(button);list.append(item); }box.append(list); }
   }
   function select(a, reveal=false) { state.selected=a; for(let p=a.parentNode;p;p=p.parentNode) state.expanded.add(p.key); if(reveal) toggleDetails(true); details(); tree(); changes(); }
-  function matches(a,q,filter) { return (a.name || a.key).toLowerCase().includes(q) && (filter==="all" || filter==="changed" && a.action!=="same" || filter==="unchanged" && a.action==="same" || filter==="unknown" && a.presence==="unknown"); }
+  function matches(a,q,filter) { return (a.name || a.key).toLowerCase().includes(q) && (filter==="all" || filter==="changed" && a.action!=="same" && a.action!=="unknown" || filter==="unchanged" && a.action==="same" || filter==="unknown" && a.presence==="unknown"); }
   function tree() {
     const q=$("search").value.trim().toLowerCase(), filter=$("filter").value;
     const matching=state.nodes.filter(a=>matches(a,q,filter)); $("count").textContent=matching.length+" of "+state.nodes.length;
     const included=new Set(); for(const a of matching) for(let p=a;p;p=p.parentNode) {included.add(p);if(q||filter!=="all") state.expanded.add(p.key);}
-    const box=$("list");box.replaceChildren(); if(!matching.length) {box.append(el("p",state.nodes.length ? "No artifacts match." : "Connect to a deployment stack to see its artifacts.","muted"));return;}
+    const box=$("list");box.replaceChildren(); if(!matching.length) {box.append(el("p",state.nodes.length ? "No artifacts match." : "No recorded artifacts yet. Connect to a deployment stack to check.","muted"));return;}
     const list=el("ul","","artifact-tree");
     function appendNode(parent,a) {
       const item=el("li","","tree-node"), row=el("div","","tree-row"), children=a.children.filter(c=>included.has(c));
@@ -99,9 +126,17 @@
     $("artifact-total").textContent=String(i.artifacts?.length || 0);
     $("change-total").textContent=view.reviewed ? String(view.total || 0) : "—";
     $("unknown-total").textContent=String((i.artifacts || []).filter(a=>a.presence==="unknown").length);
-    $("plan-state").textContent=view.reviewed ? "Plan ready" : view.action === "report" ? "Artifact report" : "Building plan";
+    $("plan-state").textContent=view.reviewed ? "Plan ready" : view.action === "report" ? "Artifact report" : ["preview","deploy"].includes(view.action) ? "Preparing plan" : (i.artifacts?.length ? "Recorded state" : "No deployment recorded");
     $("changes").dataset.state = view.reviewed ? "ready" : "pending";
-    $("preview-summary").hidden = !["preview", "deploy", "report"].includes(view.action);
+    $("preview-summary").hidden = false;
+    $("proposed-changes").hidden = !["preview", "deploy", "report"].includes(view.action);
+    $("inventory-source").textContent = ({
+      repository:"Project manifest loaded. Choose a target to inspect its deployment.",
+      "selected-target":"Target selected. Connect to check its recorded artifacts.",
+      "saved-target":"Saved deployment target loaded. Connect to check its artifacts.",
+      "saved-report":"Previously recorded artifacts are shown; their current presence has not been checked.",
+      "pulumi-state":"Artifacts recorded in the selected Pulumi stack. This is not a live cloud check."
+    })[i.source] || "Choose a target to inspect its recorded artifacts. Cloud presence has not been checked.";
     $("console-status").textContent=view.status === "complete" ? "Complete" : view.status === "failed" ? "Failed" : "In progress";
     const output=$("console-output"),atBottom=output.scrollHeight-output.scrollTop-output.clientHeight<35;
     const lines=view.activity || [];output.replaceChildren(...lines.map(line=>el("div",line,"log-line")));$("line-count").textContent=String(lines.length);if(atBottom)output.scrollTop=output.scrollHeight;
@@ -113,7 +148,7 @@
   function setDeployment(which) {state.deploymentView=which;const app=which==="application";$("application-view").hidden=!app;$("deployment-details-view").hidden=app;$("deployment-title").textContent=app?"Application & features":"Deployment details";$("stripe-application").classList.toggle("active",app);$("stripe-deployment-details").classList.toggle("active",!app);$("stripe-application").setAttribute("aria-pressed",String(app));$("stripe-deployment-details").setAttribute("aria-pressed",String(!app));}
   $("stripe-application").onclick=()=>setDeployment("application");$("stripe-deployment-details").onclick=()=>setDeployment("details");
   $("search").oninput=tree;$("filter").onchange=tree;
-  const tabs=[$("overview-tab"),$("console-tab")], tablist=workspace.querySelector(".tabs");
+  const tabs=[$("overview-tab"),$("actions-tab"),$("inputs-tab"),$("console-tab")], tablist=workspace.querySelector(".tabs");
   function activate(tab,focus=false){for(const t of tabs){const selected=t===tab;t.setAttribute("aria-selected",String(selected));t.tabIndex=selected?0:-1;$(t.getAttribute("aria-controls")).hidden=!selected;}if(focus)tab.focus();}
   for(const tab of tabs) {tab.onclick=()=>activate(tab);tab.onkeydown=e=>{const order=[...tablist.querySelectorAll(".tab")],index=order.indexOf(tab);if(e.altKey&&e.shiftKey&&["ArrowLeft","ArrowRight"].includes(e.key)){e.preventDefault();const neighbor=order[index+(e.key==="ArrowLeft"?-1:1)];if(neighbor)tablist.insertBefore(tab,e.key==="ArrowLeft"?neighbor:neighbor.nextSibling);return;}const next=e.key==="ArrowRight"?order[(index+1)%order.length]:e.key==="ArrowLeft"?order[(index+order.length-1)%order.length]:e.key==="Home"?order[0]:e.key==="End"?order.at(-1):null;if(next){e.preventDefault();activate(next,true);}};}
   let tabDrag=null;tablist.addEventListener("pointerdown",e=>{const tab=e.target.closest(".tab");if(tab&&e.button===0)tabDrag={tab,x:e.clientX,y:e.clientY,id:e.pointerId,started:false};});window.addEventListener("pointermove",e=>{if(!tabDrag||e.pointerId!==tabDrag.id)return;if(!tabDrag.started&&Math.hypot(e.clientX-tabDrag.x,e.clientY-tabDrag.y)<6)return;tabDrag.started=true;tabDrag.tab.classList.add("dragging");e.preventDefault();const before=[...tablist.querySelectorAll(".tab")].filter(t=>t!==tabDrag.tab).find(t=>e.clientX<t.getBoundingClientRect().left+t.getBoundingClientRect().width/2);tablist.insertBefore(tabDrag.tab,before||null);});window.addEventListener("pointerup",e=>{if(tabDrag?.id===e.pointerId){tabDrag.tab.classList.remove("dragging");tabDrag=null;}});
@@ -126,6 +161,22 @@
   }
   window.updatePreviewWorkspace = view => {
     if(!showWorkspace(view)) {state.reportRun=null;return;}
+    const kind=view.prompt?.kind;
+    const target=kind==="actions"?$("actions-slot"):kind==="form"?$("inputs-slot"):slot;
+    const modal=kind && kind!=="actions" && kind!=="form" ? "prompt" :
+      !kind && view.phase==="settings" && view.status==="running" && view.phaseTitle && !view.signIn ? "idle" : null;
+    setDialog(modal);
+    if(!modal && panel.parentNode!==target) target.prepend(panel);
+    $("actions-empty").hidden=kind==="actions";
+    $("inputs-empty").hidden=kind==="form";
+    const nextRoute=view.run+":"+(view.prompt?.id||view.phase+":"+view.status);
+    if(routeKey!==nextRoute) {
+      routeKey=nextRoute;
+      if(kind==="actions") activate($("actions-tab"));
+      else if(kind==="form") activate($("inputs-tab"));
+      else if(!modal) activate($("overview-tab"));
+      if(modal) (dialog.querySelector("input:not([type=hidden])") || dialog.querySelector("button"))?.focus();
+    }
     const key=view.run+":"+JSON.stringify(view.inventory)+":"+JSON.stringify(view.changes);
     if(key!==state.reportRun) {state.reportRun=key;buildInventory(view);details();tree();changes();}
     context(view);
