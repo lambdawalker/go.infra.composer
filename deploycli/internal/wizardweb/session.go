@@ -68,7 +68,6 @@ type view struct {
 	Changes    []Change `json:"changes,omitempty"`
 	Total      int      `json:"total"`
 	Reviewed   bool     `json:"reviewed"`
-	CanReturn  bool     `json:"canReturn,omitempty"`
 }
 
 type reply struct {
@@ -78,14 +77,13 @@ type reply struct {
 }
 
 type Session struct {
-	mu          sync.Mutex
-	view        view
-	response    chan reply
-	cancel      context.CancelFunc
-	close       context.CancelFunc
-	secrets     []string
-	allowReturn bool
-	home        chan struct{}
+	mu       sync.Mutex
+	view     view
+	response chan reply
+	cancel   context.CancelFunc
+	close    context.CancelFunc
+	secrets  []string
+	home     chan struct{}
 }
 
 func newSession(title string, close context.CancelFunc) *Session {
@@ -299,13 +297,6 @@ func (s *Session) snapshot() view {
 	return v
 }
 
-// AllowReturnToActions lets a completed setup reopen the action menu.
-func (s *Session) AllowReturnToActions() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.allowReturn = true
-}
-
 func (s *Session) finish(err error) <-chan struct{} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -323,10 +314,7 @@ func (s *Session) finish(err error) <-chan struct{} {
 	s.view.Prompt, s.response, s.cancel = nil, nil, nil
 	s.view.SignIn = ""
 	s.view.Revision++
-	if (s.view.Status == "complete" && s.allowReturn) || (cancelled && s.view.Action == "deploy") {
-		s.home = make(chan struct{})
-		s.view.CanReturn = true
-	}
+	s.home = make(chan struct{})
 	return s.home
 }
 
@@ -340,7 +328,6 @@ func (s *Session) returnToActions(revision uint64) bool {
 		Run: s.view.Run + 1, Revision: revision + 1, Title: s.view.Title,
 		Phase: "settings", PhaseTitle: "Getting ready", Status: "running",
 	}
-	s.allowReturn = false
 	close(s.home)
 	s.home = nil
 	return true
@@ -354,13 +341,13 @@ func (s *Session) stop(run uint64, closePage bool) bool {
 		return false
 	}
 	if closePage {
-		switch s.view.Status {
-		case "complete", "failed", "cancelled":
-			s.home = nil
-			s.close()
-			return true
+		atMenu := s.view.Prompt != nil && s.view.Prompt.Kind == "actions"
+		if s.home == nil && !atMenu {
+			return false
 		}
-		return false
+		s.home = nil
+		s.close()
+		return true
 	}
 	switch s.view.Status {
 	case "running":

@@ -91,12 +91,15 @@ saved Pulumi plan, and displays the outcome. Approvals in browser mode require
 an explicit click. Deletion or replacement still requires typing the stack
 name. Provider command diagnostics remain in the launching terminal.
 
-After setup completes or a deployment stops, choose **Back to main page** to
-open the action cards in the same tab. Choose another action and unlock the
-vault to run it with the saved settings. **Stop wizard** cancels the current
-operation and waits for it to release its local locks. **Close wizard** ends
-the local server once the result is displayed. Pressing Ctrl+C in the terminal
-also stops the wizard. Closing the browser tab alone leaves the local process running.
+After any action finishes, fails, or is stopped, review the result and choose
+**Back to main page** to open the action cards in the same tab. The wizard waits
+for the operation to exit and release its local locks before offering another
+action. Choose an action and unlock the vault to use the saved settings.
+
+The browser session has no wizard idle timeout. Use **Close wizard** from the
+action menu or a result, or press Ctrl+C in the terminal to end the session.
+If you close the tab, reopen the URL printed in the terminal while the local
+process is still running.
 Browser mode is interactive and cannot be combined with `--non-interactive`.
 
 ## Publish environment discovery
