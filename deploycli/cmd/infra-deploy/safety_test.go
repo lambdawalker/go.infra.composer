@@ -122,7 +122,7 @@ func TestConcurrentWriters(t *testing.T) {
 func TestExpiredSSOAndCI(t *testing.T) {
 	for _, ci := range []bool{true, false} {
 		reads, logins := 0, 0
-		b, e := authenticatedIdentity(ci, "test", func() ([]byte, error) {
+		b, e := authenticatedIdentity(context.Background(), ci, func() ([]byte, error) {
 			reads++
 			if reads == 1 {
 				return nil, errors.New("expired")

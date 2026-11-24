@@ -15,9 +15,12 @@ func verifySavedTarget(saved Settings, account, region, backend string) error {
 	}
 	return nil
 }
-func authenticatedIdentity(ci bool, profile string, read func() ([]byte, error), login func() error) ([]byte, error) {
+func authenticatedIdentity(ctx context.Context, ci bool, read func() ([]byte, error), login func() error) ([]byte, error) {
 	b, e := read()
 	if e != nil && !ci {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if e = login(); e != nil {
 			return nil, e
 		}

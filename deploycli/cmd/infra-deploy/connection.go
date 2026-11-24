@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/lambdawalker/go.infra.composer/deploycli/internal/wizardweb"
 )
 
 type awsIdentity struct{ Account, Arn string }
@@ -72,14 +74,22 @@ func checkConnection(ctx context.Context, root string, target Settings, ci bool,
 	}); err != nil {
 		return identity, "", err
 	}
-	raw, err := authenticatedIdentity(ci, target.Profile, func() ([]byte, error) {
-		return output(ctx, "aws", "sts", "get-caller-identity", "--output", "json")
-	}, func() error {
-		args := []string{"aws", "sso", "login", "--profile", target.Profile}
-		if ui.browser != nil {
-			args = append(args, "--use-device-code", "--no-browser")
+	var renewed bool
+	raw, err := authenticatedIdentity(ctx, ci, func() ([]byte, error) {
+		// Expired SSO credentials are recoverable here. Keep the probe quiet
+		// and only surface its error if we cannot establish the AWS identity.
+		cmd := toolCommand(ctx, "aws", "sts", "get-caller-identity", "--output", "json")
+		b, err := cmd.Output()
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && len(exitErr.Stderr) != 0 {
+			err = fmt.Errorf("%w: %s", err, strings.TrimSpace(string(exitErr.Stderr)))
 		}
-		return ui.login(root, "AWS", args...)
+		return b, err
+	}, func() error {
+		ui.note("AWS session needs sign-in. Complete it in your browser.")
+		err := ui.login(root, "AWS", awsSSOLoginArgs(ctx, target.Profile, ui.browser != nil)...)
+		renewed = err == nil
+		return err
 	})
 	if err != nil {
 		return identity, "profile", fmt.Errorf("AWS sign-in did not complete for profile %q: %w", target.Profile, err)
@@ -96,12 +106,26 @@ func checkConnection(ctx context.Context, root string, target Settings, ci bool,
 	if target.Account != "" && target.Account != identity.Account {
 		return identity, "account", errors.New("AWS account differs from the selected target; choose a matching SSO profile or separate deployment scope")
 	}
+	if renewed {
+		ui.note("Signed in to AWS")
+	}
 	if checkBucket {
 		if err := verifyStateBucket(ctx, root, target.Backend, identity.Account, target.Region); err != nil {
 			return identity, "backend", err
 		}
 	}
 	return identity, "", nil
+}
+
+func awsSSOLoginArgs(ctx context.Context, profile string, web bool) []string {
+	args := []string{"aws", "sso", "login", "--profile", profile}
+	if web {
+		args = append(args, "--use-device-code")
+		if !wizardweb.DesktopAvailable(ctx) {
+			args = append(args, "--no-browser")
+		}
+	}
+	return args
 }
 
 func verifyStateBucket(ctx context.Context, root, backend, account, region string) error {
