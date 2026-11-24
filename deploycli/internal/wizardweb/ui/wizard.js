@@ -115,12 +115,13 @@ function renderVaultLock(locked) {
   if (locked) focusBeforeLock = document.activeElement;
   screen.hidden = !locked;
   wizard.hidden = locked;
+  if (locked) get("preview-workspace").hidden = true;
   footer.hidden = locked;
   input.value = "";
   get("vault-unlock-error").hidden = true;
   if (locked) {
     resetCountdown();
-    wizard.querySelectorAll('input[type="password"]').forEach(field => { field.value = ""; });
+    document.querySelectorAll('#wizard input[type="password"], #preview-workspace input[type="password"]').forEach(field => { field.value = ""; });
     input.focus();
   } else {
     focusBeforeLock?.focus();
@@ -725,6 +726,7 @@ function render(view) {
       [node("li", "Waiting for the wizard to start.", "muted")]));
     log.scrollTop = log.scrollHeight;
   }
+  window.updatePreviewWorkspace?.(view);
 }
 
 async function refresh() {
@@ -736,6 +738,7 @@ async function refresh() {
     footer.hidden = true;
     get("status").textContent = "Session unavailable";
     get("panel-title").textContent = "Open the URL from your terminal";
+    window.updatePreviewWorkspace?.({title: "Deployment wizard", reviewed: false});
     return;
   }
   if (response.status === 204) return;
@@ -777,6 +780,7 @@ stopControl.addEventListener("click", async () => {
       footer.hidden = true;
       showConnection("");
       get("interaction").replaceChildren(node("p", "Local session closed. You can close this tab."));
+      window.updatePreviewWorkspace?.({title: current.title, reviewed: false});
     } else {
       await refresh();
     }
