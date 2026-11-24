@@ -369,6 +369,9 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	}
 	if *server && ui.browser == nil {
 		return wizardweb.Serve(ctx, cli.spec.Title, !*noOpen, func(ctx context.Context, session *wizardweb.Session, showActions bool) error {
+			if root, err := os.Getwd(); err == nil {
+				cli.publishSavedInventory(session, root, *project, *env)
+			}
 			return cli.runWizard(context.WithValue(ctx, wizardKey{}, session), args, showActions)
 		})
 	}
@@ -565,6 +568,9 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	} else if !os.IsNotExist(e) {
 		return e
 	}
+	// The selected environment may differ from the last saved default. Replace
+	// the early workspace snapshot before asking for cloud credentials.
+	cli.publishSavedInventory(ui.browser, root, projectName, *env)
 	if *exportPath != "" {
 		if saved.Account == "" {
 			return errors.New("no saved settings to export")

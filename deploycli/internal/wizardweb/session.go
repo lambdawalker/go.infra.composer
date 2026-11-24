@@ -69,6 +69,7 @@ type ArtifactView struct {
 }
 
 type InventoryView struct {
+	Source      string         `json:"source,omitempty"`
 	Repository  string         `json:"repository,omitempty"`
 	Environment string         `json:"environment,omitempty"`
 	Account     string         `json:"account,omitempty"`
@@ -316,6 +317,12 @@ func (s *Session) Preview(changes []Change, total int) {
 }
 
 func (s *Session) Inventory(report reporting.Report) {
+	s.InventoryWithSource(report, "pulumi-state")
+}
+
+// InventoryWithSource distinguishes a local, unverified snapshot from the
+// inventory refreshed during this run. Neither path exposes provider config.
+func (s *Session) InventoryWithSource(report reporting.Report, source string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	items := make([]ArtifactView, 0, len(report.Artifacts))
@@ -327,6 +334,7 @@ func (s *Session) Inventory(report reporting.Report) {
 		})
 	}
 	s.view.Inventory = &InventoryView{
+		Source:     source,
 		Repository: s.redact(report.Scope.Repository), Environment: report.Scope.Environment,
 		Account: report.Scope.Account, Region: report.Scope.Region,
 		Project: report.Scope.Project, Backend: s.redact(report.Scope.Backend),

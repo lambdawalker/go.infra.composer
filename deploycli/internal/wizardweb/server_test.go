@@ -18,16 +18,16 @@ import (
 func TestInventoryExposesSafeFieldsAndClearsBetweenRuns(t *testing.T) {
 	s := newSession("test wizard", func() {})
 	s.Protect("secret-value")
-	s.Inventory(reporting.Report{
+	s.InventoryWithSource(reporting.Report{
 		Scope: reporting.Scope{Repository: "github.com/example/app", Backend: "s3://secret-value", Stack: "test-dev"},
 		Artifacts: []reporting.Artifact{{
 			Key: "urn:pulumi:secret-value", Name: "example", Type: "aws:lambda/function:Function",
 			PlannedAction: "update", Observation: reporting.Observation{Status: reporting.Recorded},
 		}},
-	})
+	}, "saved-report")
 	v := s.snapshot()
 	if v.Inventory == nil || len(v.Inventory.Artifacts) != 1 || v.Inventory.Backend != "s3://[redacted]" ||
-		v.Inventory.Artifacts[0].Key != "urn:pulumi:[redacted]" || v.Inventory.Artifacts[0].Presence != "recorded" {
+		v.Inventory.Artifacts[0].Key != "urn:pulumi:[redacted]" || v.Inventory.Artifacts[0].Presence != "recorded" || v.Inventory.Source != "saved-report" {
 		t.Fatalf("unsafe or incomplete inventory: %+v", v.Inventory)
 	}
 	// Returning to the action menu must not display the previous stack inventory.
