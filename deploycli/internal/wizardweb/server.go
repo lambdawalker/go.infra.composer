@@ -136,16 +136,28 @@ func (s *Session) handler(host, key string) http.Handler {
 			}
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(current)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/form-preview":
+			var draft struct {
+				ID     uint64            `json:"id"`
+				Values map[string]string `json:"values"`
+			}
+			if !decodeReply(w, r, &draft) || !validReply(reply{Values: draft.Values}) {
+				http.Error(w, "Invalid draft", http.StatusBadRequest)
+				return
+			}
+			values, ok := s.preview(draft.ID, draft.Values)
+			if !ok {
+				http.Error(w, "This question has already changed", http.StatusConflict)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(values)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/answer":
 			var answer struct {
 				ID uint64 `json:"id"`
 				reply
 			}
-			r.Body = http.MaxBytesReader(w, r.Body, 128<<10)
-			d := json.NewDecoder(r.Body)
-			d.DisallowUnknownFields()
-			if d.Decode(&answer) != nil || d.Decode(new(any)) != io.EOF ||
-				!validReply(answer.reply) {
+			if !decodeReply(w, r, &answer) || !validReply(answer.reply) {
 				http.Error(w, "Invalid response", http.StatusBadRequest)
 				return
 			}
@@ -161,6 +173,13 @@ func (s *Session) handler(host, key string) http.Handler {
 			http.NotFound(w, r)
 		}
 	})
+}
+
+func decodeReply(w http.ResponseWriter, r *http.Request, value any) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, 128<<10)
+	d := json.NewDecoder(r.Body)
+	d.DisallowUnknownFields()
+	return d.Decode(value) == nil && d.Decode(new(any)) == io.EOF
 }
 
 func validReply(answer reply) bool {

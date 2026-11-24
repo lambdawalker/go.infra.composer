@@ -132,3 +132,36 @@ func TestFormAcceptsOnlyEditableFieldsAsOneReply(t *testing.T) {
 		t.Fatalf("form reply was not sent as a batch: %+v", got)
 	}
 }
+
+func TestFormPreviewDoesNotAnswerPrompt(t *testing.T) {
+	session := newSession("test", func() {}, func() {})
+	session.view.Prompt = &Prompt{
+		ID: 9, Kind: "form", PreviewFields: []string{"domain"},
+		Fields: []Field{{Name: "domain"}, {Name: "profile"}},
+		Preview: func(values map[string]string) map[string]string {
+			return map[string]string{"sender": "verify@" + values["domain"]}
+		},
+	}
+	session.response = make(chan reply, 1)
+	handler := session.handler(testHost, "known-token")
+	post := func(token, body string) *httptest.ResponseRecorder {
+		return request(handler, http.MethodPost, "/api/form-preview", testHost, "http://"+testHost, token, body)
+	}
+	valid := `{"id":9,"values":{"domain":"draft.example"}}`
+	if got := post("", valid).Code; got != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated preview: %d", got)
+	}
+	if got := post("known-token", `{"id":8,"values":{"domain":"draft.example"}}`).Code; got != http.StatusConflict {
+		t.Fatalf("preview for stale prompt: %d", got)
+	}
+	if got := post("known-token", `{"id":9,"values":{"other":"draft.example"}}`).Code; got != http.StatusConflict {
+		t.Fatalf("preview with an unrecognized field: %d", got)
+	}
+	rec := post("known-token", valid)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "verify@draft.example") {
+		t.Fatalf("preview: %d %s", rec.Code, rec.Body.String())
+	}
+	if session.snapshot().Prompt.ID != 9 || len(session.response) > 0 {
+		t.Fatal("preview advanced the prompt")
+	}
+}

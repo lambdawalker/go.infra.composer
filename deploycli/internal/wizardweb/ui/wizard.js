@@ -66,11 +66,12 @@ function showConnection(text) {
   get("connection").hidden = !text;
 }
 
-async function post(path, payload = null) {
+async function post(path, payload = null, signal) {
   return fetch(path, {
     method: "POST",
     headers: {...authHeaders, "Content-Type": "application/json"},
     body: payload === null ? null : JSON.stringify(payload),
+    signal,
   });
 }
 
@@ -146,6 +147,7 @@ function renderSettings(container, prompt) {
   const form = node("form", "", "wide-form settings-form");
   form.noValidate = true;
   const groups = new Map();
+  const previews = new Map();
   prompt.fields.forEach((field, index) => {
     if (!groups.has(field.group)) {
       const group = node("fieldset", "", "settings-group");
@@ -190,6 +192,21 @@ function renderSettings(container, prompt) {
       descriptions.push(help.id);
       row.append(help);
     }
+    if (field.composed) {
+      if (field.readOnly) {
+        control.placeholder = "Calculated from project inputs";
+        previews.set(field.name, (value) => { control.value = value; });
+      } else {
+        const preview = node("div", "", "field-help");
+        preview.id = id + "-preview";
+        preview.setAttribute("aria-live", "polite");
+        descriptions.push(preview.id);
+        row.append(preview);
+        previews.set(field.name, (value) => {
+          preview.textContent = value ? "Resolved value: " + value : "";
+        });
+      }
+    }
     if (field.error) {
       const error = node("div", field.error, "field-error");
       error.id = id + "-error";
@@ -219,6 +236,35 @@ function renderSettings(container, prompt) {
     answer(prompt, Object.fromEntries(new FormData(form)));
   });
   container.append(form);
+  if (previews.size) {
+    const previewFields = new Set(prompt.previewFields || []);
+    let timer;
+    let request;
+    async function updatePreviews() {
+      if (!form.isConnected) return;
+      request = new AbortController();
+      const {signal} = request;
+      const data = new FormData(form);
+      const values = Object.fromEntries(Array.from(previewFields, name => [name, data.get(name) ?? ""]));
+      try {
+        const response = await post("/api/form-preview", {id: prompt.id, values}, signal);
+        if (!response.ok) return;
+        const resolved = await response.json();
+        if (signal.aborted || !form.isConnected) return;
+        previews.forEach((render, name) => render(resolved[name] || ""));
+      } catch {
+        // Continue still validates the complete form if preview is unavailable.
+      }
+    }
+    form.addEventListener("input", (event) => {
+      if (!previewFields.has(event.target.name)) return;
+      request?.abort();
+      clearTimeout(timer);
+      previews.forEach(render => render(""));
+      timer = setTimeout(updatePreviews, 160);
+    });
+    updatePreviews();
+  }
   if (hasErrors) form.querySelector('[aria-invalid="true"]')?.focus();
 }
 

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"flag"
 	"maps"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -138,5 +140,37 @@ func TestCtrlQQuitsPrompt(t *testing.T) {
 	_, err := askLoop(t.Context(), events, nil, "default", false, func(int, string) {})
 	if !errors.Is(err, errQuit) {
 		t.Fatalf("Ctrl+Q returned %v", err)
+	}
+}
+
+func TestComposeCanReuseLegacySavedValue(t *testing.T) {
+	spec := composedFixture(t)
+	spec.Inputs[0].Compose.UseLegacyValueAsInput = true
+	spec.Functions["defaultSenderAddress"] = functionSpec{
+		Parameters: map[string]string{"Address": "text", "Domain": "domain"},
+		Result:     "email", Template: `{{if contains .Address "@"}}{{.Address}}{{else}}{{.Address}}@{{.Domain}}{{end}}`,
+	}
+	spec.Inputs[0].Compose.Function = "defaultSenderAddress"
+	if err := spec.validate(); err != nil {
+		t.Fatal(err)
+	}
+	inputs := spec.inputFlags(flag.NewFlagSet("legacy", flag.ContinueOnError))
+	dir := t.TempDir()
+	file := filepath.Join(dir, spec.InputsFile)
+	for _, test := range []struct{ saved, raw, resolved string }{
+		{`{"Version":1,"Sender":"notify@other.example"}`, "notify@other.example", "notify@other.example"},
+		{`{"Version":1,"Sender":"notify@other.example","ComposeInputs":{"Sender":"custom"}}`, "custom", "custom@example.test"},
+	} {
+		if err := os.WriteFile(file, []byte(test.saved), 0600); err != nil {
+			t.Fatal(err)
+		}
+		defaults, err := inputs.defaults(spec.InputsFile, dir)
+		if err != nil || defaults["Sender"] != test.raw {
+			t.Fatalf("raw migration: %v, %v", defaults, err)
+		}
+		got, err := inputs[2].resolve(defaults["Sender"], map[string]string{"Domain": "example.test"})
+		if err != nil || got != test.resolved {
+			t.Fatalf("resolved sender = %q, %v", got, err)
+		}
 	}
 }

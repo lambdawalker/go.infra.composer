@@ -99,7 +99,9 @@ Browser mode is interactive and cannot be combined with `--non-interactive`.
 ## Compose deployment inputs
 
 Use `Label` for the field name and optional `Help` for instructions shown below
-the field in the browser form.
+the field in the browser form. The browser shows the resolved value beside a
+composed input and recalculates it as you edit. A field derived entirely from
+other inputs is read-only. Continue validates the whole form before saving.
 
 A field's `Compose.Function` selects a built-in or project function.
 `Compose.Parameters` binds the function's named arguments. Each argument
@@ -160,15 +162,17 @@ unknown fields, repeated dependencies, and cycles before prompting.
 
 Project functions receive named string arguments with declared kinds
 (`text`, `email`, or `domain`). Their Go text templates evaluate locally
-with helpers `lower`, `trim`, and `reject`. Use `reject "message"` to
+with helpers `lower`, `trim`, `contains`, and `reject`. Use `reject "message"` to
 return a validation error. The CLI validates the result against the output
 field's kind. Function names and parameter bindings are checked at startup.
 
 A field with no `userInput` binding is derived. Omit its `GitHubVariable`.
 For prompted fields, flags and GitHub variables carry the raw input. The CLI
 keeps the raw value for future edits and sends the resolved value to Pulumi.
-When migrating a plain field to a prompted composition, enter its raw value
-again or accept the new default. CI must supply all prompted values explicitly.
+When migrating a plain field to a prompted composition, use
+`Compose.UseLegacyValueAsInput` if the previous saved value is valid as raw
+input. The wizard prefers a saved raw value once one exists. CI must supply
+all prompted values explicitly.
 
 ## Adopt an existing deployment
 

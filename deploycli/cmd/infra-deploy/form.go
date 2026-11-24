@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -28,11 +29,29 @@ type deploymentForm struct {
 
 func (f *deploymentForm) collect(ctx context.Context) error {
 	fields := f.fields()
+	prompt := wizardweb.Prompt{Label: "Deployment settings"}
+	if slices.ContainsFunc(fields, func(field wizardweb.Field) bool { return field.Composed }) {
+		inputs := slices.Clone(f.inputs)
+		for _, field := range fields {
+			if !field.ReadOnly && strings.HasPrefix(field.Name, "feature.") {
+				prompt.PreviewFields = append(prompt.PreviewFields, field.Name)
+			}
+		}
+		prompt.Preview = func(values map[string]string) map[string]string {
+			draft, _ := resolveFeatureDraft(inputs, values)
+			previews := make(map[string]string)
+			for _, field := range draft {
+				if field.spec.Compose != nil && field.value != "" {
+					previews["feature."+field.spec.Name] = field.display(field.value)
+				}
+			}
+			return previews
+		}
+	}
 	message := ""
 	for {
-		replies, action, err := wizard(ctx).browser.AskForm(ctx, wizardweb.Prompt{
-			Label: "Deployment settings", Message: message, Fields: fields,
-		})
+		prompt.Message, prompt.Fields = message, fields
+		replies, action, err := wizard(ctx).browser.AskForm(ctx, prompt)
 		if err != nil {
 			return err
 		}
@@ -83,13 +102,10 @@ func (f deploymentForm) fields() []wizardweb.Field {
 		fields = append(fields, wizardweb.Field{Name: "memory", Group: "AWS", Label: "Lambda memory (MB)", Value: strconv.Itoa(f.memory), Kind: "number", Help: "128–10,240 MB."})
 	}
 	for _, input := range f.inputs {
-		if input.flag == nil {
-			continue
-		}
 		name := input.spec.Name
 		value := f.defaults[name]
 		kind := input.spec.Kind
-		if *input.flag != "" {
+		if input.flag != nil && *input.flag != "" {
 			value = *input.flag
 		}
 		if input.spec.Compose != nil {
@@ -98,8 +114,12 @@ func (f deploymentForm) fields() []wizardweb.Field {
 				value = input.spec.Compose.DefaultInput
 			}
 		}
-		field := wizardweb.Field{Name: "feature." + name, Group: "Project inputs", Label: input.spec.Label, Kind: kind, Value: value, Help: input.spec.Help}
-		if kind == "dnsProvider" {
+		field := wizardweb.Field{
+			Name: "feature." + name, Group: "Project inputs", Label: input.spec.Label,
+			Kind: kind, Value: value, Help: input.spec.Help,
+			Composed: input.spec.Compose != nil, ReadOnly: input.flag == nil,
+		}
+		if kind == "dnsProvider" && !field.ReadOnly {
 			for _, provider := range dnsprovider.All() {
 				field.Options = append(field.Options, wizardweb.Option{Value: provider.ID, Label: provider.Name})
 			}
@@ -149,13 +169,35 @@ func (f *deploymentForm) apply(values map[string]string) map[string]string {
 		}
 	}
 
-	draft := slices.Clone(f.inputs)
+	draft, inputIssues := resolveFeatureDraft(f.inputs, values)
+	maps.Copy(issues, inputIssues)
+
+	reconcile := f.github != nil && (f.action == "github-setup" || values["github.enabled"] == "yes")
+	var github githubOptions
+	if reconcile {
+		github = *f.github
+		github.readForm(values, issues)
+	}
+	if len(issues) == 0 {
+		f.target, f.memory, f.configureGitHub = target, memory, reconcile
+		copy(f.inputs, draft)
+		if reconcile {
+			*f.github = github
+		}
+	}
+	return issues
+}
+
+func resolveFeatureDraft(inputs featureInputs, values map[string]string) (featureInputs, map[string]string) {
+	draft := slices.Clone(inputs)
+	issues := make(map[string]string)
 	resolved := make(map[string]string, len(draft))
 	for i := range draft {
 		field := &draft[i]
 		name := field.spec.Name
 		key := "feature." + name
-		raw := values[key]
+		raw := strings.TrimSpace(values[key])
+		field.raw, field.value = "", ""
 		missingDependency := ""
 		if compose := field.spec.Compose; compose != nil {
 			for _, binding := range compose.Parameters {
@@ -188,18 +230,5 @@ func (f *deploymentForm) apply(values map[string]string) map[string]string {
 		resolved[name] = value
 	}
 
-	reconcile := f.github != nil && (f.action == "github-setup" || values["github.enabled"] == "yes")
-	var github githubOptions
-	if reconcile {
-		github = *f.github
-		github.readForm(values, issues)
-	}
-	if len(issues) == 0 {
-		f.target, f.memory, f.configureGitHub = target, memory, reconcile
-		copy(f.inputs, draft)
-		if reconcile {
-			*f.github = github
-		}
-	}
-	return issues
+	return draft, issues
 }

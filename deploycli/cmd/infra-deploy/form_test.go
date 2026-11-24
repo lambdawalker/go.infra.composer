@@ -56,3 +56,44 @@ func TestDeploymentFormKeepsVerifiedTargetReadOnly(t *testing.T) {
 		t.Fatalf("bound target changed: %+v, %v", f.target, issues)
 	}
 }
+
+func TestComposedFormResolvesDraftWithoutChangingSavedValues(t *testing.T) {
+	spec := composedFixture(t)
+	host := spec.Inputs[len(spec.Inputs)-1]
+	host.GitHubVariable = ""
+	host.Compose.DefaultInput = ""
+	prefix := "demo"
+	host.Compose.Parameters["Prefix"] = parameterBinding{Source: "literal", Value: &prefix}
+	spec.Inputs[len(spec.Inputs)-1] = host
+	if err := spec.validate(); err != nil {
+		t.Fatal(err)
+	}
+	inputs := spec.inputFlags(flag.NewFlagSet("preview", flag.ContinueOnError))
+	fields := (deploymentForm{inputs: inputs}).fields()
+	for _, expected := range []wizardweb.Field{
+		{Name: "feature.Sender", Composed: true, Value: "verify"},
+		{Name: "feature.Host", Composed: true, ReadOnly: true},
+	} {
+		if !slices.ContainsFunc(fields, func(field wizardweb.Field) bool {
+			return field.Name == expected.Name && field.Composed == expected.Composed &&
+				field.ReadOnly == expected.ReadOnly && field.Value == expected.Value
+		}) {
+			t.Fatalf("missing composed field: %+v", expected)
+		}
+	}
+	values := map[string]string{
+		"feature.Domain": "draft.example.test", "feature.Recipient": "test@other.example", "feature.Sender": "verify",
+	}
+	draft, issues := resolveFeatureDraft(inputs, values)
+	if len(issues) != 0 || draft[2].value != "verify@draft.example.test" || draft[3].value != "demo.draft.example.test" {
+		t.Fatalf("draft values or errors incorrect: %+v, %v", draft, issues)
+	}
+	if inputs[2].value != "" {
+		t.Fatal("draft changed a stored field")
+	}
+	values["feature.Domain"] = "invalid domain"
+	draft, issues = resolveFeatureDraft(inputs, values)
+	if issues["feature.Domain"] == "" || draft[2].value != "" || draft[3].value != "" {
+		t.Fatalf("invalid dependencies were used: %+v, %v", draft, issues)
+	}
+}
