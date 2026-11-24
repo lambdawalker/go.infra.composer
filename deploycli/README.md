@@ -96,6 +96,22 @@ once the result is displayed. Pressing Ctrl+C in the terminal also stops the
 wizard. Closing the browser tab alone leaves the local process running.
 Browser mode is interactive and cannot be combined with `--non-interactive`.
 
+## Publish environment discovery
+
+Applications with a shared discovery stack can add a `Discovery` declaration
+to the deploy manifest. Map `APIURL` and optional `CognitoIssuer`,
+`CognitoUserPoolID`, and `CognitoClientID` to public names in `Outputs`.
+Set `ProbeMethod`, `ProbePath`, and `ProbeStatus` for an unauthenticated HTTP
+readiness check. The deploy CLI publishes only those mapped outputs after a
+successful apply and probe.
+
+Pass the shared URL with `--discovery-index` (or
+`INFRA_DISCOVERY_INDEX_URL`) and its signing region with `--discovery-region`
+(or `INFRA_DISCOVERY_INDEX_REGION`). The region defaults to the stack region.
+The wizard stores the discovery destination for that deployment scope.
+Confirmed destroy retires its entry before removing the stack resources.
+Preview and setup leave the directory unchanged.
+
 ## Compose deployment inputs
 
 Use `Label` for the field name and optional `Help` for instructions shown below

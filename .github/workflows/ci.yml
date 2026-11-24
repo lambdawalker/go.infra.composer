@@ -58,3 +58,19 @@ jobs:
       - run: go test -race ./...
       - run: go vet ./...
       - run: go build ./cmd/infra-deploy
+
+  awsdiscovery:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: adapters/awsdiscovery
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: adapters/awsdiscovery/go.mod
+          cache-dependency-path: adapters/awsdiscovery/go.sum
+      - run: go mod verify
+      - run: go test -race -p=2 ./...
+      - run: go vet -p=2 ./...
+      - run: go build -o "$RUNNER_TEMP/discovery-registry" ./cmd/registry

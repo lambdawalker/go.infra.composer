@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/lambdawalker/go.infra.composer/deploycli/internal/wizardweb"
+	"github.com/lambdawalker/go.infra.composer/discovery"
 )
 
 type Settings struct {
@@ -282,6 +283,11 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 	ui := wizard(ctx)
 	fs := flag.NewFlagSet("infra-deploy", flag.ContinueOnError)
 	env := fs.String("environment", "", "isolated environment")
+	var discoveryURL, discoveryRegion string
+	if cli.spec.Discovery != nil {
+		fs.StringVar(&discoveryURL, "discovery-index", os.Getenv("INFRA_DISCOVERY_INDEX_URL"), "HTTPS environment discovery index URL")
+		fs.StringVar(&discoveryRegion, "discovery-region", os.Getenv("INFRA_DISCOVERY_INDEX_REGION"), "AWS region hosting the discovery index")
+	}
 	action := fs.String("action", "", "setup, build, clean-cache, preview, deploy, status, destroy, github-setup, report (default: deploy interactively, preview in CI)")
 	profile := fs.String("profile", "", "AWS SSO profile (omit in CI)")
 	region := fs.String("region", "", "AWS region")
@@ -1069,6 +1075,13 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 		ui.result(string(safe))
 		return nil
 	}
+	var index *discoveryClient
+	if cli.spec.Discovery != nil && (*action == "deploy" || *action == "destroy") {
+		index, e = openDiscovery(ctx, private, *env, discoveryURL, discoveryRegion, *region)
+		if e != nil {
+			return e
+		}
+	}
 	if *action == "destroy" {
 		if *ci {
 			return errors.New("interactive teardown confirmation required")
@@ -1080,6 +1093,15 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 			return err
 		}
 		ui.phase("apply", "Destroy the confirmed stack")
+		if index != nil {
+			revision, err := index.begin(ctx, private)
+			if err != nil {
+				return err
+			}
+			if _, err := index.change(ctx, discovery.Change{Operation: "retire", Revision: revision}); err != nil {
+				return fmt.Errorf("discovery retirement failed: %w", err)
+			}
+		}
 		return command(ctx, dir, "pulumi", "destroy", "--stack", stack, "--yes")
 	}
 
@@ -1180,6 +1202,13 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 	if current, err := os.ReadFile(archive); err != nil || sha256.Sum256(current) != approvedArchive {
 		return errors.New("artifact changed after preview; preview again")
 	}
+	var revision int64
+	if index != nil {
+		revision, e = index.begin(ctx, private)
+		if e != nil {
+			return e
+		}
+	}
 	activeFeatureReport.applied = true
 	ui.phase("apply", "Apply the saved plan")
 	ui.heading("Apply previewed changes")
@@ -1204,6 +1233,19 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 	}{1, projectName, *env, *account, *region, *backend, stack, canonicalHash(json.RawMessage(planBytes)), time.Now().UTC()})
 	if e = atomicWrite(filepath.Join(private, "applied.json"), success); e != nil {
 		return e
+	}
+	if index != nil {
+		ui.heading("Publish environment discovery")
+		connection, err := cli.spec.Discovery.fromOutputs(outputs)
+		if err != nil {
+			return fmt.Errorf("stack applied, discovery publication skipped: %w", err)
+		}
+		if err := cli.spec.Discovery.ready(ctx, index.http, connection); err != nil {
+			return fmt.Errorf("stack applied, discovery publication skipped: %w", err)
+		}
+		if _, err := index.change(ctx, discovery.Change{Operation: "publish", Revision: revision, Configuration: &connection}); err != nil {
+			return fmt.Errorf("stack applied, discovery publication failed: %w", err)
+		}
 	}
 	ui.heading("Deployment complete")
 	ui.result(string(outputs))

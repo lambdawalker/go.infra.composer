@@ -36,6 +36,7 @@ type manifest struct {
 	Functions      map[string]functionSpec
 	ConfigDefaults map[string]string
 	GitHub         githubSpec
+	Discovery      *discoverySpec
 	inputPlan      []plannedInput
 }
 
@@ -86,6 +87,11 @@ func readManifest(root string) (manifest, error) {
 }
 
 func (m *manifest) validate() error {
+	if m.Discovery != nil {
+		if err := m.Discovery.validate(m.Outputs); err != nil {
+			return err
+		}
+	}
 	if m.Version != 1 {
 		return fmt.Errorf("unsupported deploy.json version %d", m.Version)
 	}
