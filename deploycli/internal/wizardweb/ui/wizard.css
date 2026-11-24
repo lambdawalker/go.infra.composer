@@ -163,7 +163,12 @@ form .button { justify-self: start; }
 }
 .wizard-actions { margin-left: auto; justify-content: flex-end; }
 .countdown { display: flex; align-items: center; gap: 10px; font-size: .88rem; color: var(--hint); }
+#countdown:not([hidden]) { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 #countdown-text { font-variant-numeric: tabular-nums; white-space: nowrap; }
+#wizard-continue[data-countdown]::after {
+  content: attr(data-countdown); margin-left: 9px; padding-left: 9px;
+  border-left: 1px solid currentColor; font-variant-numeric: tabular-nums;
+}
 html { scroll-padding-bottom: calc(12px + var(--action-bar-size, 0px)); }
 #sign-in-actions:empty, #prompt-actions:empty { display: none; }
 pre, #events { white-space: pre-wrap; overflow-wrap: anywhere; }

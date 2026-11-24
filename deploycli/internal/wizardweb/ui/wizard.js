@@ -163,6 +163,9 @@ get("vault-unlock-form").addEventListener("submit", async event => {
 function resetCountdown() {
   clearInterval(countdownTick);
   countdownTick = undefined;
+  const submit = get("wizard-continue");
+  if (submit) delete submit.dataset.countdown;
+  get("countdown").append(get("pause-countdown"));
   get("countdown").hidden = true;
   get("pause-countdown").hidden = false;
 }
@@ -171,20 +174,30 @@ function pauseCountdown() {
   if (countdownTick === undefined) return;
   clearInterval(countdownTick);
   countdownTick = undefined;
-  get("countdown-text").textContent = "Countdown paused";
   const pause = get("pause-countdown");
-  if (document.activeElement === pause) get("wizard-continue")?.focus();
+  const wasFocused = document.activeElement === pause;
+  const submit = get("wizard-continue");
+  if (submit) delete submit.dataset.countdown;
+  get("countdown-text").textContent = "Countdown paused";
+  get("countdown").append(pause);
   pause.hidden = true;
+  if (wasFocused) submit?.focus();
 }
 
 function startCountdown(prompt) {
   const form = get("wizard-form");
   if (!form || !prompt.countdownSeconds || document.hidden) return;
+  const submit = get("wizard-continue");
+  const pause = get("pause-countdown");
   let remaining = prompt.countdownSeconds;
   const label = prompt.kind === "actions" ? "Select Preview in" : "Using defaults in";
-  const update = () => { get("countdown-text").textContent = label + " " + remaining + "s"; };
+  const update = () => {
+    get("countdown-text").textContent = label + " " + remaining + "s";
+    submit.dataset.countdown = remaining + "s";
+  };
   update();
   get("countdown").hidden = false;
+  submit.after(pause);
   countdownTick = setInterval(() => {
     if (document.hidden || !form.isConnected || current.prompt?.id !== prompt.id) {
       pauseCountdown();
@@ -221,6 +234,7 @@ function addSubmit(form, label = "Continue") {
   form.id = "wizard-form";
   const submit = button(label, "primary", "submit");
   submit.id = "wizard-continue";
+  submit.setAttribute("aria-label", label);
   submit.setAttribute("form", form.id);
   promptActions.append(submit);
 }
