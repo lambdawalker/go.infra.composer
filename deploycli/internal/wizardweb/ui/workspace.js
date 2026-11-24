@@ -8,7 +8,7 @@
   const badge = action => el("span", action === "same" ? "Unchanged" : action === "unknown" ? "Not planned" : action.replaceAll("-", " "), "badge " + (action.includes("delete") || action.includes("replace") ? "delete" : action.includes("create") ? "create" : action.includes("update") ? "update" : action === "unknown" ? "unknown" : "same"));
   const symbolFor = type => /route53|cloudflare|acm|domain|apiGateway/i.test(type) ? "globe" : /dynamodb|s3|storage/i.test(type) ? "database" : /iam|secret|cognito|kms|authorizer/i.test(type) ? "shield" : /ses|email/i.test(type) ? "mail" : /lambda|eventRule|eventTarget/i.test(type) ? "bolt" : "layers";
   const purposeFor = type => ({Function:"Runs backend code", Table:"Stores application data", Key:"Signs or encrypts data", EmailIdentity:"Identifies the SES sender", Api:"Exposes the application API", UserPool:"Manages demo identities", Certificate:"Secures the public endpoint", DnsRecord:"Publishes DNS records", Role:"Grants service access", LogGroup:"Stores diagnostic logs"})[type.split(":").at(-1)] || "Managed deployment resource";
-  const state = { selected:null, expanded:new Set(), detailOpen:true, progressOpen:true, deploymentView:"application", inventory:null, plan:[], nodes:[], roots:[], reportRun:null };
+  const state = { selected:null, expanded:new Set(), filterKey:null, detailOpen:true, progressOpen:true, deploymentView:"application", inventory:null, plan:[], nodes:[], roots:[], reportRun:null };
   const workspace = $("preview-workspace"), wizard = $("wizard"), slot = $("preview-interaction-slot"), panel = $("panel"), signIn = $("sign-in"), originalParent = panel.parentNode;
   const dialog = $("workspace-dialog"), dialogContent = $("dialog-content"), promptActions = $("prompt-actions"), countdown = $("countdown"), stop = $("stop"), lockPanel = document.querySelector("#vault-lock .lock-panel");
   const actionHome = promptActions.parentNode, countdownHome = countdown.parentNode, stopHome = stop.parentNode, lockHome = $("vault-lock");
@@ -56,6 +56,7 @@
     for (const a of nodes) resources.set(a.key, a);
     for (const a of nodes) { const parent = resources.get(a.parent); if (parent && parent !== a) { a.parentNode = parent; parent.children.push(a); } }
     state.inventory = inventory;
+    state.filterKey = null;
     state.nodes = nodes;
     state.roots = nodes.filter(a => !a.parentNode);
     state.plan = (view.changes || []).map(change => ({...change, node:resources.get(change.resource)}));
@@ -89,15 +90,26 @@
   function matches(a,q,filter) { return (a.name || a.key).toLowerCase().includes(q) && (filter==="all" || filter==="changed" && a.action!=="same" && a.action!=="unknown" || filter==="unchanged" && a.action==="same" || filter==="unknown" && a.presence==="unknown"); }
   function tree() {
     const q=$("search").value.trim().toLowerCase(), filter=$("filter").value;
+    const filterKey=q+"\0"+filter, filterChanged=state.filterKey!==filterKey;
+    state.filterKey=filterKey;
     const matching=state.nodes.filter(a=>matches(a,q,filter)); $("count").textContent=matching.length+" of "+state.nodes.length;
-    const included=new Set(); for(const a of matching) for(let p=a;p;p=p.parentNode) {included.add(p);if(q||filter!=="all") state.expanded.add(p.key);}
+    const included=new Set(); for(const a of matching) for(let p=a;p;p=p.parentNode) {included.add(p);if(filterChanged&&(q||filter!=="all")) state.expanded.add(p.key);}
     const box=$("list");box.replaceChildren(); if(!matching.length) {box.append(el("p",state.nodes.length ? "No artifacts match." : "No artifacts loaded. Connect to a deployment stack to check.","muted"));return;}
     const list=el("ul","","artifact-tree");
     function appendNode(parent,a) {
       const item=el("li","","tree-node"), row=el("div","","tree-row"), children=a.children.filter(c=>included.has(c));
-      if(children.length) {const toggle=el("button",state.expanded.has(a.key)?"⌄":"›","branch-toggle"); toggle.type="button";toggle.setAttribute("aria-label",(state.expanded.has(a.key)?"Collapse ":"Expand ")+a.name);toggle.setAttribute("aria-expanded",String(state.expanded.has(a.key)));toggle.onclick=()=>{state.expanded.has(a.key)?state.expanded.delete(a.key):state.expanded.add(a.key);tree();};row.append(toggle);} else row.append(el("span","","branch-spacer"));
+      const expanded=children.length>0 && state.expanded.has(a.key);
+      item.classList.toggle("expanded",expanded);
+      if(children.length) {
+        const toggle=el("button","","branch-toggle");toggle.type="button";toggle.id="artifact-toggle-"+a.id;
+        toggle.setAttribute("aria-label",(expanded?"Collapse ":"Expand ")+(a.name || a.key));
+        toggle.setAttribute("aria-expanded",String(expanded));
+        if(expanded)toggle.setAttribute("aria-controls","artifact-children-"+a.id);
+        const chevron=el("span","","chevron");chevron.setAttribute("aria-hidden","true");toggle.append(chevron);
+        toggle.onclick=()=>{expanded?state.expanded.delete(a.key):state.expanded.add(a.key);tree();$(toggle.id)?.focus();};row.append(toggle);
+      } else row.append(el("span","","branch-spacer"));
       const entry=el("button","","tree-entry");entry.type="button";entry.append(icon(a.symbol));const content=el("span","","tree-content");content.append(el("span",a.name || a.key,"artifact-name"));const meta=el("span","","tree-meta");meta.append(badge(a.action),el("span",a.feature || state.inventory?.repository?.split("/").at(-1) || "Project","tree-owner"));content.append(meta);entry.append(content);entry.setAttribute("aria-current",String(state.selected===a));entry.onclick=()=>select(a);row.append(entry);item.append(row);
-      if(children.length && state.expanded.has(a.key)) {const sub=el("ul");for(const child of children)appendNode(sub,child);item.append(sub);}parent.append(item);
+      if(expanded) {const sub=el("ul");sub.id="artifact-children-"+a.id;for(const child of children)appendNode(sub,child);item.append(sub);}parent.append(item);
     }
     for(const a of state.roots)if(included.has(a))appendNode(list,a);box.append(list);
   }
