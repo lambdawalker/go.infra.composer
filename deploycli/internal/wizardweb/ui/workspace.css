@@ -94,7 +94,11 @@
 .preview-workspace #preview-interaction-slot {width:100%;min-width:0}
 .preview-workspace .editor-panel {padding:17px 20px 22px}
 .preview-workspace .editor-panel > div {width:100%}
-.preview-workspace .editor-panel #panel {width:100%}
+.preview-workspace .editor-panel #panel {width:100%;border:0;background:transparent;box-shadow:none;overflow:visible}
+.preview-workspace .editor-panel #panel .panel-heading {padding:0 0 10px;border-bottom:1px solid var(--line)}
+.preview-workspace .editor-panel #panel .panel-heading h2 {font-size:17px;margin:4px 0 0}
+.preview-workspace .editor-panel #panel .panel-body {padding:12px 0 0}
+.preview-workspace .editor-panel #panel form {max-width:none}
 .preview-workspace .empty-tab {color:var(--muted);font-size:12px}
 .preview-workspace #proposed-changes {display:flex;flex-direction:column;gap:10px}
 .preview-workspace .section-title {display:flex;align-items:flex-start;justify-content:space-between;gap:9px}

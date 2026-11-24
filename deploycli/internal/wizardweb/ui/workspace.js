@@ -72,7 +72,7 @@
   function details() {
     const box = $("detail-content"); box.replaceChildren();
     const a = state.selected;
-    if (!a) { box.append(el("p", "No recorded artifacts for this target yet. Connect to a deployment stack to check.", "muted")); return; }
+    if (!a) { box.append(el("p", "No artifacts loaded. Connect to a deployment stack to check.", "muted")); return; }
     box.append(el("div", a.name || a.key, "detail-name"), el("div", a.type || "Resource", "kind"), el("p", purposeFor(a.type || ""), "artifact-description"));
     const tags = el("div", "", "detail-actions"); tags.append(badge(a.action), el("span", a.feature || state.inventory?.repository?.split("/").at(-1) || "Project", "depth-label")); box.append(tags);
     const dl = el("dl", "", "data-grid");
@@ -91,7 +91,7 @@
     const q=$("search").value.trim().toLowerCase(), filter=$("filter").value;
     const matching=state.nodes.filter(a=>matches(a,q,filter)); $("count").textContent=matching.length+" of "+state.nodes.length;
     const included=new Set(); for(const a of matching) for(let p=a;p;p=p.parentNode) {included.add(p);if(q||filter!=="all") state.expanded.add(p.key);}
-    const box=$("list");box.replaceChildren(); if(!matching.length) {box.append(el("p",state.nodes.length ? "No artifacts match." : "No recorded artifacts yet. Connect to a deployment stack to check.","muted"));return;}
+    const box=$("list");box.replaceChildren(); if(!matching.length) {box.append(el("p",state.nodes.length ? "No artifacts match." : "No artifacts loaded. Connect to a deployment stack to check.","muted"));return;}
     const list=el("ul","","artifact-tree");
     function appendNode(parent,a) {
       const item=el("li","","tree-node"), row=el("div","","tree-row"), children=a.children.filter(c=>included.has(c));
@@ -126,7 +126,7 @@
     $("artifact-total").textContent=String(i.artifacts?.length || 0);
     $("change-total").textContent=view.reviewed ? String(view.total || 0) : "—";
     $("unknown-total").textContent=String((i.artifacts || []).filter(a=>a.presence==="unknown").length);
-    $("plan-state").textContent=view.reviewed ? "Plan ready" : view.action === "report" ? "Artifact report" : ["preview","deploy"].includes(view.action) ? "Preparing plan" : (i.artifacts?.length ? "Recorded state" : "No deployment recorded");
+    $("plan-state").textContent=view.reviewed ? "Plan ready" : view.action === "report" ? "Artifact report" : ["preview","deploy"].includes(view.action) ? "Preparing plan" : (i.artifacts?.length ? "Recorded state" : "Awaiting inventory");
     $("changes").dataset.state = view.reviewed ? "ready" : "pending";
     $("preview-summary").hidden = false;
     $("proposed-changes").hidden = !["preview", "deploy", "report"].includes(view.action);
