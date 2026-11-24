@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 	"testing/synctest"
+	"time"
 )
 
 const testHost = "127.0.0.1:17774"
@@ -123,7 +124,7 @@ func TestStopDeploymentCanReturnAfterCleanup(t *testing.T) {
 		}
 		synctest.Wait()
 		stopping := session.snapshot()
-		if page.Err() != nil || stopping.Status != "stopping" || stopping.CanReturn {
+		if page.Err() != nil || stopping.Status != "stopping" {
 			t.Fatalf("operation still cleaning up: %+v", stopping)
 		}
 		if got := post("/api/actions", fmt.Sprintf(`{"revision":%d}`, stopping.Revision)); got != http.StatusConflict {
@@ -132,7 +133,7 @@ func TestStopDeploymentCanReturnAfterCleanup(t *testing.T) {
 		finishCleanup <- struct{}{}
 		synctest.Wait()
 		stopped := session.snapshot()
-		if stopped.Status != "cancelled" || !stopped.CanReturn || !stopped.Reviewed {
+		if stopped.Status != "cancelled" || !stopped.Reviewed {
 			t.Fatalf("stopped deployment result: %+v", stopped)
 		}
 		if got := post("/api/stop", `{"run":1,"close":false}`); got != http.StatusConflict || page.Err() != nil {
@@ -142,11 +143,9 @@ func TestStopDeploymentCanReturnAfterCleanup(t *testing.T) {
 		if got := post("/api/actions", fmt.Sprintf(`{"revision":%d}`, stopped.Revision)); got != http.StatusNoContent {
 			t.Fatalf("return after cleanup returned %d", got)
 		}
-		if err := <-finished; err != nil {
-			t.Fatalf("next action ran with a cancelled context: %v", err)
-		}
+		synctest.Wait()
 		state := session.snapshot()
-		if state.Run != 2 || state.Action != "status" || state.Reviewed || state.Status != "complete" || state.CanReturn {
+		if state.Run != 2 || state.Action != "status" || state.Reviewed || state.Status != "complete" {
 			t.Fatalf("unexpected next action state: %+v", state)
 		}
 		if got := post("/api/stop", `{"run":1,"close":true}`); got != http.StatusConflict || page.Err() != nil {
@@ -154,6 +153,9 @@ func TestStopDeploymentCanReturnAfterCleanup(t *testing.T) {
 		}
 		if got := post("/api/stop", `{"run":2,"close":true}`); got != http.StatusNoContent || page.Err() == nil {
 			t.Fatalf("close did not end the session: %d", got)
+		}
+		if err := <-finished; err != nil {
+			t.Fatalf("next action ran with a cancelled context: %v", err)
 		}
 	})
 }
@@ -220,7 +222,7 @@ func TestFormPreviewDoesNotAnswerPrompt(t *testing.T) {
 	}
 }
 
-func TestReturnToActionsAfterSetup(t *testing.T) {
+func TestReturnToActionsAfterEachResult(t *testing.T) {
 	session := newSession("test wizard", func() {})
 	handler := session.handler(testHost, "known-token")
 	post := func(revision uint64, token string) int {
@@ -231,44 +233,73 @@ func TestReturnToActionsAfterSetup(t *testing.T) {
 		t.Fatalf("returned while first action was running: %d", got)
 	}
 
-	session.Action("setup")
-	session.Phase("prepare", "Prepare deployment")
-	session.Note("setup output")
-	session.AllowReturnToActions()
-	home := session.finish(nil)
-	result := session.snapshot()
-	if home == nil || result.Status != "complete" || !result.CanReturn || len(result.Activity) != 1 {
-		t.Fatalf("setup result unavailable: %+v", result)
+	for _, tc := range []struct {
+		action, status string
+		err            error
+	}{
+		{action: "setup", status: "complete"},
+		{action: "preview", status: "complete"},
+		{action: "report", status: "failed", err: errors.New("report failed")},
+		{action: "github-setup", status: "cancelled", err: context.Canceled},
+	} {
+		session.Action(tc.action)
+		session.Phase("prepare", "Prepare deployment")
+		session.Note("previous activity")
+		home := session.finish(tc.err)
+		result := session.snapshot()
+		if result.Status != tc.status || len(result.Activity) != 1 {
+			t.Fatalf("%s result unavailable: %+v", tc.action, result)
+		}
+		if got := post(result.Revision, ""); got != http.StatusUnauthorized {
+			t.Fatalf("unauthenticated return: %d", got)
+		}
+		if got := post(result.Revision-1, "known-token"); got != http.StatusConflict {
+			t.Fatalf("stale return: %d", got)
+		}
+		if got := post(result.Revision, "known-token"); got != http.StatusNoContent {
+			t.Fatalf("return after %s: %d", tc.action, got)
+		}
+		select {
+		case <-home:
+		default:
+			t.Fatal("return did not wake the wizard")
+		}
+		state := session.snapshot()
+		if state.Run != result.Run+1 || state.Status != "running" || state.Phase != "settings" ||
+			state.Action != "" || state.Error != "" || len(state.Activity) != 0 || len(state.Visited) != 0 {
+			t.Fatalf("previous action state carried over: %+v", state)
+		}
+		if got := post(result.Revision, "known-token"); got != http.StatusConflict {
+			t.Fatalf("duplicate return: %d", got)
+		}
 	}
-	if got := post(result.Revision, ""); got != http.StatusUnauthorized {
-		t.Fatalf("unauthenticated return: %d", got)
-	}
-	if got := post(result.Revision-1, "known-token"); got != http.StatusConflict {
-		t.Fatalf("stale return: %d", got)
-	}
-	if got := post(result.Revision, "known-token"); got != http.StatusNoContent {
-		t.Fatalf("return after setup: %d", got)
-	}
-	select {
-	case <-home:
-	default:
-		t.Fatal("return did not wake the wizard")
-	}
-	state := session.snapshot()
-	if state.Status != "running" || state.Phase != "settings" || state.Action != "" || state.CanReturn ||
-		len(state.Activity) != 0 || len(state.Visited) != 0 {
-		t.Fatalf("previous setup state carried over: %+v", state)
-	}
-	if got := post(result.Revision, "known-token"); got != http.StatusConflict {
-		t.Fatalf("duplicate return: %d", got)
-	}
-	if home := session.finish(nil); home != nil || session.snapshot().CanReturn {
-		t.Fatal("return carried over to the next operation")
-	}
+}
 
-	failed := newSession("test wizard", func() {})
-	failed.AllowReturnToActions()
-	if home := failed.finish(errors.New("setup failed")); home != nil || failed.snapshot().CanReturn {
-		t.Fatal("failed setup allowed return")
-	}
+func TestActionMenuCanWaitAndClose(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		page, closePage := context.WithCancel(t.Context())
+		defer closePage()
+		session := newSession("test wizard", closePage)
+		finished := make(chan error, 1)
+		go func() {
+			finished <- runSession(page, session, func(ctx context.Context, s *Session, _ bool) error {
+				_, err := s.Ask(ctx, Prompt{Kind: "actions", Label: "Choose an action"})
+				return err
+			})
+		}()
+		synctest.Wait()
+		time.Sleep(72 * time.Hour)
+		state := session.snapshot()
+		if state.Prompt == nil || state.Prompt.Kind != "actions" {
+			t.Fatalf("idle menu closed: %+v", state)
+		}
+		handler := session.handler(testHost, "known-token")
+		rec := request(handler, http.MethodPost, "/api/stop", testHost, "", "known-token", `{"run":1,"close":true}`)
+		if rec.Code != http.StatusNoContent || page.Err() == nil {
+			t.Fatalf("close at the action menu returned %d", rec.Code)
+		}
+		if err := <-finished; !errors.Is(err, context.Canceled) {
+			t.Fatalf("unexpected exit after closing the action menu: %v", err)
+		}
+	})
 }

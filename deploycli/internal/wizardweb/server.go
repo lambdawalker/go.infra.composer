@@ -80,12 +80,9 @@ func runSession(ctx context.Context, session *Session, run func(context.Context,
 		err := runOperation(operation, session, showActions, run)
 		cancel()
 		home := session.finish(err)
-		if home == nil {
-			return err
-		}
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return err
 		case <-home:
 		}
 	}

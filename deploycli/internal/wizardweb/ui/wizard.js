@@ -52,6 +52,7 @@ const statuses = {
   complete: "Complete", failed: "Failed",
 };
 const completed = (status) => ["complete", "failed", "cancelled"].includes(status);
+const canClose = (view) => completed(view.status) || view.prompt?.kind === "actions";
 const clean = (text) => text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
 const authHeaders = {Authorization: "Bearer " + token};
 
@@ -295,7 +296,7 @@ function renderPrompt(view) {
       view.status === "failed" ? "The wizard stopped" :
       view.status === "cancelled" ? "Wizard stopped" :
       view.status === "stopping" ? "Stopping the current operation" : view.phaseTitle;
-    if (view.canReturn) {
+    if (completed(view.status)) {
       const back = button("Back to main page", "primary");
       back.addEventListener("click", async () => {
         back.disabled = true;
@@ -392,7 +393,7 @@ function render(view) {
   get("action").textContent = actions[view.action] || "Deployment wizard";
   const stop = get("stop");
   stop.hidden = false;
-  stop.textContent = completed(view.status) ? "Close wizard" : "Stop wizard";
+  stop.textContent = canClose(view) ? "Close wizard" : "Stop wizard";
   stop.disabled = view.status === "stopping";
   const status = get("status");
   status.dataset.status = view.status;
@@ -457,7 +458,7 @@ async function poll() {
 
 get("stop").addEventListener("click", async () => {
   const {run, phase, status} = current;
-  const close = completed(status);
+  const close = canClose(current);
   if (phase === "apply" && status === "running" &&
       !confirm("Stop this operation? Changes already sent to the cloud may still finish.")) return;
   try {

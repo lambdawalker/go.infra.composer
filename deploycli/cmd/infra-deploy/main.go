@@ -378,7 +378,8 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 			return err
 		}
 		*action = operation
-		*importPath = ""
+		*exportPath, *importPath = "", ""
+		*refreshReport, *adoptLegacy, *forceReconcile = false, false, false
 	} else if ui.browser != nil && (actionExplicit || *exportPath != "") {
 		ui.browser.Action(*action)
 	}
@@ -1049,9 +1050,6 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 		}
 	}
 	if *action == "setup" {
-		if ui.browser != nil {
-			ui.browser.AllowReturnToActions()
-		}
 		return nil
 	}
 	plan := filepath.Join(private, "plan.json")
