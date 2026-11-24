@@ -338,3 +338,32 @@ func TestFailedRunDiagnosticsAreRedactedAndClearedOnReturn(t *testing.T) {
 		t.Fatal("diagnostics carried over to the next operation")
 	}
 }
+
+func TestFormPasswordNeverAppearsInStateOrDiagnostics(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		session := newSession("fixture", func() {})
+		finished := make(chan error, 1)
+		go func() {
+			_, _, err := session.AskForm(t.Context(), Prompt{
+				Fields:        []Field{{Name: "token", Kind: "password", Value: "must-not-be-published", Saved: true}},
+				PreviewFields: []string{"token"},
+			})
+			finished <- err
+		}()
+		synctest.Wait()
+		state := session.snapshot()
+		if state.Prompt == nil || state.Prompt.Fields[0].Value != "" || !state.Prompt.Fields[0].Saved || len(state.Prompt.PreviewFields) != 0 {
+			t.Fatal("password field or preview leaked the secret")
+		}
+		if !session.answer(state.Prompt.ID, reply{Values: map[string]string{"token": "submitted-fixture-token"}}) {
+			t.Fatal("secret submission failed")
+		}
+		if err := <-finished; err != nil {
+			t.Fatal(err)
+		}
+		session.finish(errors.New("provider failed with submitted-fixture-token"))
+		if state := session.snapshot(); strings.Contains(state.Diagnostics, "submitted-fixture-token") || strings.Contains(state.Error, "submitted-fixture-token") {
+			t.Fatal("submitted password appeared in failure diagnostics")
+		}
+	})
+}

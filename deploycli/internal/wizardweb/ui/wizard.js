@@ -172,10 +172,12 @@ function renderSettings(container, prompt) {
       }
     } else {
       control = node("input");
-      control.type = "text";
-      control.value = field.value;
+      const password = field.kind === "password";
+      control.type = password ? "password" : "text";
+      control.value = password ? "" : field.value;
+      if (password && field.saved) control.placeholder = "*****";
       control.maxLength = 4096;
-      control.autocomplete = "off";
+      control.autocomplete = password ? "new-password" : "off";
       control.spellcheck = false;
       if (field.kind === "email") control.inputMode = "email";
       if (field.kind === "number") control.inputMode = "numeric";

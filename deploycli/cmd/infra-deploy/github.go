@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -34,7 +33,7 @@ type githubReceipt struct {
 
 func setupGitHub(ctx context.Context, o githubOptions) error {
 	run := func(stdin string, args ...string) ([]byte, error) {
-		c := exec.CommandContext(ctx, args[0], args[1:]...)
+		c := toolCommand(ctx, args...)
 		if stdin != "" {
 			c.Stdin = strings.NewReader(stdin)
 		}

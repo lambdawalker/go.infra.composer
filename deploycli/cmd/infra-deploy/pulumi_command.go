@@ -11,14 +11,32 @@ import (
 // Apply this to each Pulumi child, including read-only report verification.
 func toolCommand(ctx context.Context, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
-	if args[0] == "pulumi" {
-		env := make([]string, 0, len(os.Environ())+1)
-		for _, v := range os.Environ() {
-			if !strings.EqualFold(strings.SplitN(v, "=", 2)[0], "PULUMI_DEBUG_COMMANDS") {
-				env = append(env, v)
-			}
+	credentials := credentialsFrom(ctx)
+	switch args[0] {
+	case "pulumi":
+		setCommandEnv(cmd, "PULUMI_DEBUG_COMMANDS", "true")
+		if credentials.Cloudflare != "" {
+			setCommandEnv(cmd, "CLOUDFLARE_API_TOKEN", credentials.Cloudflare)
 		}
-		cmd.Env = append(env, "PULUMI_DEBUG_COMMANDS=true")
+	case "gh":
+		if credentials.GitHub != "" {
+			setCommandEnv(cmd, "GH_TOKEN", credentials.GitHub)
+		}
 	}
 	return cmd
+}
+
+func setCommandEnv(cmd *exec.Cmd, key, value string) {
+	current := cmd.Env
+	if current == nil {
+		current = os.Environ()
+	}
+	env := make([]string, 0, len(current)+1)
+	for _, item := range current {
+		name, _, _ := strings.Cut(item, "=")
+		if !strings.EqualFold(name, key) {
+			env = append(env, item)
+		}
+	}
+	cmd.Env = append(env, key+"="+value)
 }

@@ -124,7 +124,7 @@ func (o *githubOptions) reviewGitHub(ctx context.Context) []reviewField {
 }
 
 func (o githubOptions) applyGitHub(ctx context.Context) error {
-	if os.Getenv("GH_TOKEN") == "" && os.Getenv("GITHUB_TOKEN") == "" {
+	if !credentialsFrom(ctx).configured(githubField) {
 		if _, err := output(ctx, "gh", "auth", "status", "--hostname", "github.com"); err != nil {
 			args := []string{"gh", "auth", "login", "--hostname", "github.com", "--web"}
 			if wizard(ctx).browser != nil {
