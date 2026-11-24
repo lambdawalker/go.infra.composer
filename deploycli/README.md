@@ -117,7 +117,10 @@ Preview and setup leave the directory unchanged.
 Use `Label` for the field name and optional `Help` for instructions shown below
 the field in the browser form. The browser shows the resolved value beside a
 composed input and recalculates it as you edit. A field derived entirely from
-other inputs is read-only. Continue validates the whole form before saving.
+other inputs is read-only. The form validates fields as you edit them and
+checks AWS sign-in, account matching, and existing state bucket access on
+Continue. If a check fails, the wizard reopens the form with your entries and
+highlights the affected field. It saves settings once the target passes these checks.
 
 A field's `Compose.Function` selects a built-in or project function.
 `Compose.Parameters` binds the function's named arguments. Each argument
