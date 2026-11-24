@@ -90,7 +90,9 @@ Choose **Add AWS SSO profile** to run the AWS CLI setup in the launching
 terminal. The browser keeps your form edits and refreshes the profile list
 when setup finishes. When run without an attached terminal, configure the
 profile separately with `aws configure sso`, then choose **Refresh AWS profiles**.
-AWS sign-in instructions appear when an SSO session needs renewal.
+When an AWS SSO session needs renewal, the AWS CLI opens the sign-in page on
+a local desktop. You can also use **Open AWS sign-in** in the web wizard,
+including when it runs over SSH. Complete the sign-in in your browser to continue.
 
 The page follows the deployment stages. The plan groups artifacts by service
 and shows each artifact's type, name, purpose where known, and operation.

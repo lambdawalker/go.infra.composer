@@ -133,6 +133,9 @@ func (o githubOptions) applyGitHub(ctx context.Context) error {
 			if err = wizard(ctx).login(o.Root, "GitHub", args...); err != nil {
 				return err
 			}
+			if ui := wizard(ctx); ui.browser != nil {
+				ui.note("Signed in to GitHub")
+			}
 		}
 	}
 	if err := setupGitHub(ctx, o); err != nil {

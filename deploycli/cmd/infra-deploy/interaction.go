@@ -166,6 +166,5 @@ func (w interaction) login(dir, name string, args ...string) error {
 	if err := c.Run(); err != nil {
 		return fmt.Errorf("%s sign-in failed: %w", name, err)
 	}
-	w.note("Signed in to " + name)
 	return nil
 }

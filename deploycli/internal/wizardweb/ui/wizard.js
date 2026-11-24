@@ -444,22 +444,29 @@ function renderSignIn(text) {
   const links = get("sign-in-actions");
   links.replaceChildren();
   get("sign-in-output").textContent = clean(text);
-  const urls = new Set(clean(text).match(/https:\/\/[^\s<>"']+/g) || []);
+  const urls = clean(text).match(/https:\/\/[^\s<>"']+/g) || [];
+  const providerLinks = new Map();
   for (const candidate of urls) {
     try {
       const url = new URL(candidate.replace(/[).,]+$/, ""));
       const host = url.hostname;
       if (host.endsWith(".awsapps.com") || host.endsWith(".amazonaws.com") ||
-          (host === "github.com" && url.pathname === "/login/device")) {
-        const link = node("a", host === "github.com" ? "Open GitHub sign-in" : "Open AWS sign-in", "button primary");
-        link.href = url.href;
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-        links.append(link);
+          (/^[a-z0-9-]+\.signin\.aws$/.test(host) && url.pathname === "/platform/authorize")) {
+        // AWS CLI lists the device URL that fills in the code last.
+        providerLinks.set("AWS", url);
+      } else if (host === "github.com" && url.pathname === "/login/device") {
+        providerLinks.set("GitHub", url);
       }
     } catch {
       // Provider output is still available as text.
     }
+  }
+  for (const [provider, url] of providerLinks) {
+    const link = node("a", `Open ${provider} sign-in`, "button primary");
+    link.href = url.href;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    links.append(link);
   }
 }
 
