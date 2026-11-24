@@ -26,6 +26,7 @@ writing identity configuration.
 | `InputsFile`, `Inputs`, `Functions`, `ConfigDefaults` | Optional versioned nonsecret settings, validated input flags, composition functions, and defaults written only for missing Pulumi keys |
 | `Outputs` | Allowlist of nonsecret string outputs for status and persisted output receipts |
 | `GitHub` | Workflow and environment prefix. A managed policy name enables reviewed role/policy setup. Without one, GitHub setup uses an existing protected environment, OIDC provider and explicitly supplied role. |
+| `DiscoveryStack` | Optional shared index program directory, Pulumi project and stack to remove after all saved environments. |
 
 The manifest describes a single isolated stack per environment. It contains
 no cloud credentials, target account IDs or executable shell snippets.
@@ -115,6 +116,22 @@ After any action finishes, fails, or is stopped, review the result and choose
 **Back to main page** to open the action cards in the same tab. The wizard waits
 for the operation to exit and release its local locks before offering another
 action. The open web session reuses the vault passphrase across actions.
+
+The action cards include **Remove an environment**, **Remove all environments
+and index**, and **Remove GitHub configuration**. Removing one environment
+retires it from the discovery index before destroying its Pulumi stack. Removing
+all environments verifies the declared shared index and its existing S3 state
+URL first, then requests typed confirmation for the project, each environment
+stack, and the index stack. It destroys the index after all saved environments
+succeed. If any teardown fails, the wizard stops for recovery and a retry.
+The shared index requires its own Pulumi passphrase.
+
+Removing GitHub configuration targets the selected environment's saved GitHub
+deployment record. It deletes its GitHub environment and its secrets,
+variables and protection rules. If this wizard created a dedicated IAM role
+and its tags still identify the project, it also removes that role and its
+declared inline policy. A preexisting role and the shared OIDC provider stay
+available to other deployments.
 
 After 20 minutes of inactivity, the browser wizard locks. Enter the vault
 passphrase to resume from the same step. Operations already running continue
