@@ -84,7 +84,7 @@ func TestComposedFormResolvesDraftWithoutChangingSavedValues(t *testing.T) {
 	values := map[string]string{
 		"feature.Domain": "draft.example.test", "feature.Recipient": "test@other.example", "feature.Sender": "verify",
 	}
-	draft, issues := resolveFeatureDraft(inputs, values)
+	draft, issues := resolveFeatureDraft(inputs, "dev", values)
 	if len(issues) != 0 || draft[2].value != "verify@draft.example.test" || draft[3].value != "demo.draft.example.test" {
 		t.Fatalf("draft values or errors incorrect: %+v, %v", draft, issues)
 	}
@@ -92,7 +92,7 @@ func TestComposedFormResolvesDraftWithoutChangingSavedValues(t *testing.T) {
 		t.Fatal("draft changed a stored field")
 	}
 	values["feature.Domain"] = "invalid domain"
-	draft, issues = resolveFeatureDraft(inputs, values)
+	draft, issues = resolveFeatureDraft(inputs, "dev", values)
 	if issues["feature.Domain"] == "" || draft[2].value != "" || draft[3].value != "" {
 		t.Fatalf("invalid dependencies were used: %+v, %v", draft, issues)
 	}

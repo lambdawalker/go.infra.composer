@@ -728,7 +728,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 			}
 		}
 		if needsInputs {
-			if e = inputs.collect(ctx, cli.spec.InputsFile, private, *ci, *reconfigure, ui.input); e != nil {
+			if e = inputs.collect(ctx, cli.spec.InputsFile, private, *env, *ci, *reconfigure, ui.input); e != nil {
 				return e
 			}
 		}
@@ -771,7 +771,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 				rows = append(rows, options.reviewGitHub(ctx)...)
 			}
 			if needsInputs {
-				rows = append(rows, inputs.reviewFields(ctx)...)
+				rows = append(rows, inputs.reviewFields(ctx, *env)...)
 			}
 			if e = reviewSettings(ctx, rows); e != nil {
 				return e

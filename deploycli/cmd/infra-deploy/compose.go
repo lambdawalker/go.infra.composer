@@ -95,6 +95,10 @@ func planInputs(inputs []inputSpec, custom map[string]functionSpec) ([]plannedIn
 					return nil, fmt.Errorf("input %s parameter %s needs %s but field %s is %s", spec.Name, name, kind, binding.Name, fieldKind)
 				}
 				deps[binding.Name] = true
+			case "environment":
+				if binding.Name != "" || binding.Value != nil || (kind != "text" && kind != "domain") {
+					return nil, fmt.Errorf("input %s parameter %s needs an environment binding of kind text or domain", spec.Name, name)
+				}
 			case "literal":
 				if binding.Name != "" || binding.Value == nil || !validInput(kind, *binding.Value) {
 					return nil, fmt.Errorf("input %s parameter %s needs a valid %s literal", spec.Name, name, kind)
@@ -202,7 +206,7 @@ func emailOnDomain(args map[string]string) (string, error) {
 	return address, nil
 }
 
-func (p plannedInput) resolve(raw string, fields map[string]string) (string, error) {
+func (p plannedInput) resolve(raw, environment string, fields map[string]string) (string, error) {
 	if p.spec.Compose == nil {
 		if p.spec.Kind == "dnsProvider" {
 			if provider, ok := dnsprovider.Lookup(raw); ok {
@@ -225,6 +229,11 @@ func (p plannedInput) resolve(raw string, fields map[string]string) (string, err
 			args[name] = raw
 		case "field":
 			args[name] = fields[binding.Name]
+		case "environment":
+			if !validInput(p.function.parameters[name], environment) {
+				return "", fmt.Errorf("%s: a valid deployment environment is required", p.spec.Label)
+			}
+			args[name] = environment
 		case "literal":
 			args[name] = *binding.Value
 		}
