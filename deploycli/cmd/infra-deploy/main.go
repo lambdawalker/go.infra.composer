@@ -83,12 +83,18 @@ func command(ctx context.Context, dir string, args ...string) error {
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
 	c.Stdin = os.Stdin
-	return c.Run()
+	capture := captureDiagnostics(ctx, c)
+	err := c.Run()
+	capture(err)
+	return err
 }
 func output(ctx context.Context, args ...string) ([]byte, error) {
 	c := toolCommand(ctx, args...)
 	c.Stderr = os.Stderr
-	return c.Output()
+	capture := captureDiagnostics(ctx, c)
+	result, err := c.Output()
+	capture(err)
+	return result, err
 }
 func atomicWrite(path string, b []byte) error {
 	f, e := os.CreateTemp(filepath.Dir(path), ".pending-")
@@ -228,7 +234,10 @@ func (cli deployCLI) build(ctx context.Context, root string, force bool) (string
 	c.Env = append(os.Environ(), "GOOS=linux", "GOARCH=arm64", "CGO_ENABLED=0")
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
-	if e = c.Run(); e != nil {
+	capture := captureDiagnostics(ctx, c)
+	e = c.Run()
+	capture(e)
+	if e != nil {
 		return "", e
 	}
 	f, e := os.Create(filepath.Join(temp, "lambda.zip"))
@@ -1172,5 +1181,8 @@ func outputIn(ctx context.Context, dir string, args ...string) ([]byte, error) {
 	c := toolCommand(ctx, args...)
 	c.Dir = dir
 	c.Stderr = os.Stderr
-	return c.Output()
+	capture := captureDiagnostics(ctx, c)
+	result, err := c.Output()
+	capture(err)
+	return result, err
 }

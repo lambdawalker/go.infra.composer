@@ -89,7 +89,10 @@ AWS sign-in instructions appear when an SSO session needs renewal.
 The page follows the deployment stages, shows the resource operations from the
 saved Pulumi plan, and displays the outcome. Approvals in browser mode require
 an explicit click. Deletion or replacement still requires typing the stack
-name. Provider command diagnostics remain in the launching terminal.
+name. On a failed or stopped action, **Copy diagnostics** copies the action,
+stage, error, and recent output from supported failed commands. It redacts
+known secrets and common credential formats. It leaves out sign-in transcripts,
+command arguments, and raw configuration or state outputs.
 
 After any action finishes, fails, or is stopped, review the result and choose
 **Back to main page** to open the action cards in the same tab. The wizard waits

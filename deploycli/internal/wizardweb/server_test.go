@@ -303,3 +303,38 @@ func TestActionMenuCanWaitAndClose(t *testing.T) {
 		}
 	})
 }
+
+func TestFailedRunDiagnosticsAreRedactedAndClearedOnReturn(t *testing.T) {
+	session := newSession("Fixture", func() {})
+	session.Action("deploy")
+	session.Phase("preview", "Preview changes with Pulumi")
+	session.Protect("fixture-vault-phrase", `fixture"quoted`)
+	session.CommandFailure("pulumi preview", errors.New("failed to run"),
+		"\x1b[31merror: DNS zone not found\x1b[0m\npassword: plain-password\n"+
+			`AWS_SECRET_ACCESS_KEY="new-provider-secret"`+"\n"+
+			`Provider setting contained fixture\"quoted`,
+		"provider rejected fixture-vault-phrase\nsee https://example.test/?access=private-value")
+	writer := session.SignInWriter()
+	_, _ = writer.Write([]byte("device sign-in belongs only in the sign-in view\n"))
+	session.finish(errors.New("exit status 1"))
+
+	handler := session.handler(testHost, "known-token")
+	rec := request(handler, http.MethodGet, "/api/state", testHost, "", "known-token", "")
+	var state view
+	if err := json.Unmarshal(rec.Body.Bytes(), &state); rec.Code != http.StatusOK || err != nil {
+		t.Fatalf("state: %d %v", rec.Code, err)
+	}
+	for _, part := range []string{"Action: deploy", "Stage: Preview changes with Pulumi", "Error: exit status 1", "pulumi preview", "DNS zone not found", "[Credential line redacted]"} {
+		if !strings.Contains(state.Diagnostics, part) {
+			t.Fatalf("missing diagnostic %q: %s", part, state.Diagnostics)
+		}
+	}
+	for _, secret := range []string{"fixture-vault-phrase", "fixture\\\"quoted", "plain-password", "new-provider-secret", "private-value", "device sign-in", "\x1b"} {
+		if strings.Contains(state.Diagnostics, secret) {
+			t.Fatalf("diagnostics exposed %q", secret)
+		}
+	}
+	if !session.returnToActions(state.Revision) || session.snapshot().Diagnostics != "" {
+		t.Fatal("diagnostics carried over to the next operation")
+	}
+}

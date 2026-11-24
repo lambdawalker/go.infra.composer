@@ -137,6 +137,11 @@ pre { margin: 0 26px 22px; color: var(--hint); }
 #events { margin: 14px 24px 22px 26px; padding: 0; list-style: none; max-height: 260px; overflow-y: auto; font-family: ui-monospace, monospace; color: var(--ink); font-size: .82rem; }
 #events li { padding: 7px 10px; border-bottom: 1px solid var(--activity-line); }
 #events li:nth-child(odd) { background: var(--activity-stripe); }
+.diagnostics-text {
+  width: 100%; min-height: 10rem; margin-top: 14px; resize: vertical;
+  padding: 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--page); color: var(--ink); font: .84rem ui-monospace, monospace;
+}
 .muted { color: var(--hint); }
 .problem, .connection { color: var(--red) !important; overflow-wrap: anywhere; }
 .connection { margin: 0; padding: 0 26px 20px; }
