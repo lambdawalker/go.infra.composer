@@ -54,6 +54,7 @@ type Change struct {
 }
 
 type view struct {
+	Locked      bool     `json:"locked,omitempty"`
 	Run         uint64   `json:"run"`
 	Revision    uint64   `json:"revision"`
 	Title       string   `json:"title"`
@@ -79,6 +80,7 @@ type reply struct {
 }
 
 type Session struct {
+	vault           vaultSession
 	mu              sync.Mutex
 	view            view
 	response        chan reply
@@ -157,7 +159,7 @@ func (s *Session) answer(id uint64, answer reply) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	prompt := s.view.Prompt
-	if prompt == nil || prompt.ID != id || s.view.Status != "running" {
+	if s.vaultLocked() || prompt == nil || prompt.ID != id || s.view.Status != "running" {
 		return false
 	}
 	if prompt.Kind == "form" {
@@ -199,7 +201,7 @@ func (s *Session) answer(id uint64, answer reply) bool {
 func (s *Session) preview(id uint64, values map[string]string) (FormPreview, bool) {
 	s.mu.Lock()
 	prompt := s.view.Prompt
-	if prompt == nil || prompt.ID != id || prompt.Kind != "form" ||
+	if s.vaultLocked() || prompt == nil || prompt.ID != id || prompt.Kind != "form" ||
 		prompt.Preview == nil || s.view.Status != "running" || len(values) != len(prompt.PreviewFields) {
 		s.mu.Unlock()
 		return FormPreview{}, false
@@ -216,6 +218,9 @@ func (s *Session) preview(id uint64, values map[string]string) (FormPreview, boo
 }
 
 func (s *Session) redact(text string) string {
+	if passphrase := s.vault.passphrase; passphrase != "" {
+		text = strings.ReplaceAll(text, passphrase, "[redacted]")
+	}
 	for _, secret := range s.secrets {
 		text = strings.ReplaceAll(text, secret, "[redacted]")
 	}
@@ -315,6 +320,9 @@ func (s *Session) ClearSignIn() {
 func (s *Session) snapshot() view {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.vaultLocked() {
+		return view{Revision: s.view.Revision, Locked: true}
+	}
 	v := s.view
 	v.Activity = slices.Clone(v.Activity)
 	v.Visited = slices.Clone(v.Visited)
@@ -349,7 +357,7 @@ func (s *Session) finish(err error) <-chan struct{} {
 func (s *Session) returnToActions(revision uint64) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.home == nil || s.view.Revision != revision {
+	if s.vaultLocked() || s.home == nil || s.view.Revision != revision {
 		return false
 	}
 	s.view = view{
@@ -365,7 +373,7 @@ func (s *Session) returnToActions(revision uint64) bool {
 func (s *Session) stop(run uint64, closePage bool) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if run != s.view.Run {
+	if s.vaultLocked() || run != s.view.Run {
 		return false
 	}
 	if closePage {

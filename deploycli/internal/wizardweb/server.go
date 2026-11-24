@@ -72,6 +72,7 @@ func Serve(ctx context.Context, title string, open bool, run func(context.Contex
 }
 
 func runSession(ctx context.Context, session *Session, run func(context.Context, *Session, bool) error) error {
+	defer session.ForgetVault()
 	for showActions := false; ; showActions = true {
 		session.Protect(os.Getenv("PULUMI_CONFIG_PASSPHRASE"), os.Getenv("AWS_SECRET_ACCESS_KEY"),
 			os.Getenv("AWS_SESSION_TOKEN"), os.Getenv("GH_TOKEN"), os.Getenv("GITHUB_TOKEN"),
@@ -150,6 +151,22 @@ func (s *Session) handler(host, key string) http.Handler {
 			}
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(current)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/activity":
+			s.recordActivity()
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/unlock":
+			var unlock struct {
+				Passphrase string `json:"passphrase"`
+			}
+			if !decodeReply(w, r, &unlock) || !validAnswer(unlock.Passphrase) {
+				http.Error(w, "Invalid passphrase", http.StatusBadRequest)
+				return
+			}
+			if !s.unlockVault(unlock.Passphrase) {
+				http.Error(w, "The vault passphrase didn’t match.", http.StatusUnprocessableEntity)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/form-preview":
 			var draft struct {
 				ID     uint64            `json:"id"`

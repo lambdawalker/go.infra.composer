@@ -68,6 +68,8 @@ h2 { font-size: 1.12rem; line-height: 1.35; letter-spacing: -.012em; margin-bott
 .panel { box-shadow: 0 4px 18px rgba(36, 56, 86, .045); overflow: hidden; }
 .panel-heading, .section-heading { padding: 22px 26px 0; }
 .section-heading p { margin: 4px 0 0; color: var(--hint); }
+.lock-panel { max-width: 510px; margin: 5vh auto 0; }
+.lock-panel h1 { font-size: clamp(1.5rem, 3vw, 1.9rem); }
 .panel-heading h2 { font-size: 1.5rem; margin: 8px 0 0; overflow-wrap: anywhere; }
 .status { display: inline-block; border-radius: 999px; padding: 3px 9px; background: var(--neutral-wash); color: var(--neutral); font-weight: 650; font-size: .79rem; }
 .status[data-status="running"] { background: var(--wash); color: var(--accent); }

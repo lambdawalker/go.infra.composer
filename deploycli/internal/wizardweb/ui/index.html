@@ -21,7 +21,23 @@
       </label>
     </div>
   </header>
-  <main class="shell">
+  <main class="shell" id="vault-lock" hidden>
+    <section class="panel lock-panel" aria-labelledby="vault-lock-title">
+      <div class="panel-heading">
+        <h1 id="vault-lock-title">Wizard locked</h1>
+      </div>
+      <div class="panel-body">
+        <p>After 20 minutes of inactivity, enter your vault passphrase to continue.</p>
+        <form id="vault-unlock-form">
+          <label for="vault-unlock-input">Vault passphrase</label>
+          <input id="vault-unlock-input" type="password" autocomplete="off" maxlength="4096" required>
+          <button id="vault-unlock-button" class="button primary" type="submit">Unlock wizard</button>
+          <p id="vault-unlock-error" class="problem" role="alert" hidden></p>
+        </form>
+      </div>
+    </section>
+  </main>
+  <main class="shell" id="wizard">
     <div class="overview">
       <div>
         <p class="context" id="action">Deployment wizard</p>

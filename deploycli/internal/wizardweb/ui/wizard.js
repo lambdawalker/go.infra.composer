@@ -43,6 +43,10 @@ let current;
 let closed = false;
 let countdownTick;
 let answeringPrompt;
+let vaultLocked = false;
+let focusBeforeLock;
+let activityTimer;
+let lastActivityReport = -Infinity;
 const footer = get("action-bar");
 const promptActions = get("prompt-actions");
 const stopControl = get("stop");
@@ -80,6 +84,75 @@ async function post(path, payload = null, signal) {
     signal,
   });
 }
+
+function reportActivity() {
+  if (closed || vaultLocked || document.hidden) return;
+  lastActivityReport = performance.now();
+  post("/api/activity").catch(() => {});
+}
+
+function noteActivity(event) {
+  if (!event.isTrusted || closed || vaultLocked || document.hidden) return;
+  if (activityTimer !== undefined) return;
+  const delay = 1000 - (performance.now() - lastActivityReport);
+  if (delay <= 0) {
+    reportActivity();
+    return;
+  }
+  activityTimer = setTimeout(() => {
+    activityTimer = undefined;
+    reportActivity();
+  }, delay);
+}
+
+function renderVaultLock(locked) {
+  if (vaultLocked === locked) return;
+  vaultLocked = locked;
+  const screen = get("vault-lock");
+  const wizard = get("wizard");
+  const input = get("vault-unlock-input");
+  if (locked) focusBeforeLock = document.activeElement;
+  screen.hidden = !locked;
+  wizard.hidden = locked;
+  footer.hidden = locked;
+  input.value = "";
+  get("vault-unlock-error").hidden = true;
+  if (locked) {
+    resetCountdown();
+    wizard.querySelectorAll('input[type="password"]').forEach(field => { field.value = ""; });
+    input.focus();
+  } else {
+    focusBeforeLock?.focus();
+    focusBeforeLock = undefined;
+  }
+}
+
+get("vault-unlock-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const field = get("vault-unlock-input");
+  const submit = get("vault-unlock-button");
+  const error = get("vault-unlock-error");
+  const passphrase = field.value;
+  field.value = "";
+  submit.disabled = true;
+  error.hidden = true;
+  try {
+    const response = await post("/api/unlock", {passphrase});
+    if (response.status === 422) {
+      await refresh();
+      if (vaultLocked) throw new Error("The vault passphrase didn’t match. Try again.");
+      return;
+    }
+    if (!response.ok) throw new Error("Couldn’t unlock the wizard. Try again.");
+    await refresh();
+  } catch (err) {
+    error.textContent = err.message;
+    error.hidden = false;
+    field.focus();
+  } finally {
+    submit.disabled = false;
+  }
+});
 
 function resetCountdown() {
   clearInterval(countdownTick);
@@ -127,8 +200,12 @@ for (const event of ["keydown", "pointerdown", "input", "wheel"]) {
     if (event.target !== get("pause-countdown")) pauseCountdown();
   }, {capture: true, passive: true});
 }
+for (const event of ["keydown", "pointerdown", "pointermove", "input", "wheel"]) {
+  document.addEventListener(event, noteActivity, {capture: true, passive: true});
+}
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) pauseCountdown();
+  else refresh().catch(() => {});
 });
 new ResizeObserver(() => {
   document.documentElement.style.setProperty("--action-bar-size", footer.offsetHeight + "px");
@@ -155,8 +232,8 @@ async function answer(prompt, value, action) {
     await refresh();
   } catch (error) {
     showConnection(error.message);
-    controls.forEach((control) => { control.disabled = false; });
   } finally {
+    controls.forEach((control) => { control.disabled = false; });
     if (answeringPrompt === prompt.id) answeringPrompt = undefined;
   }
 }
@@ -666,7 +743,8 @@ async function refresh() {
   if (view.revision > revision) {
     revision = view.revision;
     showConnection("");
-    render(view);
+    renderVaultLock(Boolean(view.locked));
+    if (!view.locked) render(view);
   }
 }
 
