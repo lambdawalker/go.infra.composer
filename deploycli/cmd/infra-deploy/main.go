@@ -657,8 +657,9 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 			if err != nil {
 				return err
 			}
-			options.fillDefaults(previous, *env)
-			form.github = &options
+			github := options
+			github.fillDefaults(previous, *env)
+			form.github = &github
 			form.configureGitHub = previous.Repository != "" || *reconfigure
 		}
 		var initialIssues map[string]string
