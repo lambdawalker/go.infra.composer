@@ -10,7 +10,16 @@
 <body>
   <header class="topbar">
     <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Infra Composer</div>
-    <div class="local"><span aria-hidden="true"></span>Local session</div>
+    <div class="topbar-controls">
+      <div class="local"><span aria-hidden="true"></span>Local session</div>
+      <label class="theme-control">Theme
+        <select id="theme">
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label>
+    </div>
   </header>
   <main class="shell">
     <div class="overview">

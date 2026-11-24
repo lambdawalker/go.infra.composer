@@ -71,6 +71,9 @@ without opening a browser. Build, cache cleanup, and settings export skip the
 interface question.
 
 The wizard binds to a random loopback port and uses a private session URL.
+Use **Theme** in the header to choose **System**, **Light**, or **Dark**.
+New wizard sessions follow your system appearance. A manual choice stays in
+the current browser tab when you reload.
 Vault and stack passphrases use password fields. With no `--action`, the
 browser presents action cards that explain each operation and selects Preview.
 After choosing the project and environment, review and edit the applicable
