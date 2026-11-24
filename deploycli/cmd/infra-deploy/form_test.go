@@ -99,3 +99,25 @@ func TestComposedFormResolvesDraftWithoutChangingSavedValues(t *testing.T) {
 		t.Fatalf("invalid dependencies were used: %+v, %v", draft, issues)
 	}
 }
+
+func TestSettingsCountdownRequiresValidResolvedDefaults(t *testing.T) {
+	spec := fixture(t, "email").spec
+	f := deploymentForm{
+		target:   Settings{Environment: "dev", Profile: "default", Region: "us-east-2", Account: "123456789012", Backend: "s3://example/test"},
+		profiles: []wizardweb.Option{{Value: "default", Label: "default"}},
+		inputs:   spec.inputFlags(flag.NewFlagSet("countdown", flag.ContinueOnError)),
+		defaults: map[string]string{"Sender": "verify@example.test", "Recipient": "test@example.test", "Domain": "example.test"},
+	}
+	if !f.canContinueWithDefaults(f.fields()) {
+		t.Fatal("complete settings were not eligible for a countdown")
+	}
+	f.defaults["Recipient"] = ""
+	if f.canContinueWithDefaults(f.fields()) {
+		t.Fatal("settings with missing input were eligible for a countdown")
+	}
+	f.defaults["Recipient"] = "test@example.test"
+	f.target.Account = "auto"
+	if f.canContinueWithDefaults(f.fields()) {
+		t.Fatal("settings with an unresolved account were eligible for a countdown")
+	}
+}

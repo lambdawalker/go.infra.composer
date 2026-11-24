@@ -32,16 +32,16 @@ func TestPromptStateMachine(t *testing.T) {
 	for _, inputErr := range []error{io.EOF, errors.New("broken terminal")} {
 		events := make(chan inputEvent, 1)
 		events <- inputEvent{err: inputErr}
-		ticks := make(chan time.Time, 5)
-		for i := 0; i < 5; i++ {
+		ticks := make(chan time.Time, defaultCountdownSeconds)
+		for i := 0; i < defaultCountdownSeconds; i++ {
 			ticks <- time.Time{}
 		}
 		if _, e := askLoop(context.Background(), events, ticks, "yes", true, func(int, string) {}); e == nil {
 			t.Fatal("input error approved")
 		}
 	}
-	ticks := make(chan time.Time, 5)
-	for i := 0; i < 5; i++ {
+	ticks := make(chan time.Time, defaultCountdownSeconds)
+	for i := 0; i < defaultCountdownSeconds; i++ {
 		ticks <- time.Time{}
 	}
 	got, e := askLoop(context.Background(), make(chan inputEvent), ticks, "dev", false, func(int, string) {})

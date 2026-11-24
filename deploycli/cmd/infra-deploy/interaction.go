@@ -61,7 +61,11 @@ func (w interaction) input(label, fallback, display string) (string, error) {
 	if w.browser == nil {
 		return askInput(label, fallback, display)
 	}
-	answer, err := w.browser.Ask(w.ctx, wizardweb.Prompt{Kind: "text", Label: label, Default: display})
+	prompt := wizardweb.Prompt{Kind: "text", Label: label, Default: display}
+	if fallback != "" {
+		prompt.CountdownSeconds = defaultCountdownSeconds
+	}
+	answer, err := w.browser.Ask(w.ctx, prompt)
 	if strings.TrimSpace(answer) == "" {
 		answer = fallback
 	}
@@ -120,7 +124,7 @@ func (w interaction) deliberate(label, expected string) error {
 	return nil
 }
 
-func (w interaction) selectAction() (string, error) {
+func (w interaction) selectAction(countdown bool) (string, error) {
 	options := []wizardweb.Option{
 		{Value: "preview", Label: "Preview changes", Description: "Build and see what Pulumi plans to change. The run stops after the preview."},
 		{Value: "deploy", Label: "Preview and deploy", Description: "Review the Pulumi plan, then approve it to make changes in AWS."},
@@ -129,10 +133,12 @@ func (w interaction) selectAction() (string, error) {
 		{Value: "report", Label: "Generate an artifact report", Description: "Save a report of the deployment artifacts recorded for the selected stack."},
 		{Value: "github-setup", Label: "Configure GitHub deployment", Description: "Review and configure the GitHub environment and AWS role used by deployment workflows."},
 	}
+	prompt := wizardweb.Prompt{Kind: "actions", Label: "What would you like to run?", Default: "preview", Options: options}
+	if countdown {
+		prompt.CountdownSeconds = defaultCountdownSeconds
+	}
 	for {
-		value, err := w.browser.Ask(w.ctx, wizardweb.Prompt{
-			Kind: "actions", Label: "What would you like to run?", Default: "preview", Options: options,
-		})
+		value, err := w.browser.Ask(w.ctx, prompt)
 		if err != nil {
 			return "", err
 		}
@@ -142,6 +148,7 @@ func (w interaction) selectAction() (string, error) {
 				return value, nil
 			}
 		}
+		prompt.CountdownSeconds = 0
 	}
 }
 

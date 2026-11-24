@@ -39,8 +39,8 @@ func writeCountdown(w io.Writer, seconds int, defaultYes, terminal bool) {
 	answer := map[bool]string{true: "yes", false: "no"}[defaultYes]
 	if terminal {
 		fmt.Fprintf(w, "\r  %-76s", fmt.Sprintf("Continuing with %s in %ds  |  y / n · Enter = %s · Esc cancels", answer, seconds, answer))
-	} else if seconds == 5 {
-		fmt.Fprintf(w, "  Default: %s after 5 seconds (y/n; Enter accepts; Esc cancels).\n", answer)
+	} else if seconds == defaultCountdownSeconds {
+		fmt.Fprintf(w, "  Default: %s after %d seconds (y/n; Enter accepts; Esc cancels).\n", answer, defaultCountdownSeconds)
 	}
 }
 func finishCountdown(w io.Writer, terminal bool) {

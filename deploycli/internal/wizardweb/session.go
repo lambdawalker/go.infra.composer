@@ -31,15 +31,16 @@ type Field struct {
 }
 
 type Prompt struct {
-	ID            uint64                              `json:"id"`
-	Kind          string                              `json:"kind"`
-	Label         string                              `json:"label"`
-	Default       string                              `json:"default,omitempty"`
-	Message       string                              `json:"message,omitempty"`
-	Options       []Option                            `json:"options,omitempty"`
-	Fields        []Field                             `json:"fields,omitempty"`
-	PreviewFields []string                            `json:"previewFields,omitempty"`
-	Preview       func(map[string]string) FormPreview `json:"-"`
+	ID               uint64                              `json:"id"`
+	Kind             string                              `json:"kind"`
+	Label            string                              `json:"label"`
+	Default          string                              `json:"default,omitempty"`
+	CountdownSeconds int                                 `json:"countdownSeconds,omitempty"`
+	Message          string                              `json:"message,omitempty"`
+	Options          []Option                            `json:"options,omitempty"`
+	Fields           []Field                             `json:"fields,omitempty"`
+	PreviewFields    []string                            `json:"previewFields,omitempty"`
+	Preview          func(map[string]string) FormPreview `json:"-"`
 }
 
 type FormPreview struct {
