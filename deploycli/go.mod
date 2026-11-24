@@ -7,7 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.29.9
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.62
 	github.com/charmbracelet/x/term v0.2.1
-	github.com/lambdawalker/go.infra.composer v0.0.0-20261124013328-45b7f8e2cd5d
+	github.com/lambdawalker/go.infra.composer v0.0.0-20261124050211-12f6df24c8b7
 	golang.org/x/sys v0.36.0
 	gopkg.in/yaml.v3 v3.0.1
 )

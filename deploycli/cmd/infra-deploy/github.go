@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/lambdawalker/go.infra.composer/awsnames"
 )
 
 type setupRunner func(stdin string, args ...string) ([]byte, error)
@@ -83,10 +85,18 @@ func reconcileGitHub(o githubOptions, run setupRunner, authorize func(string) er
 		o.Role = "arn:aws:iam::" + o.Settings.Account + ":role/" + o.Project + "-" + o.Settings.Environment + "-deploy"
 	}
 	prefix := "arn:aws:iam::" + o.Settings.Account + ":role/"
-	if !strings.HasPrefix(o.Role, prefix) || !regexp.MustCompile(`^[A-Za-z0-9+=,.@_-]{1,64}$`).MatchString(strings.TrimPrefix(o.Role, prefix)) {
+	name, ok := strings.CutPrefix(o.Role, prefix)
+	if !ok {
 		return fmt.Errorf("role must be in the selected account with a simple role name")
 	}
-	name := strings.TrimPrefix(o.Role, prefix)
+	if err := awsnames.Validate(awsnames.IAMRole, name); err != nil {
+		return err
+	}
+	if policy := o.target.GitHub.ManagedPolicy; policy != "" {
+		if err := awsnames.Validate(awsnames.IAMInlinePolicy, policy); err != nil {
+			return err
+		}
+	}
 	base := "repos/" + o.Repository + "/environments/" + url.PathEscape(o.Environment)
 	receiptPath := filepath.Join(o.Private, "github-"+o.Environment+".json")
 	defer func() {

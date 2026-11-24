@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/lambdawalker/go.infra.composer/awsnames"
 )
 
 type bucketReceipt struct {
@@ -37,6 +39,9 @@ func bootstrapWith(ctx context.Context, private, account, region, bucketPrefix s
 			return "", e
 		}
 		r.Name = bucketPrefix + "-" + account + "-" + hex.EncodeToString(id)
+		if e = awsnames.Validate(awsnames.S3GlobalBucket, r.Name); e != nil {
+			return "", e
+		}
 		if e = saveBucketReceipt(path, r); e != nil {
 			return "", e
 		}

@@ -2,10 +2,12 @@
 package pulumiadapter
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 
 	composer "github.com/lambdawalker/go.infra.composer"
+	"github.com/lambdawalker/go.infra.composer/adapters/pulumi/awsnames"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
@@ -106,6 +108,10 @@ func Execute(ctx *pulumi.Context, plan *composer.Plan, registry Registry) (*Resu
 		registered, err := registry[r.Kind](ctx, id, inputs, pulumi.DependsOn(dependencies), pulumi.AdditionalSecretOutputs(secrets))
 		// Provider errors can include input values; do not copy them into diagnostics.
 		if err != nil {
+			var nameErr *awsnames.ValidationError
+			if errors.As(err, &nameErr) {
+				return nil, fmt.Errorf("resource %q: %w", id, nameErr)
+			}
 			return nil, fmt.Errorf("resource %q registration failed", id)
 		}
 		if registered.Resource == nil {

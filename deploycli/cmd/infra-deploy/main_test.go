@@ -165,3 +165,18 @@ func TestBootstrapResume(t *testing.T) {
 		t.Fatal("scope mismatch accepted")
 	}
 }
+
+func TestBootstrapRejectsInvalidNameBeforeAWSOrReceipt(t *testing.T) {
+	dir := t.TempDir()
+	_, err := bootstrapWith(context.Background(), dir, "123456789012", "us-east-2", "amzn-s3-demo-email", func(...string) error {
+		t.Fatal("invalid bucket reached AWS")
+		return nil
+	})
+	if err == nil {
+		t.Fatal("accepted reserved bucket prefix")
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("unexpected bootstrap receipt: %v, %v", entries, err)
+	}
+}

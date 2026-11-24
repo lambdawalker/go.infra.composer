@@ -3,23 +3,15 @@ package awsnames
 
 import (
 	"fmt"
-	"regexp"
 
+	names "github.com/lambdawalker/go.infra.composer/awsnames"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-)
-
-var (
-	lambdaName        = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
-	lambdaStatementID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,100}$`)
 )
 
 // ValidateLambdaStatementID checks a Lambda permission statement ID or the
 // logical name used as the base for Pulumi's default statement ID auto-naming.
 func ValidateLambdaStatementID(id string) error {
-	if !lambdaStatementID.MatchString(id) {
-		return fmt.Errorf("Lambda permission statement ID %q must contain 1–100 ASCII letters, digits, hyphens, or underscores", id)
-	}
-	return nil
+	return names.Validate(names.LambdaStatementID, id)
 }
 
 // LambdaFunctionName checks the name for creating an AWS Lambda function.
@@ -28,14 +20,14 @@ func ValidateLambdaStatementID(id string) error {
 // Explicit Pulumi outputs are checked when known and retain their dependencies.
 func LambdaFunctionName(logicalName string, name pulumi.StringInput) (pulumi.StringInput, error) {
 	if name == nil {
-		if !lambdaName.MatchString(logicalName) {
+		if err := names.Validate(names.LambdaFunction, logicalName); err != nil {
 			return nil, fmt.Errorf("Lambda %q: the Pulumi auto-name base must contain 1–64 letters, digits, hyphens, or underscores", logicalName)
 		}
 		return nil, nil
 	}
 
 	validate := func(value string) (string, error) {
-		if !lambdaName.MatchString(value) {
+		if err := names.Validate(names.LambdaFunction, value); err != nil {
 			return "", fmt.Errorf("Lambda %q: the function name must contain 1–64 letters, digits, hyphens, or underscores", logicalName)
 		}
 		return value, nil
