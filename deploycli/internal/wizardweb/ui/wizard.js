@@ -53,7 +53,8 @@ const stopControl = get("stop");
 
 const actions = {
   setup: "Setup", build: "Build", preview: "Preview", deploy: "Deploy", status: "Status",
-  report: "Artifact report", "github-setup": "GitHub setup", destroy: "Destroy stack",
+  report: "Artifact report", "github-setup": "GitHub setup", destroy: "Remove environment",
+  "destroy-all": "Remove all environments", "github-teardown": "Remove GitHub configuration",
   "clean-cache": "Clear build cache",
 };
 const statuses = {

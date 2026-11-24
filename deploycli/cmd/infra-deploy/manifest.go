@@ -37,6 +37,7 @@ type manifest struct {
 	ConfigDefaults map[string]string
 	GitHub         githubSpec
 	Discovery      *discoverySpec
+	DiscoveryStack *discoveryStackSpec
 	inputPlan      []plannedInput
 }
 
@@ -45,6 +46,10 @@ type githubSpec struct {
 	EnvironmentPrefix string
 	ManagedPolicy     string
 	Prompt            bool
+}
+
+type discoveryStackSpec struct {
+	PulumiDir, PulumiProject, Stack string
 }
 
 type inputSpec struct {
@@ -75,6 +80,16 @@ func readManifest(root string) (manifest, error) {
 	if err = m.validate(); err != nil {
 		return m, err
 	}
+	if m.DiscoveryStack != nil {
+		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(m.DiscoveryStack.PulumiDir), "Pulumi.yaml"))
+		if err != nil {
+			return m, fmt.Errorf("read discovery Pulumi project: %w", err)
+		}
+		var index struct{ Name string }
+		if err = yaml.Unmarshal(data, &index); err != nil || index.Name != m.DiscoveryStack.PulumiProject {
+			return m, fmt.Errorf("discovery Pulumi.yaml must name %q", m.DiscoveryStack.PulumiProject)
+		}
+	}
 	data, err = os.ReadFile(filepath.Join(root, filepath.FromSlash(m.PulumiDir), "Pulumi.yaml"))
 	if err != nil {
 		return m, fmt.Errorf("read target Pulumi project: %w", err)
@@ -87,6 +102,11 @@ func readManifest(root string) (manifest, error) {
 }
 
 func (m *manifest) validate() error {
+	if m.DiscoveryStack != nil &&
+		(!repoPath(m.DiscoveryStack.PulumiDir) || !pattern(`^[a-z][a-z0-9-]{0,47}$`, m.DiscoveryStack.PulumiProject) ||
+			!pattern(`^[a-z][a-z0-9-]{0,47}$`, m.DiscoveryStack.Stack)) {
+		return fmt.Errorf("invalid shared discovery stack")
+	}
 	if m.Discovery != nil {
 		if err := m.Discovery.validate(m.Outputs); err != nil {
 			return err

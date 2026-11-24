@@ -287,11 +287,12 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 		fs.StringVar(&discoveryURL, "discovery-index", os.Getenv("INFRA_DISCOVERY_INDEX_URL"), "HTTPS environment discovery index URL")
 		fs.StringVar(&discoveryRegion, "discovery-region", os.Getenv("INFRA_DISCOVERY_INDEX_REGION"), "AWS region hosting the discovery index")
 	}
-	action := fs.String("action", "", "setup, build, clean-cache, preview, deploy, status, destroy, github-setup, report (default: deploy interactively, preview in CI)")
+	action := fs.String("action", "", "setup, build, clean-cache, preview, deploy, status, destroy, destroy-all, github-setup, github-teardown, report (default: deploy interactively, preview in CI)")
 	profile := fs.String("profile", "", "AWS SSO profile (omit in CI)")
 	region := fs.String("region", "", "AWS region")
 	account := fs.String("account", "", "expected AWS account")
 	backend := fs.String("backend", "", "s3://bucket/dedicated-prefix")
+	indexBackend := fs.String("index-backend", "", "existing S3 state URL for the shared discovery index (destroy-all)")
 	ci := fs.Bool("non-interactive", false, "complete explicit inputs required")
 	server := fs.Bool("server", false, "open the interactive wizard in a local web browser")
 	terminal := fs.Bool("terminal", false, "use the terminal wizard without asking which interface to open")
@@ -348,7 +349,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	if *refreshReport && *action != "report" {
 		return errors.New("--refresh-report requires --action report")
 	}
-	allowedActions := map[string]bool{"setup": true, "build": true, "clean-cache": true, "preview": true, "deploy": true, "status": true, "destroy": true, "github-setup": true, "report": true}
+	allowedActions := map[string]bool{"setup": true, "build": true, "clean-cache": true, "preview": true, "deploy": true, "status": true, "destroy": true, "destroy-all": true, "github-setup": true, "github-teardown": true, "report": true}
 	if !allowedActions[*action] {
 		return errors.New("unknown action")
 	}
@@ -444,6 +445,9 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 		if e != nil {
 			return e
 		}
+	}
+	if *action == "destroy-all" {
+		return cli.destroyAll(ctx, *project, *indexBackend, *ci)
 	}
 	if *ci && *action == "github-setup" {
 		return errors.New("GitHub setup requires interactive review")
@@ -856,6 +860,9 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	}
 	vaultPassphrase = ""
 	ctx = context.WithValue(ctx, credentialsKey{}, submittedCredentials)
+	if *action == "github-teardown" {
+		return teardownGitHub(ctx, cli.spec, private, projectName, *env, *account)
+	}
 	if newBucket {
 		name, err := bootstrapBucket(ctx, private, *account, *region, cli.spec.BucketPrefix)
 		if err != nil {
