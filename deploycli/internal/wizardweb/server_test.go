@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/synctest"
 )
 
 const testHost = "127.0.0.1:17774"
@@ -27,7 +28,7 @@ func request(handler http.Handler, method, path, host, origin, token, body strin
 }
 
 func TestLoopbackWizardProtectsStateAndReplies(t *testing.T) {
-	session := newSession("test wizard", func() {}, func() {})
+	session := newSession("test wizard", func() {})
 	session.view.Prompt = &Prompt{ID: 7, Kind: "secret", Label: "Vault passphrase"}
 	session.response = make(chan reply, 1)
 	replies := session.response
@@ -86,28 +87,79 @@ func TestLoopbackWizardProtectsStateAndReplies(t *testing.T) {
 	}
 }
 
-func TestStopCancelsRunBeforeClosingPage(t *testing.T) {
-	run, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	page, closePage := context.WithCancel(t.Context())
-	defer closePage()
-	session := newSession("deploy", cancel, closePage)
-	session.stop()
-	if run.Err() == nil || page.Err() != nil || session.snapshot().Status != "stopping" {
-		t.Fatal("stop should cancel the deployment and keep the page available")
-	}
-	session.finish(run.Err())
-	if session.snapshot().Status != "cancelled" {
-		t.Fatal("expected a stopped result")
-	}
-	session.stop()
-	if page.Err() == nil {
-		t.Fatal("close did not end the browser session")
-	}
+func TestStopDeploymentCanReturnAfterCleanup(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		page, closePage := context.WithCancel(t.Context())
+		defer closePage()
+		session := newSession("deploy", closePage)
+		handler := session.handler(testHost, "known-token")
+		post := func(path, body string) int {
+			return request(handler, http.MethodPost, path, testHost, "http://"+testHost, "known-token", body).Code
+		}
+
+		cleaned := make(chan struct{})
+		finishCleanup := make(chan struct{}, 1)
+		defer close(finishCleanup)
+		finished := make(chan error, 1)
+		go func() {
+			finished <- runSession(page, session, func(ctx context.Context, s *Session, showActions bool) error {
+				if showActions {
+					<-cleaned
+					s.Action("status")
+					return ctx.Err()
+				}
+				s.Action("deploy")
+				s.Preview([]Change{{Resource: "fixture", Operation: "create"}}, 1)
+				<-ctx.Done()
+				<-finishCleanup
+				close(cleaned)
+				return ctx.Err()
+			})
+		}()
+		synctest.Wait()
+
+		if got := post("/api/stop", `{"run":1,"close":false}`); got != http.StatusNoContent {
+			t.Fatalf("stop returned %d", got)
+		}
+		synctest.Wait()
+		stopping := session.snapshot()
+		if page.Err() != nil || stopping.Status != "stopping" || stopping.CanReturn {
+			t.Fatalf("operation still cleaning up: %+v", stopping)
+		}
+		if got := post("/api/actions", fmt.Sprintf(`{"revision":%d}`, stopping.Revision)); got != http.StatusConflict {
+			t.Fatalf("return before cleanup returned %d", got)
+		}
+		finishCleanup <- struct{}{}
+		synctest.Wait()
+		stopped := session.snapshot()
+		if stopped.Status != "cancelled" || !stopped.CanReturn || !stopped.Reviewed {
+			t.Fatalf("stopped deployment result: %+v", stopped)
+		}
+		if got := post("/api/stop", `{"run":1,"close":false}`); got != http.StatusConflict || page.Err() != nil {
+			t.Fatalf("repeated stop affected the session: %d", got)
+		}
+
+		if got := post("/api/actions", fmt.Sprintf(`{"revision":%d}`, stopped.Revision)); got != http.StatusNoContent {
+			t.Fatalf("return after cleanup returned %d", got)
+		}
+		if err := <-finished; err != nil {
+			t.Fatalf("next action ran with a cancelled context: %v", err)
+		}
+		state := session.snapshot()
+		if state.Run != 2 || state.Action != "status" || state.Reviewed || state.Status != "complete" || state.CanReturn {
+			t.Fatalf("unexpected next action state: %+v", state)
+		}
+		if got := post("/api/stop", `{"run":1,"close":true}`); got != http.StatusConflict || page.Err() != nil {
+			t.Fatalf("stale close affected the session: %d", got)
+		}
+		if got := post("/api/stop", `{"run":2,"close":true}`); got != http.StatusNoContent || page.Err() == nil {
+			t.Fatalf("close did not end the session: %d", got)
+		}
+	})
 }
 
 func TestFormAcceptsOnlyEditableFieldsAsOneReply(t *testing.T) {
-	session := newSession("test wizard", func() {}, func() {})
+	session := newSession("test wizard", func() {})
 	session.view.Prompt = &Prompt{ID: 9, Kind: "form", Fields: []Field{
 		{Name: "sender", Action: &Option{Value: "refresh-profiles"}}, {Name: "recipient"}, {Name: "account", ReadOnly: true},
 	}}
@@ -136,7 +188,7 @@ func TestFormAcceptsOnlyEditableFieldsAsOneReply(t *testing.T) {
 }
 
 func TestFormPreviewDoesNotAnswerPrompt(t *testing.T) {
-	session := newSession("test", func() {}, func() {})
+	session := newSession("test", func() {})
 	session.view.Prompt = &Prompt{
 		ID: 9, Kind: "form", PreviewFields: []string{"domain"},
 		Fields: []Field{{Name: "domain"}, {Name: "profile"}},
@@ -169,7 +221,7 @@ func TestFormPreviewDoesNotAnswerPrompt(t *testing.T) {
 }
 
 func TestReturnToActionsAfterSetup(t *testing.T) {
-	session := newSession("test wizard", func() {}, func() {})
+	session := newSession("test wizard", func() {})
 	handler := session.handler(testHost, "known-token")
 	post := func(revision uint64, token string) int {
 		body := fmt.Sprintf(`{"revision":%d}`, revision)
@@ -214,7 +266,7 @@ func TestReturnToActionsAfterSetup(t *testing.T) {
 		t.Fatal("return carried over to the next operation")
 	}
 
-	failed := newSession("test wizard", func() {}, func() {})
+	failed := newSession("test wizard", func() {})
 	failed.AllowReturnToActions()
 	if home := failed.finish(errors.New("setup failed")); home != nil || failed.snapshot().CanReturn {
 		t.Fatal("failed setup allowed return")

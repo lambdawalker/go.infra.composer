@@ -34,11 +34,9 @@ func Serve(ctx context.Context, title string, open bool, run func(context.Contex
 	}
 	key := base64.RawURLEncoding.EncodeToString(token)
 	host := listener.Addr().String()
-	runCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	lifetime, closePage := context.WithCancel(ctx)
 	defer closePage()
-	session := newSession(title, cancel, closePage)
+	session := newSession(title, closePage)
 	server := &http.Server{
 		Handler: session.handler(host, key), ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second,
@@ -52,7 +50,7 @@ func Serve(ctx context.Context, title string, open bool, run func(context.Contex
 		go openBrowser(lifetime, url)
 	}
 	finished := make(chan error, 1)
-	go func() { finished <- runSession(runCtx, session, run) }()
+	go func() { finished <- runSession(lifetime, session, run) }()
 	select {
 	case <-lifetime.Done():
 	case err = <-served:
@@ -60,7 +58,7 @@ func Serve(ctx context.Context, title string, open bool, run func(context.Contex
 			err = nil
 		}
 	}
-	cancel()
+	closePage()
 	runErr := <-finished
 	shutdownCtx, stop := context.WithTimeout(context.Background(), 2*time.Second)
 	defer stop()
@@ -78,7 +76,9 @@ func runSession(ctx context.Context, session *Session, run func(context.Context,
 		session.Protect(os.Getenv("PULUMI_CONFIG_PASSPHRASE"), os.Getenv("AWS_SECRET_ACCESS_KEY"),
 			os.Getenv("AWS_SESSION_TOKEN"), os.Getenv("GH_TOKEN"), os.Getenv("GITHUB_TOKEN"),
 			os.Getenv("CLOUDFLARE_API_TOKEN"), os.Getenv("PULUMI_ACCESS_TOKEN"))
-		err := runOperation(ctx, session, showActions, run)
+		operation, cancel := session.startOperation(ctx)
+		err := runOperation(operation, session, showActions, run)
+		cancel()
 		home := session.finish(err)
 		if home == nil {
 			return err
@@ -197,8 +197,19 @@ func (s *Session) handler(host, key string) http.Handler {
 			}
 			w.WriteHeader(http.StatusNoContent)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/stop":
+			var control struct {
+				Run   uint64 `json:"run"`
+				Close bool   `json:"close"`
+			}
+			if !decodeReply(w, r, &control) {
+				http.Error(w, "Invalid request", http.StatusBadRequest)
+				return
+			}
+			if !s.stop(control.Run, control.Close) {
+				http.Error(w, "The operation has changed", http.StatusConflict)
+				return
+			}
 			w.WriteHeader(http.StatusNoContent)
-			s.stop()
 		default:
 			http.NotFound(w, r)
 		}
