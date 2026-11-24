@@ -45,3 +45,8 @@ used by default auto-naming and leaves name generation to the AWS provider.
 An explicit physical name may differ from the logical name. A physical name
 must contain 1–64 ASCII letters, digits, hyphens, or underscores. Custom
 provider auto-naming patterns are evaluated by Pulumi.
+
+Use [`awsnames.ValidateLambdaStatementID`](awsnames/lambda.go) for Lambda
+permission statement IDs. It checks an explicit ID or the logical name used
+as the base for default auto-naming. A statement ID accepts the same character
+set as a function name and allows up to 100 characters.
