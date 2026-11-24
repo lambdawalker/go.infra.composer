@@ -8,6 +8,25 @@ const node = (tag, text, className) => {
   return el;
 };
 
+const themeControl = get("theme");
+const themeKey = "infra-composer-theme";
+const savedTheme = sessionStorage.getItem(themeKey);
+themeControl.value = savedTheme === "light" || savedTheme === "dark" ? savedTheme : "system";
+
+function applyTheme() {
+  const theme = themeControl.value;
+  if (theme === "system") {
+    delete document.documentElement.dataset.theme;
+    sessionStorage.removeItem(themeKey);
+  } else {
+    document.documentElement.dataset.theme = theme;
+    sessionStorage.setItem(themeKey, theme);
+  }
+}
+
+applyTheme();
+themeControl.addEventListener("change", applyTheme);
+
 const sessionKey = "infra-composer-session";
 const fragment = location.hash.slice(1);
 if (/^[A-Za-z0-9_-]{43}$/.test(fragment)) {
