@@ -118,12 +118,14 @@ func vault(ctx context.Context, path, pass string) (string, error) {
 		return "", e
 	}
 	if fresh {
-		again, e := wizard(ctx).secret("Confirm vault passphrase:")
-		if e != nil {
-			return "", e
-		}
-		if again != pass {
-			return "", errors.New("passphrases differ")
+		if ui := wizard(ctx); ui.browser == nil {
+			again, e := ui.secret("Confirm vault passphrase:")
+			if e != nil {
+				return "", e
+			}
+			if again != pass {
+				return "", errors.New("passphrases differ")
+			}
 		}
 		b = make([]byte, 20)
 		copy(b, []byte("OCV1"))
@@ -424,7 +426,11 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 			return errors.New("PULUMI_CONFIG_PASSPHRASE secret required")
 		}
 		if !*ci {
-			vaultPassphrase, e = ui.secret("Local vault passphrase")
+			if ui.browser != nil {
+				vaultPassphrase, e = ui.browser.VaultPassphrase(ctx)
+			} else {
+				vaultPassphrase, e = ui.secret("Local vault passphrase")
+			}
 			if e != nil {
 				return e
 			}
@@ -560,11 +566,13 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 			legacyVault = filepath.Join(legacy, "vault.bin")
 		}
 		pass, err := loadProjectVault(ctx, filepath.Join(localEnv, "vault.bin"), legacyVault, vaultPassphrase)
-		if err != nil {
-			return err
+		if err == nil {
+			credentials, err = readCredentials(credentialPath, vaultPassphrase)
 		}
-		credentials, err = readCredentials(credentialPath, vaultPassphrase)
 		if err != nil {
+			if ui.browser != nil {
+				ui.browser.ForgetVault()
+			}
 			return err
 		}
 		submittedCredentials = credentials

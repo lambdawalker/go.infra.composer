@@ -42,8 +42,9 @@ infra-deploy --action preview --environment dev
 
 Run `--help` from that checkout to see its commands and input flags. Plain
 terminal use defaults to deploy. After the interface choice, the wizard asks
-for the local vault passphrase before collecting settings. On first use, it also asks you to
-confirm the vault passphrase and enter the Pulumi passphrase for the stack.
+for the local vault passphrase before collecting settings. The web wizard asks once
+for each unlock. On first use, enter the separate Pulumi passphrase for the stack.
+The terminal wizard also confirms a newly created vault passphrase.
 
 The review screen displays nonsecret values before AWS or GitHub sign-in.
 Use Tab and Enter to open an editable field. Smaller terminals show a numbered
@@ -113,12 +114,13 @@ configuration or state outputs.
 After any action finishes, fails, or is stopped, review the result and choose
 **Back to main page** to open the action cards in the same tab. The wizard waits
 for the operation to exit and release its local locks before offering another
-action. Choose an action and unlock the vault to use the saved settings.
+action. The open web session reuses the vault passphrase across actions.
 
-The browser session has no wizard idle timeout. Use **Close wizard** from the
-action menu or a result, or press Ctrl+C in the terminal to end the session.
-If you close the tab, reopen the URL printed in the terminal while the local
-process is still running.
+After 20 minutes of inactivity, the browser wizard locks. Enter the vault
+passphrase to resume from the same step. Operations already running continue
+while the page is locked. Use **Close wizard** from the action menu or a result,
+or press Ctrl+C in the terminal to end the session. If you close the tab, reopen
+the URL printed in the terminal while the local process is still running.
 Browser mode is interactive and cannot be combined with `--non-interactive`.
 
 ## Publish environment discovery
