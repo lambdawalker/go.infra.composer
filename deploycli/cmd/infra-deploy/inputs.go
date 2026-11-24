@@ -104,15 +104,25 @@ func (inputs featureInputs) defaults(file, dir string) (map[string]string, error
 		if field.flag == nil {
 			continue
 		}
-		if *field.flag != "" || field.spec.Compose != nil {
-			defaults[name] = savedRaw[name]
+		if *field.flag != "" {
 			continue
+		}
+		if compose := field.spec.Compose; compose != nil {
+			if raw, ok := savedRaw[name]; ok {
+				defaults[name] = raw
+				continue
+			}
+			if !compose.UseLegacyValueAsInput {
+				continue
+			}
 		}
 		var value string
 		if data, ok := saved[name]; ok && json.Unmarshal(data, &value) != nil {
 			return nil, fmt.Errorf("invalid saved %s", name)
 		}
-		defaults[name] = value
+		if field.spec.Compose == nil || validInput(field.userKind, value) {
+			defaults[name] = value
+		}
 	}
 	return defaults, nil
 }

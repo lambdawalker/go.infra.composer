@@ -11,9 +11,10 @@ import (
 )
 
 type composeSpec struct {
-	Function     string
-	DefaultInput string
-	Parameters   map[string]parameterBinding
+	Function              string
+	DefaultInput          string
+	Parameters            map[string]parameterBinding
+	UseLegacyValueAsInput bool
 }
 
 type parameterBinding struct {
@@ -107,6 +108,9 @@ func planInputs(inputs []inputSpec, custom map[string]functionSpec) ([]plannedIn
 				return nil, fmt.Errorf("input %s has unexpected parameter %s", spec.Name, name)
 			}
 		}
+		if spec.Compose.UseLegacyValueAsInput && pending[i].userKind == "" {
+			return nil, fmt.Errorf("input %s needs a userInput binding to reuse its legacy saved value", spec.Name)
+		}
 		if def := spec.Compose.DefaultInput; def != "" && !validInput(pending[i].userKind, def) {
 			return nil, fmt.Errorf("input %s has an invalid DefaultInput for its userInput binding", spec.Name)
 		}
@@ -169,8 +173,9 @@ func composeFunctions(custom map[string]functionSpec) (map[string]composeFunctio
 			}
 		}
 		tmpl, err := template.New(name).Option("missingkey=error").Funcs(template.FuncMap{
-			"lower": strings.ToLower,
-			"trim":  strings.TrimSpace,
+			"lower":    strings.ToLower,
+			"trim":     strings.TrimSpace,
+			"contains": strings.Contains,
 			"reject": func(message string) (string, error) {
 				return "", fmt.Errorf("%s", message)
 			},
