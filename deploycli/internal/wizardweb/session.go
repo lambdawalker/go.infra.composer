@@ -334,7 +334,7 @@ func (s *Session) InventoryWithSource(report reporting.Report, source string) {
 		})
 	}
 	s.view.Inventory = &InventoryView{
-		Source: source,
+		Source:     source,
 		Repository: s.redact(report.Scope.Repository), Environment: report.Scope.Environment,
 		Account: report.Scope.Account, Region: report.Scope.Region,
 		Project: report.Scope.Project, Backend: s.redact(report.Scope.Backend),
