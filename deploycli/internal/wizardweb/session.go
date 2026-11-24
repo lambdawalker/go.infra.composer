@@ -53,6 +53,7 @@ type Change struct {
 }
 
 type view struct {
+	Run        uint64   `json:"run"`
 	Revision   uint64   `json:"revision"`
 	Title      string   `json:"title"`
 	Action     string   `json:"action,omitempty"`
@@ -87,11 +88,22 @@ type Session struct {
 	home        chan struct{}
 }
 
-func newSession(title string, cancel, close context.CancelFunc) *Session {
+func newSession(title string, close context.CancelFunc) *Session {
 	return &Session{
-		view:   view{Revision: 1, Title: title, Phase: "settings", PhaseTitle: "Getting ready", Status: "running"},
-		cancel: cancel, close: close,
+		view:  view{Run: 1, Revision: 1, Title: title, Phase: "settings", PhaseTitle: "Getting ready", Status: "running"},
+		close: close,
 	}
+}
+
+func (s *Session) startOperation(lifetime context.Context) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(lifetime)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cancel = cancel
+	if s.view.Status == "stopping" {
+		cancel()
+	}
+	return ctx, cancel
 }
 
 func (s *Session) Ask(ctx context.Context, prompt Prompt) (string, error) {
@@ -110,6 +122,10 @@ func (s *Session) AskForm(ctx context.Context, prompt Prompt) (map[string]string
 
 func (s *Session) ask(ctx context.Context, prompt Prompt) (reply, error) {
 	s.mu.Lock()
+	if err := ctx.Err(); err != nil {
+		s.mu.Unlock()
+		return reply{}, err
+	}
 	s.view.Revision++
 	prompt.ID = s.view.Revision
 	s.view.Prompt = &prompt
@@ -304,10 +320,10 @@ func (s *Session) finish(err error) <-chan struct{} {
 	}
 	clear(s.secrets)
 	s.secrets = nil
-	s.view.Prompt, s.response = nil, nil
+	s.view.Prompt, s.response, s.cancel = nil, nil, nil
 	s.view.SignIn = ""
 	s.view.Revision++
-	if s.view.Status == "complete" && s.allowReturn {
+	if (s.view.Status == "complete" && s.allowReturn) || (cancelled && s.view.Action == "deploy") {
 		s.home = make(chan struct{})
 		s.view.CanReturn = true
 	}
@@ -321,7 +337,7 @@ func (s *Session) returnToActions(revision uint64) bool {
 		return false
 	}
 	s.view = view{
-		Revision: revision + 1, Title: s.view.Title,
+		Run: s.view.Run + 1, Revision: revision + 1, Title: s.view.Title,
 		Phase: "settings", PhaseTitle: "Getting ready", Status: "running",
 	}
 	s.allowReturn = false
@@ -330,17 +346,33 @@ func (s *Session) returnToActions(revision uint64) bool {
 	return true
 }
 
-func (s *Session) stop() {
+// stop handles the intent and run the browser displayed when the button was clicked.
+func (s *Session) stop(run uint64, closePage bool) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if run != s.view.Run {
+		return false
+	}
+	if closePage {
+		switch s.view.Status {
+		case "complete", "failed", "cancelled":
+			s.home = nil
+			s.close()
+			return true
+		}
+		return false
+	}
 	switch s.view.Status {
 	case "running":
 		s.view.Status = "stopping"
 		s.view.Prompt = nil
 		s.view.Revision++
-		s.cancel()
-	case "complete", "failed", "cancelled":
-		s.home = nil
-		s.close()
+		if s.cancel != nil {
+			s.cancel()
+		}
+		return true
+	case "stopping":
+		return true
 	}
+	return false
 }

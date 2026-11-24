@@ -38,7 +38,7 @@ let revision = 0;
 let panelKey = "";
 let activityKey = "";
 let authText = "";
-let planShown = false;
+let planRun;
 let current;
 let closed = false;
 
@@ -360,9 +360,11 @@ function renderSignIn(text) {
 }
 
 function renderPlan(view) {
-  if (!view.reviewed || planShown) return;
-  planShown = true;
-  get("preview").hidden = false;
+  const preview = get("preview");
+  preview.hidden = !view.reviewed;
+  if (!view.reviewed || planRun === view.run) return;
+  planRun = view.run;
+  get("preview-changes").replaceChildren();
   const changes = view.changes || [];
   const count = view.total;
   get("preview-count").textContent = count === 0 ? "No resource operations planned." :
@@ -454,17 +456,25 @@ async function poll() {
 }
 
 get("stop").addEventListener("click", async () => {
-  if (current.phase === "apply" && current.status === "running" &&
+  const {run, phase, status} = current;
+  const close = completed(status);
+  if (phase === "apply" && status === "running" &&
       !confirm("Stop this operation? Changes already sent to the cloud may still finish.")) return;
   try {
-    const response = await post("/api/stop");
+    const response = await post("/api/stop", {run, close});
+    if (response.status === 409) {
+      await refresh();
+      return;
+    }
     if (!response.ok) throw new Error("The wizard couldn’t stop. Check the terminal.");
-    if (completed(current.status)) {
+    if (close) {
       closed = true;
       sessionStorage.removeItem(sessionKey);
       get("stop").hidden = true;
       showConnection("");
       get("interaction").replaceChildren(node("p", "Local session closed. You can close this tab."));
+    } else {
+      await refresh();
     }
   } catch (error) {
     showConnection(error.message);
