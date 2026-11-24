@@ -22,7 +22,7 @@ import (
 //go:embed ui
 var assets embed.FS
 
-func Serve(ctx context.Context, title string, open bool, run func(context.Context, *Session) error) error {
+func Serve(ctx context.Context, title string, open bool, run func(context.Context, *Session, bool) error) error {
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		return err
@@ -39,9 +39,6 @@ func Serve(ctx context.Context, title string, open bool, run func(context.Contex
 	lifetime, closePage := context.WithCancel(ctx)
 	defer closePage()
 	session := newSession(title, cancel, closePage)
-	session.Protect(os.Getenv("PULUMI_CONFIG_PASSPHRASE"), os.Getenv("AWS_SECRET_ACCESS_KEY"),
-		os.Getenv("AWS_SESSION_TOKEN"), os.Getenv("GH_TOKEN"), os.Getenv("GITHUB_TOKEN"),
-		os.Getenv("CLOUDFLARE_API_TOKEN"), os.Getenv("PULUMI_ACCESS_TOKEN"))
 	server := &http.Server{
 		Handler: session.handler(host, key), ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second,
@@ -76,7 +73,28 @@ func Serve(ctx context.Context, title string, open bool, run func(context.Contex
 	return errors.Join(err, runErr)
 }
 
-func runSession(ctx context.Context, session *Session, run func(context.Context, *Session) error) (err error) {
+func runSession(ctx context.Context, session *Session, run func(context.Context, *Session, bool) error) error {
+	for showActions := false; ; showActions = true {
+		session.Protect(os.Getenv("PULUMI_CONFIG_PASSPHRASE"), os.Getenv("AWS_SECRET_ACCESS_KEY"),
+			os.Getenv("AWS_SESSION_TOKEN"), os.Getenv("GH_TOKEN"), os.Getenv("GITHUB_TOKEN"),
+			os.Getenv("CLOUDFLARE_API_TOKEN"), os.Getenv("PULUMI_ACCESS_TOKEN"))
+		err := runOperation(ctx, session, showActions, run)
+		home := session.finish(err)
+		if home == nil {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-home:
+		}
+	}
+}
+
+func runOperation(ctx context.Context, session *Session, showActions bool, run func(context.Context, *Session, bool) error) (err error) {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			var ok bool
@@ -88,9 +106,8 @@ func runSession(ctx context.Context, session *Session, run func(context.Context,
 		if ctx.Err() != nil {
 			err = ctx.Err()
 		}
-		session.finish(err)
 	}()
-	return run(ctx, session)
+	return run(ctx, session, showActions)
 }
 
 func (s *Session) handler(host, key string) http.Handler {
@@ -163,6 +180,19 @@ func (s *Session) handler(host, key string) http.Handler {
 			}
 			if !s.answer(answer.ID, answer.reply) {
 				http.Error(w, "This question has already changed", http.StatusConflict)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/actions":
+			var navigation struct {
+				Revision uint64 `json:"revision"`
+			}
+			if !decodeReply(w, r, &navigation) {
+				http.Error(w, "Invalid request", http.StatusBadRequest)
+				return
+			}
+			if !s.returnToActions(navigation.Revision) {
+				http.Error(w, "The action menu is unavailable", http.StatusConflict)
 				return
 			}
 			w.WriteHeader(http.StatusNoContent)

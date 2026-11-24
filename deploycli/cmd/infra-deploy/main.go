@@ -276,10 +276,10 @@ func (cli deployCLI) build(ctx context.Context, root string, force bool) (string
 func (cli deployCLI) run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	return cli.runWizard(ctx, os.Args[1:])
+	return cli.runWizard(ctx, os.Args[1:], false)
 }
 
-func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error) {
+func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions bool) (runErr error) {
 	ui := wizard(ctx)
 	fs := flag.NewFlagSet("infra-deploy", flag.ContinueOnError)
 	env := fs.String("environment", "", "isolated environment")
@@ -368,11 +368,18 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 		}
 	}
 	if *server && ui.browser == nil {
-		return wizardweb.Serve(ctx, cli.spec.Title, !*noOpen, func(ctx context.Context, session *wizardweb.Session) error {
-			return cli.runWizard(context.WithValue(ctx, wizardKey{}, session), args)
+		return wizardweb.Serve(ctx, cli.spec.Title, !*noOpen, func(ctx context.Context, session *wizardweb.Session, showActions bool) error {
+			return cli.runWizard(context.WithValue(ctx, wizardKey{}, session), args, showActions)
 		})
 	}
-	if ui.browser != nil && (actionExplicit || *exportPath != "") {
+	if showActions {
+		operation, err := ui.selectAction()
+		if err != nil {
+			return err
+		}
+		*action = operation
+		*importPath = ""
+	} else if ui.browser != nil && (actionExplicit || *exportPath != "") {
 		ui.browser.Action(*action)
 	}
 	ui.phase("settings", "Configure deployment")
@@ -428,20 +435,11 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 			}
 		}
 	}
-	if ui.browser != nil && !actionExplicit && *exportPath == "" {
-		operation, err := ui.selectAction("What would you like to run?", "preview", []wizardweb.Option{
-			{Value: "preview", Label: "Preview changes", Description: "Build and see what Pulumi plans to change. The run stops after the preview."},
-			{Value: "deploy", Label: "Preview and deploy", Description: "Review the Pulumi plan, then approve it to make changes in AWS."},
-			{Value: "setup", Label: "Set up deployment", Description: "Prepare the state bucket, Pulumi stack, and deployment settings."},
-			{Value: "status", Label: "Check deployment status", Description: "Read the published outputs from the selected Pulumi stack."},
-			{Value: "report", Label: "Generate an artifact report", Description: "Save a report of the deployment artifacts recorded for the selected stack."},
-			{Value: "github-setup", Label: "Configure GitHub deployment", Description: "Review and configure the GitHub environment and AWS role used by deployment workflows."},
-		})
-		if err != nil {
-			return err
+	if ui.browser != nil && !showActions && !actionExplicit && *exportPath == "" {
+		*action, e = ui.selectAction()
+		if e != nil {
+			return e
 		}
-		*action = operation
-		ui.browser.Action(operation)
 	}
 	if *ci && *action == "github-setup" {
 		return errors.New("GitHub setup requires interactive review")
@@ -1051,6 +1049,9 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 		}
 	}
 	if *action == "setup" {
+		if ui.browser != nil {
+			ui.browser.AllowReturnToActions()
+		}
 		return nil
 	}
 	plan := filepath.Join(private, "plan.json")
