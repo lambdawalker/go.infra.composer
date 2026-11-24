@@ -39,7 +39,7 @@ func (m manifest) inputFlags(fs *flag.FlagSet) featureInputs {
 
 type inputPrompt func(label, fallback, display string) (string, error)
 
-func (inputs featureInputs) collect(ctx context.Context, file, dir string, ci, reconfigure bool, ask inputPrompt) error {
+func (inputs featureInputs) collect(ctx context.Context, file, dir, environment string, ci, reconfigure bool, ask inputPrompt) error {
 	defaults, err := inputs.defaults(file, dir)
 	if err != nil {
 		return err
@@ -50,22 +50,22 @@ func (inputs featureInputs) collect(ctx context.Context, file, dir string, ci, r
 		var err error
 		switch {
 		case field.flag == nil:
-			field.value, err = field.resolve("", values)
+			field.value, err = field.resolve("", environment, values)
 		case *field.flag != "":
 			field.raw = *field.flag
-			field.value, err = field.resolve(field.raw, values)
+			field.value, err = field.resolve(field.raw, environment, values)
 		case ci:
 			return fmt.Errorf("--%s required in CI", strings.ToLower(field.spec.Name))
 		default:
 			prior := defaults[field.spec.Name]
 			if prior != "" && !reconfigure {
 				field.raw = prior
-				field.value, err = field.resolve(prior, values)
+				field.value, err = field.resolve(prior, environment, values)
 				if err == nil || field.spec.Compose == nil {
 					break
 				}
 			}
-			field.raw, field.value, err = field.read(ctx, prior, values, ask)
+			field.raw, field.value, err = field.read(ctx, prior, environment, values, ask)
 		}
 		if err != nil {
 			return err
@@ -127,13 +127,13 @@ func (inputs featureInputs) defaults(file, dir string) (map[string]string, error
 	return defaults, nil
 }
 
-func (field featureInput) read(ctx context.Context, prior string, values map[string]string, ask inputPrompt) (string, string, error) {
+func (field featureInput) read(ctx context.Context, prior, environment string, values map[string]string, ask inputPrompt) (string, string, error) {
 	fallback, display := prior, prior
 	if field.spec.Compose != nil {
-		display, _ = field.resolve(fallback, values)
+		display, _ = field.resolve(fallback, environment, values)
 		if display == "" {
 			fallback = field.spec.Compose.DefaultInput
-			display, _ = field.resolve(fallback, values)
+			display, _ = field.resolve(fallback, environment, values)
 		}
 		if display == "" {
 			fallback = ""
@@ -154,7 +154,7 @@ func (field featureInput) read(ctx context.Context, prior string, values map[str
 		if err != nil {
 			return "", "", err
 		}
-		resolved, err := field.resolve(raw, values)
+		resolved, err := field.resolve(raw, environment, values)
 		if err == nil {
 			if field.spec.Compose == nil {
 				raw = resolved

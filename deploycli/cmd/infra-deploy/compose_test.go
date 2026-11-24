@@ -73,7 +73,7 @@ func TestComposedInputsResolveAndPreserveRawValues(t *testing.T) {
 			return fallback, nil
 		}
 	}
-	if err := fields.collect(t.Context(), m.InputsFile, dir, false, false, ask); err != nil {
+	if err := fields.collect(t.Context(), m.InputsFile, dir, "dev", false, false, ask); err != nil {
 		t.Fatal(err)
 	}
 	if want := []string{m.Inputs[1].Label, m.Inputs[2].Label, m.Inputs[0].Label, m.Inputs[0].Label, m.Inputs[3].Label}; !slices.Equal(prompts, want) {
@@ -90,7 +90,7 @@ func TestComposedInputsResolveAndPreserveRawValues(t *testing.T) {
 		t.Fatalf("GitHub vars must use raw inputs: %v", want)
 	}
 	again := m.inputFlags(flag.NewFlagSet("second", flag.ContinueOnError))
-	if err := again.collect(t.Context(), m.InputsFile, dir, false, false, func(_, _, _ string) (string, error) {
+	if err := again.collect(t.Context(), m.InputsFile, dir, "dev", false, false, func(_, _, _ string) (string, error) {
 		return "", errors.New("saved inputs should be reused")
 	}); err != nil {
 		t.Fatal(err)
@@ -168,9 +168,52 @@ func TestComposeCanReuseLegacySavedValue(t *testing.T) {
 		if err != nil || defaults["Sender"] != test.raw {
 			t.Fatalf("raw migration: %v, %v", defaults, err)
 		}
-		got, err := inputs[2].resolve(defaults["Sender"], map[string]string{"Domain": "example.test"})
+		got, err := inputs[2].resolve(defaults["Sender"], "dev", map[string]string{"Domain": "example.test"})
 		if err != nil || got != test.resolved {
 			t.Fatalf("resolved sender = %q, %v", got, err)
 		}
+	}
+}
+
+func TestComposedEnvironmentUsesDeploymentScope(t *testing.T) {
+	spec := composedFixture(t)
+	spec.Functions["environmentSender"] = functionSpec{
+		Parameters: map[string]string{"Address": "text", "Environment": "domain", "Domain": "domain"},
+		Result:     "email",
+		Template:   "{{.Address}}@{{.Environment}}.{{.Domain}}",
+	}
+	sender := spec.Inputs[0].Compose
+	sender.Function = "environmentSender"
+	sender.Parameters["Environment"] = parameterBinding{Source: "environment"}
+	if err := spec.validate(); err != nil {
+		t.Fatal(err)
+	}
+	flags := flag.NewFlagSet("environment", flag.ContinueOnError)
+	inputs := spec.inputFlags(flags)
+	if err := flags.Parse([]string{"--sender=verify", "--recipient=recipient@example.test", "--domain=example.test", "--host=demo"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := inputs.collect(t.Context(), spec.InputsFile, t.TempDir(), "qa", true, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := inputs[2].value; got != "verify@qa.example.test" {
+		t.Fatalf("CI sender = %q", got)
+	}
+
+	values := map[string]string{
+		"feature.Sender": "verify", "feature.Recipient": "recipient@example.test",
+		"feature.Domain": "example.test", "feature.Host": "demo",
+	}
+	draft, issues := resolveFeatureDraft(inputs, "dev", values)
+	if len(issues) > 0 || draft[2].value != "verify@dev.example.test" {
+		t.Fatalf("browser sender = %q, validation %v", draft[2].value, issues)
+	}
+	if inputs[2].value != "verify@qa.example.test" {
+		t.Fatal("browser draft changed the existing sender")
+	}
+
+	sender.Parameters["Environment"] = parameterBinding{Source: "environment", Name: "dev"}
+	if err := spec.validate(); err == nil || !strings.Contains(err.Error(), "environment binding") {
+		t.Fatalf("invalid environment binding accepted: %v", err)
 	}
 }

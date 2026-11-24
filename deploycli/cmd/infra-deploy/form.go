@@ -32,13 +32,14 @@ func (f *deploymentForm) collect(ctx context.Context) error {
 	prompt := wizardweb.Prompt{Label: "Deployment settings"}
 	if slices.ContainsFunc(fields, func(field wizardweb.Field) bool { return field.Composed }) {
 		inputs := slices.Clone(f.inputs)
+		environment := f.target.Environment
 		for _, field := range fields {
 			if !field.ReadOnly && strings.HasPrefix(field.Name, "feature.") {
 				prompt.PreviewFields = append(prompt.PreviewFields, field.Name)
 			}
 		}
 		prompt.Preview = func(values map[string]string) map[string]string {
-			draft, _ := resolveFeatureDraft(inputs, values)
+			draft, _ := resolveFeatureDraft(inputs, environment, values)
 			previews := make(map[string]string)
 			for _, field := range draft {
 				if field.spec.Compose != nil && field.value != "" {
@@ -169,7 +170,7 @@ func (f *deploymentForm) apply(values map[string]string) map[string]string {
 		}
 	}
 
-	draft, inputIssues := resolveFeatureDraft(f.inputs, values)
+	draft, inputIssues := resolveFeatureDraft(f.inputs, f.target.Environment, values)
 	maps.Copy(issues, inputIssues)
 
 	reconcile := f.github != nil && (f.action == "github-setup" || values["github.enabled"] == "yes")
@@ -188,7 +189,7 @@ func (f *deploymentForm) apply(values map[string]string) map[string]string {
 	return issues
 }
 
-func resolveFeatureDraft(inputs featureInputs, values map[string]string) (featureInputs, map[string]string) {
+func resolveFeatureDraft(inputs featureInputs, environment string, values map[string]string) (featureInputs, map[string]string) {
 	draft := slices.Clone(inputs)
 	issues := make(map[string]string)
 	resolved := make(map[string]string, len(draft))
@@ -213,7 +214,7 @@ func resolveFeatureDraft(inputs featureInputs, values map[string]string) (featur
 			}
 			continue
 		}
-		value, err := field.resolve(raw, resolved)
+		value, err := field.resolve(raw, environment, resolved)
 		if err != nil {
 			if field.flag == nil {
 				// A derived value has no control to attach the error to.

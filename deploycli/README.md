@@ -106,7 +106,8 @@ other inputs is read-only. Continue validates the whole form before saving.
 A field's `Compose.Function` selects a built-in or project function.
 `Compose.Parameters` binds the function's named arguments. Each argument
 can come from `userInput` (at most one per field), a resolved `field` by
-exact name, or a `literal` string. `DefaultInput` belongs to the prompt and
+exact name, the selected `environment` (a text or domain parameter), or a
+`literal` string. `DefaultInput` belongs to the prompt and
 supplies raw input when the user accepts the displayed composed default.
 Omit it to require input on the first run.
 
