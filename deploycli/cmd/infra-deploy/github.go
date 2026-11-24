@@ -54,6 +54,11 @@ func setupGitHub(ctx context.Context, o githubOptions) error {
 		return wizard(ctx).deliberate("Type the GitHub environment to authorize these setup changes", o.Environment)
 	})
 }
+func githubTrust(account, repository, environment string) map[string]any {
+	provider := "arn:aws:iam::" + account + ":oidc-provider/token.actions.githubusercontent.com"
+	return map[string]any{"Version": "2012-10-17", "Statement": []any{map[string]any{"Sid": "InfraDeployGitHub", "Effect": "Allow", "Principal": map[string]string{"Federated": provider}, "Action": "sts:AssumeRoleWithWebIdentity", "Condition": map[string]any{"StringEquals": map[string]string{"token.actions.githubusercontent.com:aud": "sts.amazonaws.com", "token.actions.githubusercontent.com:sub": "repo:" + repository + ":environment:" + environment}}}}}
+}
+
 func canonicalHash(v any) string {
 	b, _ := json.Marshal(v)
 	s := sha256.Sum256(b)
@@ -144,7 +149,7 @@ func reconcileGitHub(o githubOptions, run setupRunner, authorize func(string) er
 		}
 	}
 	provider := "arn:aws:iam::" + o.Settings.Account + ":oidc-provider/token.actions.githubusercontent.com"
-	trust := map[string]any{"Version": "2012-10-17", "Statement": []any{map[string]any{"Sid": "InfraDeployGitHub", "Effect": "Allow", "Principal": map[string]string{"Federated": provider}, "Action": "sts:AssumeRoleWithWebIdentity", "Condition": map[string]any{"StringEquals": map[string]string{"token.actions.githubusercontent.com:aud": "sts.amazonaws.com", "token.actions.githubusercontent.com:sub": "repo:" + o.Repository + ":environment:" + o.Environment}}}}}
+	trust := githubTrust(o.Settings.Account, o.Repository, o.Environment)
 	providerBytes, e := run("", "aws", "iam", "get-open-id-connect-provider", "--open-id-connect-provider-arn", provider, "--output", "json")
 	createProvider := e != nil && strings.Contains(e.Error(), "NoSuchEntity")
 	if e != nil && !createProvider {

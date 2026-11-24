@@ -63,12 +63,7 @@ func teardownGitHub(ctx context.Context, spec manifest, private, project, enviro
 	} else if _, err := decodeObject(raw); err != nil {
 		return err
 	}
-	ui.phase("apply", "Remove GitHub deployment configuration")
-	if present {
-		if err := command(ctx, settings.Root, "gh", "api", "--method", "DELETE", base); err != nil {
-			return err
-		}
-	}
+	roleName := ""
 	if spec.GitHub.ManagedPolicy != "" && roleARN != "" {
 		name, ok := strings.CutPrefix(roleARN, "arn:aws:iam::"+account+":role/")
 		if !ok || strings.Contains(name, "/") {
@@ -83,7 +78,8 @@ func teardownGitHub(ctx context.Context, spec manifest, private, project, enviro
 		}
 		var role struct {
 			Role struct {
-				Arn string
+				Arn                      string
+				AssumeRolePolicyDocument any
 			}
 		}
 		if len(roleBytes) != 0 && (json.Unmarshal(roleBytes, &role) != nil || role.Role.Arn != roleARN) {
@@ -108,15 +104,26 @@ func teardownGitHub(ctx context.Context, spec manifest, private, project, enviro
 		if len(roleBytes) != 0 && tags["ic:managed-by"] == "infra-composer" &&
 			tags["ic:owner"] == "github.com/"+settings.Repository &&
 			tags["Project"] == project && tags["Environment"] == environment {
-			// Delete only the inline policy declared by this manifest.
-			if _, err := readTeardownCommand(ctx, "aws", "iam", "delete-role-policy", "--role-name", name, "--policy-name", spec.GitHub.ManagedPolicy); err != nil && !strings.Contains(err.Error(), "NoSuchEntity") {
-				return err
+			if !compatibleTrust(role.Role.AssumeRolePolicyDocument, githubTrust(account, settings.Repository, settings.Environment)) {
+				return errors.New("GitHub deployment role trust changed; resolve before teardown")
 			}
-			if err := command(ctx, settings.Root, "aws", "iam", "delete-role", "--role-name", name); err != nil {
-				return err
-			}
-		} else {
+			roleName = name
+		} else if len(roleBytes) != 0 {
 			ui.note("OIDC role retained because it is not marked as managed by this project")
+		}
+	}
+	ui.phase("apply", "Remove GitHub deployment configuration")
+	if present {
+		if err := command(ctx, settings.Root, "gh", "api", "--method", "DELETE", base); err != nil {
+			return err
+		}
+	}
+	if roleName != "" {
+		if _, err := readTeardownCommand(ctx, "aws", "iam", "delete-role-policy", "--role-name", roleName, "--policy-name", spec.GitHub.ManagedPolicy); err != nil && !strings.Contains(err.Error(), "NoSuchEntity") {
+			return err
+		}
+		if err := command(ctx, settings.Root, "aws", "iam", "delete-role", "--role-name", roleName); err != nil {
+			return err
 		}
 	}
 	for _, path := range []string{receiptPath, filepath.Join(private, "github-settings.json"), filepath.Join(private, "github-setup-plan.json")} {
