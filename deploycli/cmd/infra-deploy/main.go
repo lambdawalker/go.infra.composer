@@ -449,6 +449,15 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	if *action == "destroy-all" {
 		return cli.destroyAll(ctx, *project, *indexBackend, *ci)
 	}
+	if !*ci && *env == "" && (*action == "destroy" || *action == "github-teardown") {
+		*env, e = ui.input("Environment to remove (dev, qa, or custom)", "", "")
+		if e != nil {
+			return e
+		}
+		if *env == "" {
+			return errors.New("select an environment to remove")
+		}
+	}
 	if *ci && *action == "github-setup" {
 		return errors.New("GitHub setup requires interactive review")
 	}
