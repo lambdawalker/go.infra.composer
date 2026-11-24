@@ -93,6 +93,13 @@ wizard, build cache, saved-plan approval, scoped state/vault handling,
 GitHub setup and Composer artifact reports. Consumer repositories pin the
 CLI in thin launchers and retain their own infrastructure programs.
 
+## Public environment discovery
+
+Applications can deploy the [AWS discovery component](adapters/awsdiscovery/README.md)
+once on a shared stack. The [discovery package](discovery) defines the versioned
+public directory and revision-checked update protocol. A deploy manifest can
+opt in to publication after apply and an endpoint readiness probe.
+
 ## All-environment teardown
 
 The dependency-free [`teardown`](teardown/README.md) package coordinates report-backed destruction across every configured application environment, then shared **admin/index** projects. The installed Pulumi/AWS CLI adapter verifies resource absence, continues independent targets after failures, and gates explicitly configured state-bucket/KMS cleanup on successful primary cleanup. A separate `infra-nuke` command provides typed scope confirmation, private reporting and full/remaining-only checks. It performs real teardown when authorized; `infra-compose` continues to simulate deployments.
