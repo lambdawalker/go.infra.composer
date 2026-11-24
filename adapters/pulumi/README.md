@@ -50,3 +50,15 @@ Use [`awsnames.ValidateLambdaStatementID`](awsnames/lambda.go) for Lambda
 permission statement IDs. It checks an explicit ID or the logical name used
 as the base for default auto-naming. A statement ID accepts the same character
 set as a function name and allows up to 100 characters.
+
+### Validating other AWS resource names
+
+The dependency-free [AWS name catalog](../../awsnames/names.go) covers the
+caller-chosen names used by the email verification and discovery deployments.
+Use `awsnames.NewAutoNamed` with a native constructor that uses the logical
+name as its auto-name base. It checks that base before registration. Use
+`awsnames.Input` for explicit names, including DNS names computed from resource
+outputs. Both helpers preserve the resource options and naming scheme.
+
+The catalog covers syntax. Pulumi and AWS still evaluate generated suffixes,
+custom auto-naming patterns, provider-assigned IDs, uniqueness and availability.
