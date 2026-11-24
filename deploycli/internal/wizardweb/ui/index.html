@@ -11,7 +11,7 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span id="brand-title">Deployment wizard</span><span id="brand-operation" class="brand-operation"></span></div>
+    <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#ws-layers"></use></svg></span><span id="brand-title">Deployment wizard</span><span id="brand-operation" class="brand-operation"></span></div>
     <div class="topbar-controls">
       <div class="local"><span aria-hidden="true"></span>Local session</div>
       <label class="theme-control">Theme
@@ -39,7 +39,7 @@
       </div>
     </section>
   </main>
-  <section id="preview-workspace" class="preview-workspace" aria-label="Deployment preview" hidden>
+  <section id="preview-workspace" class="preview-workspace" aria-label="Deployment workspace" hidden>
     <svg xmlns="http://www.w3.org/2000/svg" class="svg-icons" aria-hidden="true">
       <symbol id="ws-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></symbol>
       <symbol id="ws-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c-5 5-5 13 0 18M12 3c5 5 5 13 0 18"/></symbol>
@@ -65,10 +65,12 @@
         <span class="sr-only" id="tab-reorder-help">Drag tabs to reorder. Keyboard: Alt Shift Left or Right.</span>
         <section class="tab-panel overview" id="overview-panel" role="tabpanel" aria-labelledby="overview-tab" tabindex="0">
           <div id="preview-interaction-slot"></div>
+          <div id="preview-summary">
           <div class="section-title"><div><h2>Backend at a glance</h2><p>Current inventory and proposed result for this run</p></div><span class="badge same" id="plan-state">Preview</span></div>
           <div class="metric-row"><div class="metric present"><b id="artifact-total">0</b><span>Artifacts in report</span></div><div class="metric changed"><b id="change-total">0</b><span>Planned changes</span></div><div class="metric unknown"><b id="unknown-total">0</b><span>Presence unchecked</span></div></div>
           <p class="section-note">Recorded means present in Pulumi state; it is not a live cloud check.</p><div class="rule"></div>
           <div class="section-title"><div><h2>Proposed changes</h2><p>Select a card to inspect its artifact on the right</p></div></div><div class="change-list" id="changes"></div>
+          </div>
         </section>
         <section class="tab-panel console-panel" id="console-panel" role="tabpanel" aria-labelledby="console-tab" tabindex="0" hidden><div class="console-intro"><div><h2>Process output</h2><p>Recent wizard activity</p></div><span class="badge same" id="console-status"></span></div><div class="console-shell"><div class="console-toolbar"><span>All stages · <span id="line-count">0</span> lines</span><button class="console-action" id="wrap-output" type="button" aria-pressed="false">Wrap lines</button></div><div class="console-output" id="console-output" role="log" aria-label="Recent process output"></div></div></section>
       </div>
