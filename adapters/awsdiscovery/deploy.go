@@ -3,11 +3,12 @@ package awsdiscovery
 
 import (
 	"fmt"
-	"net"
 	"regexp"
 	"slices"
 	"strings"
 
+	"github.com/lambdawalker/go.infra.composer/adapters/pulumi/awsnames"
+	names "github.com/lambdawalker/go.infra.composer/awsnames"
 	"github.com/lambdawalker/go.infra.composer/discovery"
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/acm"
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/apigatewayv2"
@@ -30,19 +31,16 @@ type Result struct {
 }
 
 var (
-	dnsLabel       = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`)
 	route53Zone    = regexp.MustCompile(`^Z[A-Z0-9]+$`)
 	cloudflareZone = regexp.MustCompile(`^[a-f0-9]{32}$`)
 )
 
 func (s Settings) validate() error {
-	if len(s.Domain) > 253 || !strings.Contains(s.Domain, ".") || net.ParseIP(s.Domain) != nil {
-		return fmt.Errorf("discovery requires a DNS hostname")
+	if err := names.Validate(names.DNSHostname, s.Domain); err != nil {
+		return err
 	}
-	for _, label := range strings.Split(s.Domain, ".") {
-		if !dnsLabel.MatchString(label) {
-			return fmt.Errorf("discovery requires a lowercase DNS hostname")
-		}
+	if s.Domain != strings.ToLower(s.Domain) {
+		return fmt.Errorf("discovery requires a lowercase DNS hostname")
 	}
 	switch s.DNSProvider {
 	case "route53":
@@ -68,7 +66,7 @@ func Deploy(ctx *pulumi.Context, name string, s Settings, opts ...pulumi.Resourc
 	if err := s.validate(); err != nil {
 		return Result{}, err
 	}
-	table, err := dynamodb.NewTable(ctx, name+"-registry", &dynamodb.TableArgs{
+	table, err := awsnames.NewAutoNamed(ctx, names.DynamoDBTable, dynamodb.NewTable, name+"-registry", &dynamodb.TableArgs{
 		BillingMode: pulumi.String("PAY_PER_REQUEST"), HashKey: pulumi.String("id"),
 		Attributes:           dynamodb.TableAttributeArray{&dynamodb.TableAttributeArgs{Name: pulumi.String("id"), Type: pulumi.String("S")}},
 		PointInTimeRecovery:  &dynamodb.TablePointInTimeRecoveryArgs{Enabled: pulumi.Bool(true)},
@@ -77,24 +75,24 @@ func Deploy(ctx *pulumi.Context, name string, s Settings, opts ...pulumi.Resourc
 	if err != nil {
 		return Result{}, err
 	}
-	role, err := iam.NewRole(ctx, name+"-role", &iam.RoleArgs{
+	role, err := awsnames.NewAutoNamed(ctx, names.IAMRole, iam.NewRole, name+"-role", &iam.RoleArgs{
 		AssumeRolePolicy: pulumi.String(`{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"lambda.amazonaws.com"},"Action":"sts:AssumeRole"}]}`),
 	}, opts...)
 	if err != nil {
 		return Result{}, err
 	}
-	logs, err := cloudwatch.NewLogGroup(ctx, name+"-logs", &cloudwatch.LogGroupArgs{RetentionInDays: pulumi.Int(14)}, opts...)
+	logs, err := awsnames.NewAutoNamed(ctx, names.CloudWatchLogGroup, cloudwatch.NewLogGroup, name+"-logs", &cloudwatch.LogGroupArgs{RetentionInDays: pulumi.Int(14)}, opts...)
 	if err != nil {
 		return Result{}, err
 	}
-	policy, err := iam.NewRolePolicy(ctx, name+"-policy", &iam.RolePolicyArgs{
+	policy, err := awsnames.NewAutoNamed(ctx, names.IAMInlinePolicy, iam.NewRolePolicy, name+"-policy", &iam.RolePolicyArgs{
 		Role:   role.Name,
 		Policy: pulumi.Sprintf(`{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["dynamodb:Scan","dynamodb:UpdateItem"],"Resource":%q},{"Effect":"Allow","Action":["logs:CreateLogStream","logs:PutLogEvents"],"Resource":%q}]}`, table.Arn, pulumi.Sprintf("%s:*", logs.Arn)),
 	}, opts...)
 	if err != nil {
 		return Result{}, err
 	}
-	fn, err := lambda.NewFunction(ctx, name+"-handler", &lambda.FunctionArgs{
+	fn, err := awsnames.NewAutoNamed(ctx, names.LambdaFunction, lambda.NewFunction, name+"-handler", &lambda.FunctionArgs{
 		Code: s.Code, Role: role.Arn, Handler: pulumi.String("bootstrap"), Runtime: pulumi.String("provided.al2023"),
 		Architectures: pulumi.StringArray{pulumi.String("arm64")}, MemorySize: pulumi.Int(128), Timeout: pulumi.Int(10),
 		LoggingConfig: &lambda.FunctionLoggingConfigArgs{LogFormat: pulumi.String("Text"), LogGroup: logs.Name},
@@ -103,7 +101,7 @@ func Deploy(ctx *pulumi.Context, name string, s Settings, opts ...pulumi.Resourc
 	if err != nil {
 		return Result{}, err
 	}
-	api, err := apigatewayv2.NewApi(ctx, name+"-api", &apigatewayv2.ApiArgs{
+	api, err := awsnames.NewAutoNamed(ctx, names.APIGatewayAPI, apigatewayv2.NewApi, name+"-api", &apigatewayv2.ApiArgs{
 		ProtocolType: pulumi.String("HTTP"), DisableExecuteApiEndpoint: pulumi.Bool(true),
 	}, opts...)
 	if err != nil {
@@ -120,15 +118,19 @@ func Deploy(ctx *pulumi.Context, name string, s Settings, opts ...pulumi.Resourc
 		{"read", "GET", discovery.Path, "NONE"},
 		{"write", "POST", discovery.Path + "/{environment}/changes", "AWS_IAM"},
 	} {
+		routeKey := route.method + " " + route.path
+		if err := names.Validate(names.APIGatewayRoute, routeKey); err != nil {
+			return Result{}, err
+		}
 		_, err = apigatewayv2.NewRoute(ctx, name+"-"+route.name, &apigatewayv2.RouteArgs{
-			ApiId: api.ID(), RouteKey: pulumi.String(route.method + " " + route.path),
+			ApiId: api.ID(), RouteKey: pulumi.String(routeKey),
 			AuthorizationType: pulumi.String(route.auth), Target: pulumi.Sprintf("integrations/%s", integration.ID()),
 		}, opts...)
 		if err != nil {
 			return Result{}, err
 		}
 		path := strings.ReplaceAll(route.path, "{environment}", "*")
-		_, err = lambda.NewPermission(ctx, name+"-"+route.name+"-invoke", &lambda.PermissionArgs{
+		_, err = awsnames.NewAutoNamed(ctx, names.LambdaStatementID, lambda.NewPermission, name+"-"+route.name+"-invoke", &lambda.PermissionArgs{
 			Action: pulumi.String("lambda:InvokeFunction"), Function: fn.Name,
 			Principal: pulumi.String("apigateway.amazonaws.com"),
 			SourceArn: pulumi.Sprintf("%s/$default/%s%s", api.ExecutionArn, route.method, path),
@@ -137,8 +139,12 @@ func Deploy(ctx *pulumi.Context, name string, s Settings, opts ...pulumi.Resourc
 			return Result{}, err
 		}
 	}
+	stageName, err := awsnames.Input(names.APIGatewayStage, pulumi.String("$default"))
+	if err != nil {
+		return Result{}, err
+	}
 	stage, err := apigatewayv2.NewStage(ctx, name+"-stage", &apigatewayv2.StageArgs{
-		ApiId: api.ID(), Name: pulumi.String("$default"), AutoDeploy: pulumi.Bool(true),
+		ApiId: api.ID(), Name: stageName, AutoDeploy: pulumi.Bool(true),
 		DefaultRouteSettings: &apigatewayv2.StageDefaultRouteSettingsArgs{
 			ThrottlingBurstLimit: pulumi.Int(20), ThrottlingRateLimit: pulumi.Float64(10),
 		},
@@ -198,6 +204,11 @@ func provisionDomain(ctx *pulumi.Context, name string, s Settings, api *apigatew
 }
 
 func cname(ctx *pulumi.Context, name string, s Settings, host, target pulumi.StringInput, opts []pulumi.ResourceOption) (pulumi.StringOutput, error) {
+	validName, err := awsnames.Input(names.DNSRecord, host)
+	if err != nil {
+		return pulumi.StringOutput{}, err
+	}
+
 	if s.DNSProvider == "cloudflare" {
 		trim := func(input pulumi.StringInput) pulumi.StringOutput {
 			return input.ToStringOutput().ApplyT(func(value string) string {
@@ -209,13 +220,13 @@ func cname(ctx *pulumi.Context, name string, s Settings, host, target pulumi.Str
 			Name pulumi.StringOutput `pulumi:"name"`
 		}
 		err := ctx.RegisterResource("cloudflare:index/dnsRecord:DnsRecord", name, pulumi.Map{
-			"zoneId": pulumi.String(s.DNSZoneID), "name": trim(host), "content": trim(target),
+			"zoneId": pulumi.String(s.DNSZoneID), "name": trim(validName), "content": trim(target),
 			"type": pulumi.String("CNAME"), "ttl": pulumi.Float64(300), "proxied": pulumi.Bool(false),
 		}, &record, append(slices.Clone(opts), pulumi.Version("6.20.0"))...)
 		return record.Name, err
 	}
 	record, err := route53.NewRecord(ctx, name, &route53.RecordArgs{
-		ZoneId: pulumi.String(s.DNSZoneID), Name: host, Type: pulumi.String("CNAME"),
+		ZoneId: pulumi.String(s.DNSZoneID), Name: validName, Type: pulumi.String("CNAME"),
 		Ttl: pulumi.Int(300), Records: pulumi.StringArray{target},
 	}, opts...)
 	if err != nil {

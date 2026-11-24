@@ -81,6 +81,15 @@ go vet ./...
 
 Tests use official `pulumi.WithMocks`. They verify registration semantics, not cloud permissions, DNS readiness, provider replacement behavior or deployment recovery. No cloud deployment was performed for this milestone.
 
+## AWS artifact names
+
+The dependency-free [AWS name catalog](awsnames/names.go) provides syntax
+checks for the resource names used by the AWS deployment CLI and Pulumi
+adapters. Rules are specific to each resource type. For example, periods
+are valid in DynamoDB table names and invalid in Lambda function names.
+The [Pulumi helpers](adapters/pulumi/README.md#validating-other-aws-resource-names)
+check auto-name bases and explicit or computed names.
+
 ## Deployment approvals
 
 The dependency-free [`approval`](approval/README.md) package supplies explicit/manual and opt-in timed approval policy. Applications provide prompts and deployment-tool integration. Only routine operations can auto-approve on the policy's own deadline; sensitive/destructive operations, cancellation and input failures always require an explicit decision or stop the operation. The default remains manual.
