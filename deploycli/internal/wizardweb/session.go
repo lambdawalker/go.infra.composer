@@ -4,7 +4,6 @@ package wizardweb
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -53,21 +52,22 @@ type Change struct {
 }
 
 type view struct {
-	Run        uint64   `json:"run"`
-	Revision   uint64   `json:"revision"`
-	Title      string   `json:"title"`
-	Action     string   `json:"action,omitempty"`
-	Phase      string   `json:"phase"`
-	PhaseTitle string   `json:"phaseTitle"`
-	Visited    []string `json:"visited,omitempty"`
-	Status     string   `json:"status"`
-	Error      string   `json:"error,omitempty"`
-	Prompt     *Prompt  `json:"prompt,omitempty"`
-	Activity   []string `json:"activity"`
-	SignIn     string   `json:"signIn,omitempty"`
-	Changes    []Change `json:"changes,omitempty"`
-	Total      int      `json:"total"`
-	Reviewed   bool     `json:"reviewed"`
+	Run         uint64   `json:"run"`
+	Revision    uint64   `json:"revision"`
+	Title       string   `json:"title"`
+	Action      string   `json:"action,omitempty"`
+	Phase       string   `json:"phase"`
+	PhaseTitle  string   `json:"phaseTitle"`
+	Visited     []string `json:"visited,omitempty"`
+	Status      string   `json:"status"`
+	Error       string   `json:"error,omitempty"`
+	Diagnostics string   `json:"diagnostics,omitempty"`
+	Prompt      *Prompt  `json:"prompt,omitempty"`
+	Activity    []string `json:"activity"`
+	SignIn      string   `json:"signIn,omitempty"`
+	Changes     []Change `json:"changes,omitempty"`
+	Total       int      `json:"total"`
+	Reviewed    bool     `json:"reviewed"`
 }
 
 type reply struct {
@@ -77,13 +77,14 @@ type reply struct {
 }
 
 type Session struct {
-	mu       sync.Mutex
-	view     view
-	response chan reply
-	cancel   context.CancelFunc
-	close    context.CancelFunc
-	secrets  []string
-	home     chan struct{}
+	mu              sync.Mutex
+	view            view
+	response        chan reply
+	cancel          context.CancelFunc
+	close           context.CancelFunc
+	secrets         []string
+	commandFailures []string
+	home            chan struct{}
 }
 
 func newSession(title string, close context.CancelFunc) *Session {
@@ -307,8 +308,12 @@ func (s *Session) finish(err error) <-chan struct{} {
 		s.view.Status = "cancelled"
 	case err != nil:
 		s.view.Status = "failed"
-		s.view.Error = s.redact(fmt.Sprint(err))
+		s.view.Error = s.sanitizeDiagnostic(err.Error())
 	}
+	if s.view.Status != "complete" {
+		s.view.Diagnostics = s.failureDiagnostics()
+	}
+	s.commandFailures = nil
 	clear(s.secrets)
 	s.secrets = nil
 	s.view.Prompt, s.response, s.cancel = nil, nil, nil

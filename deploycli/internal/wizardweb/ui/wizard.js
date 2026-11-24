@@ -283,6 +283,31 @@ function renderSettings(container, prompt) {
   if (hasErrors) form.querySelector('[aria-invalid="true"]')?.focus();
 }
 
+function addCopyDiagnostics(controls, content, diagnostics) {
+  const copy = button("Copy diagnostics", "outline");
+  const feedback = node("span", "", "muted");
+  feedback.setAttribute("role", "status");
+  const manual = node("textarea", "", "diagnostics-text");
+  manual.readOnly = true;
+  manual.hidden = true;
+  manual.setAttribute("aria-label", "Diagnostics");
+  manual.value = diagnostics;
+  copy.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(diagnostics);
+      feedback.textContent = "Diagnostics copied.";
+      manual.hidden = true;
+    } catch {
+      feedback.textContent = "Press Ctrl+C or Command+C to copy the selected diagnostics.";
+      manual.hidden = false;
+      manual.select();
+      manual.focus();
+    }
+  });
+  controls.append(copy, feedback);
+  content.append(manual);
+}
+
 function renderPrompt(view) {
   const prompt = view.prompt;
   const key = prompt ? "prompt:" + prompt.id : view.status + ":" + view.phaseTitle;
@@ -296,7 +321,9 @@ function renderPrompt(view) {
       view.status === "failed" ? "The wizard stopped" :
       view.status === "cancelled" ? "Wizard stopped" :
       view.status === "stopping" ? "Stopping the current operation" : view.phaseTitle;
+    if (view.error) content.append(node("p", view.error, "problem"));
     if (completed(view.status)) {
+      const controls = node("div", "", "buttons");
       const back = button("Back to main page", "primary");
       back.addEventListener("click", async () => {
         back.disabled = true;
@@ -309,9 +336,10 @@ function renderPrompt(view) {
           back.disabled = false;
         }
       });
-      content.append(back);
+      controls.append(back);
+      content.append(controls);
+      if (view.diagnostics) addCopyDiagnostics(controls, content, view.diagnostics);
     }
-    if (view.error) content.append(node("p", view.error, "problem"));
     if (view.status === "stopping") content.append(node("p", "Waiting for the operation to exit and release its locks."));
     return;
   }
