@@ -67,6 +67,7 @@ type view struct {
 	Changes    []Change `json:"changes,omitempty"`
 	Total      int      `json:"total"`
 	Reviewed   bool     `json:"reviewed"`
+	CanReturn  bool     `json:"canReturn,omitempty"`
 }
 
 type reply struct {
@@ -76,12 +77,14 @@ type reply struct {
 }
 
 type Session struct {
-	mu       sync.Mutex
-	view     view
-	response chan reply
-	cancel   context.CancelFunc
-	close    context.CancelFunc
-	secrets  []string
+	mu          sync.Mutex
+	view        view
+	response    chan reply
+	cancel      context.CancelFunc
+	close       context.CancelFunc
+	secrets     []string
+	allowReturn bool
+	home        chan struct{}
 }
 
 func newSession(title string, cancel, close context.CancelFunc) *Session {
@@ -280,7 +283,14 @@ func (s *Session) snapshot() view {
 	return v
 }
 
-func (s *Session) finish(err error) {
+// AllowReturnToActions lets a completed setup reopen the action menu.
+func (s *Session) AllowReturnToActions() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.allowReturn = true
+}
+
+func (s *Session) finish(err error) <-chan struct{} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	cancelled := s.view.Status == "stopping" || errors.Is(err, context.Canceled)
@@ -297,6 +307,27 @@ func (s *Session) finish(err error) {
 	s.view.Prompt, s.response = nil, nil
 	s.view.SignIn = ""
 	s.view.Revision++
+	if s.view.Status == "complete" && s.allowReturn {
+		s.home = make(chan struct{})
+		s.view.CanReturn = true
+	}
+	return s.home
+}
+
+func (s *Session) returnToActions(revision uint64) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.home == nil || s.view.Revision != revision {
+		return false
+	}
+	s.view = view{
+		Revision: revision + 1, Title: s.view.Title,
+		Phase: "settings", PhaseTitle: "Getting ready", Status: "running",
+	}
+	s.allowReturn = false
+	close(s.home)
+	s.home = nil
+	return true
 }
 
 func (s *Session) stop() {
@@ -309,6 +340,7 @@ func (s *Session) stop() {
 		s.view.Revision++
 		s.cancel()
 	case "complete", "failed", "cancelled":
+		s.home = nil
 		s.close()
 	}
 }

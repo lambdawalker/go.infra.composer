@@ -3,6 +3,8 @@ package wizardweb
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -163,5 +165,58 @@ func TestFormPreviewDoesNotAnswerPrompt(t *testing.T) {
 	}
 	if session.snapshot().Prompt.ID != 9 || len(session.response) > 0 {
 		t.Fatal("preview advanced the prompt")
+	}
+}
+
+func TestReturnToActionsAfterSetup(t *testing.T) {
+	session := newSession("test wizard", func() {}, func() {})
+	handler := session.handler(testHost, "known-token")
+	post := func(revision uint64, token string) int {
+		body := fmt.Sprintf(`{"revision":%d}`, revision)
+		return request(handler, http.MethodPost, "/api/actions", testHost, "http://"+testHost, token, body).Code
+	}
+	if got := post(session.snapshot().Revision, "known-token"); got != http.StatusConflict {
+		t.Fatalf("returned while first action was running: %d", got)
+	}
+
+	session.Action("setup")
+	session.Phase("prepare", "Prepare deployment")
+	session.Note("setup output")
+	session.AllowReturnToActions()
+	home := session.finish(nil)
+	result := session.snapshot()
+	if home == nil || result.Status != "complete" || !result.CanReturn || len(result.Activity) != 1 {
+		t.Fatalf("setup result unavailable: %+v", result)
+	}
+	if got := post(result.Revision, ""); got != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated return: %d", got)
+	}
+	if got := post(result.Revision-1, "known-token"); got != http.StatusConflict {
+		t.Fatalf("stale return: %d", got)
+	}
+	if got := post(result.Revision, "known-token"); got != http.StatusNoContent {
+		t.Fatalf("return after setup: %d", got)
+	}
+	select {
+	case <-home:
+	default:
+		t.Fatal("return did not wake the wizard")
+	}
+	state := session.snapshot()
+	if state.Status != "running" || state.Phase != "settings" || state.Action != "" || state.CanReturn ||
+		len(state.Activity) != 0 || len(state.Visited) != 0 {
+		t.Fatalf("previous setup state carried over: %+v", state)
+	}
+	if got := post(result.Revision, "known-token"); got != http.StatusConflict {
+		t.Fatalf("duplicate return: %d", got)
+	}
+	if home := session.finish(nil); home != nil || session.snapshot().CanReturn {
+		t.Fatal("return carried over to the next operation")
+	}
+
+	failed := newSession("test wizard", func() {}, func() {})
+	failed.AllowReturnToActions()
+	if home := failed.finish(errors.New("setup failed")); home != nil || failed.snapshot().CanReturn {
+		t.Fatal("failed setup allowed return")
 	}
 }

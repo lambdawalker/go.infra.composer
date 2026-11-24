@@ -120,14 +120,25 @@ func (w interaction) deliberate(label, expected string) error {
 	return nil
 }
 
-func (w interaction) selectAction(label, def string, options []wizardweb.Option) (string, error) {
+func (w interaction) selectAction() (string, error) {
+	options := []wizardweb.Option{
+		{Value: "preview", Label: "Preview changes", Description: "Build and see what Pulumi plans to change. The run stops after the preview."},
+		{Value: "deploy", Label: "Preview and deploy", Description: "Review the Pulumi plan, then approve it to make changes in AWS."},
+		{Value: "setup", Label: "Set up deployment", Description: "Prepare the state bucket, Pulumi stack, and deployment settings."},
+		{Value: "status", Label: "Check deployment status", Description: "Read the published outputs from the selected Pulumi stack."},
+		{Value: "report", Label: "Generate an artifact report", Description: "Save a report of the deployment artifacts recorded for the selected stack."},
+		{Value: "github-setup", Label: "Configure GitHub deployment", Description: "Review and configure the GitHub environment and AWS role used by deployment workflows."},
+	}
 	for {
-		value, err := w.browser.Ask(w.ctx, wizardweb.Prompt{Kind: "actions", Label: label, Default: def, Options: options})
+		value, err := w.browser.Ask(w.ctx, wizardweb.Prompt{
+			Kind: "actions", Label: "What would you like to run?", Default: "preview", Options: options,
+		})
 		if err != nil {
 			return "", err
 		}
 		for _, option := range options {
 			if option.Value == value {
+				w.browser.Action(value)
 				return value, nil
 			}
 		}

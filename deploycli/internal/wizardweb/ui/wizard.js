@@ -295,6 +295,21 @@ function renderPrompt(view) {
       view.status === "failed" ? "The wizard stopped" :
       view.status === "cancelled" ? "Wizard stopped" :
       view.status === "stopping" ? "Stopping the current operation" : view.phaseTitle;
+    if (view.canReturn) {
+      const back = button("Back to main page", "primary");
+      back.addEventListener("click", async () => {
+        back.disabled = true;
+        try {
+          const response = await post("/api/actions", {revision: view.revision});
+          if (!response.ok && response.status !== 409) throw new Error("Couldn’t return to the action menu. Try again.");
+          await refresh();
+        } catch (error) {
+          showConnection(error.message);
+          back.disabled = false;
+        }
+      });
+      content.append(back);
+    }
     if (view.error) content.append(node("p", view.error, "problem"));
     if (view.status === "stopping") content.append(node("p", "Waiting for the operation to exit and release its locks."));
     return;
