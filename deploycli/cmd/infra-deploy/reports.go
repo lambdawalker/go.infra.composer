@@ -69,6 +69,34 @@ func (cli deployCLI) ownFeature(as []reporting.Artifact) []reporting.Artifact {
 	return as
 }
 func (r *featureReport) warn(code string) { r.report.Warnings = append(r.report.Warnings, code) }
+
+func (r *featureReport) publish(ctx context.Context, includePreview bool) {
+	if wizard(ctx).browser == nil {
+		return
+	}
+	report := r.report
+	if includePreview && r.previewLog != "" {
+		if f, err := os.Open(r.previewLog); err == nil {
+			if artifacts, err := cli.ApplyPreview(report.Artifacts, f); err == nil {
+				report.Artifacts = r.cli.ownFeature(artifacts)
+			}
+			f.Close()
+		}
+	}
+	if r.bootstrap != nil {
+		found := false
+		for _, a := range report.Artifacts {
+			if a.Key == r.bootstrap.Key {
+				found = true
+				break
+			}
+		}
+		if !found {
+			report.Artifacts = append(report.Artifacts, *r.bootstrap)
+		}
+	}
+	wizard(ctx).browser.Inventory(reporting.Normalize(report))
+}
 func (r *featureReport) readState(ctx context.Context) {
 	b, e := r.run(ctx, r.dir, "pulumi", "stack", "export", "--stack", r.stack)
 	if e != nil {

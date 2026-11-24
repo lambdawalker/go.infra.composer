@@ -19,7 +19,13 @@ jobs:
         with:
           go-version: ${{ matrix.go }}
           cache: false
-      - run: test -z "$(gofmt -l .)"
+      - run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            printf '%s\n' "$unformatted"
+            gofmt -d .
+            exit 1
+          fi
       - run: go test -race ./...
       - run: go vet ./...
       - run: go build ./cmd/infra-compose

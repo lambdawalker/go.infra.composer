@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"sync"
+
+	"github.com/lambdawalker/go.infra.composer/reporting"
 )
 
 type Option struct {
@@ -53,24 +55,50 @@ type Change struct {
 	Operation string `json:"operation"`
 }
 
+// ArtifactView contains only the safe identity and relationship fields used by
+// the workspace. Provider configuration and credentials never enter the page.
+type ArtifactView struct {
+	Key      string `json:"key"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Parent   string `json:"parent,omitempty"`
+	Owner    string `json:"owner,omitempty"`
+	Feature  string `json:"feature,omitempty"`
+	Action   string `json:"action,omitempty"`
+	Presence string `json:"presence"`
+}
+
+type InventoryView struct {
+	Repository  string         `json:"repository,omitempty"`
+	Environment string         `json:"environment,omitempty"`
+	Account     string         `json:"account,omitempty"`
+	Region      string         `json:"region,omitempty"`
+	Project     string         `json:"project,omitempty"`
+	Backend     string         `json:"backend,omitempty"`
+	Stack       string         `json:"stack,omitempty"`
+	Revision    string         `json:"revision,omitempty"`
+	Artifacts   []ArtifactView `json:"artifacts"`
+}
+
 type view struct {
-	Locked      bool     `json:"locked,omitempty"`
-	Run         uint64   `json:"run"`
-	Revision    uint64   `json:"revision"`
-	Title       string   `json:"title"`
-	Action      string   `json:"action,omitempty"`
-	Phase       string   `json:"phase"`
-	PhaseTitle  string   `json:"phaseTitle"`
-	Visited     []string `json:"visited,omitempty"`
-	Status      string   `json:"status"`
-	Error       string   `json:"error,omitempty"`
-	Diagnostics string   `json:"diagnostics,omitempty"`
-	Prompt      *Prompt  `json:"prompt,omitempty"`
-	Activity    []string `json:"activity"`
-	SignIn      string   `json:"signIn,omitempty"`
-	Changes     []Change `json:"changes,omitempty"`
-	Total       int      `json:"total"`
-	Reviewed    bool     `json:"reviewed"`
+	Locked      bool           `json:"locked,omitempty"`
+	Run         uint64         `json:"run"`
+	Revision    uint64         `json:"revision"`
+	Title       string         `json:"title"`
+	Action      string         `json:"action,omitempty"`
+	Phase       string         `json:"phase"`
+	PhaseTitle  string         `json:"phaseTitle"`
+	Visited     []string       `json:"visited,omitempty"`
+	Status      string         `json:"status"`
+	Error       string         `json:"error,omitempty"`
+	Diagnostics string         `json:"diagnostics,omitempty"`
+	Prompt      *Prompt        `json:"prompt,omitempty"`
+	Activity    []string       `json:"activity"`
+	SignIn      string         `json:"signIn,omitempty"`
+	Changes     []Change       `json:"changes,omitempty"`
+	Total       int            `json:"total"`
+	Reviewed    bool           `json:"reviewed"`
+	Inventory   *InventoryView `json:"inventory,omitempty"`
 }
 
 type reply struct {
@@ -284,6 +312,26 @@ func (s *Session) Preview(changes []Change, total int) {
 		changes[i].Operation = s.redact(changes[i].Operation)
 	}
 	s.view.Changes, s.view.Total, s.view.Reviewed = changes, total, true
+	s.view.Revision++
+}
+
+func (s *Session) Inventory(report reporting.Report) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	items := make([]ArtifactView, 0, len(report.Artifacts))
+	for _, a := range report.Artifacts {
+		items = append(items, ArtifactView{
+			Key: s.redact(a.Key), Name: s.redact(a.Name), Type: a.Type,
+			Parent: s.redact(a.Parent), Owner: s.redact(a.Owner), Feature: s.redact(a.Feature),
+			Action: a.PlannedAction, Presence: string(a.Observation.Status),
+		})
+	}
+	s.view.Inventory = &InventoryView{
+		Repository: s.redact(report.Scope.Repository), Environment: report.Scope.Environment,
+		Account: report.Scope.Account, Region: report.Scope.Region,
+		Project: report.Scope.Project, Backend: s.redact(report.Scope.Backend),
+		Stack: report.Scope.Stack, Revision: report.Metadata.Revision, Artifacts: items,
+	}
 	s.view.Revision++
 }
 

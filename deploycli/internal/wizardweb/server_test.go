@@ -11,7 +11,34 @@ import (
 	"testing"
 	"testing/synctest"
 	"time"
+
+	"github.com/lambdawalker/go.infra.composer/reporting"
 )
+
+func TestInventoryExposesSafeFieldsAndClearsBetweenRuns(t *testing.T) {
+	s := newSession("test wizard", func() {})
+	s.Protect("secret-value")
+	s.Inventory(reporting.Report{
+		Scope: reporting.Scope{Repository: "github.com/example/app", Backend: "s3://secret-value", Stack: "test-dev"},
+		Artifacts: []reporting.Artifact{{
+			Key: "urn:pulumi:secret-value", Name: "example", Type: "aws:lambda/function:Function",
+			PlannedAction: "update", Observation: reporting.Observation{Status: reporting.Recorded},
+		}},
+	})
+	v := s.snapshot()
+	if v.Inventory == nil || len(v.Inventory.Artifacts) != 1 || v.Inventory.Backend != "s3://[redacted]" ||
+		v.Inventory.Artifacts[0].Key != "urn:pulumi:[redacted]" || v.Inventory.Artifacts[0].Presence != "recorded" {
+		t.Fatalf("unsafe or incomplete inventory: %+v", v.Inventory)
+	}
+	// Returning to the action menu must not display the previous stack inventory.
+	s.finish(nil)
+	if !s.returnToActions(s.snapshot().Revision) {
+		t.Fatal("could not return to menu")
+	}
+	if s.snapshot().Inventory != nil {
+		t.Fatal("inventory persisted after menu reset")
+	}
+}
 
 const testHost = "127.0.0.1:17774"
 

@@ -1000,7 +1000,11 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	if *action == "report" || *action == "preview" || *action == "deploy" {
 		attempt := cli.newFeatureReport(ctx, root, dir, stack, private, local, Settings{1, *env, *profile, *region, *account, *backend}, projectName, *action)
 		if *action == "report" {
-			return attempt.finish(ctx, nil, *refreshReport)
+			if err := attempt.finish(ctx, nil, *refreshReport); err != nil {
+				return err
+			}
+			attempt.publish(ctx, false)
+			return nil
 		}
 		eventFile, err := os.CreateTemp(private, "preview-events-*.json")
 		if err != nil {
@@ -1012,8 +1016,10 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 			if err := attempt.finish(ctx, runErr, attempt.applied); err != nil {
 				runErr = errors.Join(runErr, fmt.Errorf("feature report could not be saved: %w", err))
 			}
+			attempt.publish(ctx, false)
 		}()
 		activeFeatureReport = attempt
+		attempt.publish(ctx, false)
 
 	}
 	if *action == "status" {
@@ -1114,6 +1120,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 		return e
 	}
 	if ui.browser != nil {
+		activeFeatureReport.publish(ctx, true)
 		if err := ui.preview(planBytes); err != nil {
 			return err
 		}
