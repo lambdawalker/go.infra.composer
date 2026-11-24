@@ -34,3 +34,14 @@ The source scope and original evidence timestamps are retained; no provider chec
 or account verification occurs. Exact feature/type/logical-name matches must be
 unique on both sides. Native S3 object logical names use URN suffixes, avoiding
 object path display-name mismatches.
+
+### Lambda function names
+
+Use [`awsnames.LambdaFunctionName`](awsnames/lambda.go) before registering a
+Lambda. Pass the logical name and the optional `lambda.FunctionArgs.Name`.
+Use the returned name in the resource arguments so it can validate values
+derived from Pulumi outputs. With a nil name the helper validates the base
+used by default auto-naming and leaves name generation to the AWS provider.
+An explicit physical name may differ from the logical name. A physical name
+must contain 1–64 ASCII letters, digits, hyphens, or underscores. Custom
+provider auto-naming patterns are evaluated by Pulumi.
