@@ -72,6 +72,12 @@ func TestActionsNeverEscalateAndApplySavedPlan(t *testing.T) {
 				if tc.approve {
 					os.Args = append(os.Args, "--approve")
 				}
+				if name == "email" && tc.action == "preview" {
+					cli.spec.Discovery = &discoverySpec{
+						APIURL: cli.spec.Outputs[0], ProbeMethod: "GET", ProbePath: "/health", ProbeStatus: 200,
+					}
+					os.Args = append(os.Args, "--discovery-index", "https://index.example.invalid/v1/environments")
+				}
 				e = cli.run()
 				if (e != nil) != tc.wantError {
 					t.Fatal(e)
@@ -86,6 +92,12 @@ func TestActionsNeverEscalateAndApplySavedPlan(t *testing.T) {
 				}
 				if tc.listFail && strings.Contains(string(b), `"init"`) {
 					t.Fatal("failed discovery initialized")
+				}
+				if tc.action == "preview" {
+					path := filepath.Join(home, ".infra-composer", "test", "environments", "dev", "discovery.json")
+					if _, err := os.Stat(path); !os.IsNotExist(err) {
+						t.Fatal("preview changed discovery publication settings")
+					}
 				}
 				if tc.wantError {
 					if _, e = os.Stat(filepath.Join(home, ".infra-composer", "test", "environments", "dev", "applied.json")); !os.IsNotExist(e) {
