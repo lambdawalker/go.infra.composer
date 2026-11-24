@@ -192,8 +192,8 @@
 .preview-workspace .artifact-tree, .preview-workspace .artifact-tree ul {list-style:none;margin:0;padding:0}
 .preview-workspace .artifact-tree ul {margin:0 0 3px var(--tree-center);padding-left:calc(var(--tree-center) - 1px);border-left:1px solid var(--tree-line)}
 .preview-workspace .tree-node {position:relative;min-width:0}
-.preview-workspace .artifact-tree ul>.tree-node:before {position:absolute;left:calc(-1 * var(--tree-center));top:var(--tree-junction);width:var(--tree-step);border-top:1px solid var(--tree-line);pointer-events:none;content:""}
-.preview-workspace .artifact-tree ul>.tree-node:last-child:after {position:absolute;left:calc(-1 * var(--tree-center));top:calc(var(--tree-junction) + 1px);bottom:0;width:1px;background:var(--surface);pointer-events:none;content:""}
+.preview-workspace .artifact-tree ul>.tree-node:before {position:absolute;left:calc(0px - var(--tree-center));top:var(--tree-junction);width:var(--tree-step);border-top:1px solid var(--tree-line);pointer-events:none;content:""}
+.preview-workspace .artifact-tree ul>.tree-node:last-child:after {position:absolute;left:calc(0px - var(--tree-center));top:calc(var(--tree-junction) + 1px);bottom:0;width:1px;background:var(--surface);pointer-events:none;content:""}
 .preview-workspace .tree-row {position:relative;display:flex;align-items:flex-start;gap:2px;min-width:0;margin-bottom:1px}
 .preview-workspace .tree-node.expanded>.tree-row:after {position:absolute;left:var(--tree-center);top:29px;bottom:-2px;border-left:1px solid var(--tree-line);pointer-events:none;content:""}
 .preview-workspace .branch-toggle, .preview-workspace .branch-spacer {width:var(--tree-step);height:34px;flex:none;display:grid;place-items:center}
