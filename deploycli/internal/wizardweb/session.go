@@ -69,35 +69,35 @@ type ArtifactView struct {
 }
 
 type InventoryView struct {
-	Repository  string `json:"repository,omitempty"`
-	Environment string `json:"environment,omitempty"`
-	Account     string `json:"account,omitempty"`
-	Region      string `json:"region,omitempty"`
-	Project     string `json:"project,omitempty"`
-	Backend     string `json:"backend,omitempty"`
-	Stack       string `json:"stack,omitempty"`
-	Revision    string `json:"revision,omitempty"`
-	Artifacts []ArtifactView `json:"artifacts"`
+	Repository  string         `json:"repository,omitempty"`
+	Environment string         `json:"environment,omitempty"`
+	Account     string         `json:"account,omitempty"`
+	Region      string         `json:"region,omitempty"`
+	Project     string         `json:"project,omitempty"`
+	Backend     string         `json:"backend,omitempty"`
+	Stack       string         `json:"stack,omitempty"`
+	Revision    string         `json:"revision,omitempty"`
+	Artifacts   []ArtifactView `json:"artifacts"`
 }
 
 type view struct {
-	Locked      bool     `json:"locked,omitempty"`
-	Run         uint64   `json:"run"`
-	Revision    uint64   `json:"revision"`
-	Title       string   `json:"title"`
-	Action      string   `json:"action,omitempty"`
-	Phase       string   `json:"phase"`
-	PhaseTitle  string   `json:"phaseTitle"`
-	Visited     []string `json:"visited,omitempty"`
-	Status      string   `json:"status"`
-	Error       string   `json:"error,omitempty"`
-	Diagnostics string   `json:"diagnostics,omitempty"`
-	Prompt      *Prompt  `json:"prompt,omitempty"`
-	Activity    []string `json:"activity"`
-	SignIn      string   `json:"signIn,omitempty"`
-	Changes     []Change `json:"changes,omitempty"`
-	Total       int      `json:"total"`
-	Reviewed    bool     `json:"reviewed"`
+	Locked      bool           `json:"locked,omitempty"`
+	Run         uint64         `json:"run"`
+	Revision    uint64         `json:"revision"`
+	Title       string         `json:"title"`
+	Action      string         `json:"action,omitempty"`
+	Phase       string         `json:"phase"`
+	PhaseTitle  string         `json:"phaseTitle"`
+	Visited     []string       `json:"visited,omitempty"`
+	Status      string         `json:"status"`
+	Error       string         `json:"error,omitempty"`
+	Diagnostics string         `json:"diagnostics,omitempty"`
+	Prompt      *Prompt        `json:"prompt,omitempty"`
+	Activity    []string       `json:"activity"`
+	SignIn      string         `json:"signIn,omitempty"`
+	Changes     []Change       `json:"changes,omitempty"`
+	Total       int            `json:"total"`
+	Reviewed    bool           `json:"reviewed"`
 	Inventory   *InventoryView `json:"inventory,omitempty"`
 }
 
