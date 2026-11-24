@@ -9,14 +9,17 @@
   const symbolFor = type => /route53|cloudflare|acm|domain|apiGateway/i.test(type) ? "globe" : /dynamodb|s3|storage/i.test(type) ? "database" : /iam|secret|cognito|kms|authorizer/i.test(type) ? "shield" : /ses|email/i.test(type) ? "mail" : /lambda|eventRule|eventTarget/i.test(type) ? "bolt" : "layers";
   const purposeFor = type => ({Function:"Runs backend code", Table:"Stores application data", Key:"Signs or encrypts data", EmailIdentity:"Identifies the SES sender", Api:"Exposes the application API", UserPool:"Manages demo identities", Certificate:"Secures the public endpoint", DnsRecord:"Publishes DNS records", Role:"Grants service access", LogGroup:"Stores diagnostic logs"})[type.split(":").at(-1)] || "Managed deployment resource";
   const state = { selected:null, expanded:new Set(), detailOpen:true, progressOpen:true, deploymentView:"application", inventory:null, plan:[], nodes:[], roots:[], reportRun:null };
-  const workspace = $("preview-workspace"), wizard = $("wizard"), slot = $("preview-interaction-slot"), panel = $("panel"), originalParent = panel.parentNode, originalNext = panel.nextSibling;
+  const workspace = $("preview-workspace"), wizard = $("wizard"), slot = $("preview-interaction-slot"), panel = $("panel"), signIn = $("sign-in"), originalParent = panel.parentNode, originalNext = signIn.nextSibling;
   function showWorkspace(view) {
-    const show = Boolean(view.reviewed || (view.action === "report" && view.inventory && ["complete", "failed"].includes(view.status)));
-    if (show && panel.parentNode !== slot) slot.prepend(panel);
+    const show = !view.closed;
+    if (show && panel.parentNode !== slot) slot.prepend(panel, signIn);
     if (!show && panel.parentNode !== originalParent) originalParent.insertBefore(panel, originalNext);
+    if (!show && signIn.parentNode !== originalParent) originalParent.insertBefore(signIn, originalNext);
     wizard.hidden = show; workspace.hidden = !show;
     $("brand-title").textContent = view.title || "Deployment wizard";
-    $("brand-operation").textContent = ({deploy:"Deploy",preview:"Preview",report:"Artifact report",setup:"Setup",status:"Status"})[view.action] || "";
+    $("brand-operation").textContent = view.phase === "preview" ? "Preview" : view.phase === "apply" ? "Apply" :
+      ({deploy:"Deploy",preview:"Preview",report:"Artifact report",setup:"Setup",status:"Status"})[view.action] || "Choose action";
+    document.title = (view.title || "Deployment wizard") + " · " + $("brand-operation").textContent;
     return show;
   }
   function buildInventory(view) {
@@ -42,7 +45,7 @@
   function details() {
     const box = $("detail-content"); box.replaceChildren();
     const a = state.selected;
-    if (!a) { box.append(el("p", "No artifacts in this report.", "muted")); return; }
+    if (!a) { box.append(el("p", "Artifact details appear when a deployment stack is connected.", "muted")); return; }
     box.append(el("div", a.name || a.key, "detail-name"), el("div", a.type || "Resource", "kind"), el("p", purposeFor(a.type || ""), "artifact-description"));
     const tags = el("div", "", "detail-actions"); tags.append(badge(a.action), el("span", a.feature || state.inventory?.repository?.split("/").at(-1) || "Project", "depth-label")); box.append(tags);
     const dl = el("dl", "", "data-grid");
@@ -61,7 +64,7 @@
     const q=$("search").value.trim().toLowerCase(), filter=$("filter").value;
     const matching=state.nodes.filter(a=>matches(a,q,filter)); $("count").textContent=matching.length+" of "+state.nodes.length;
     const included=new Set(); for(const a of matching) for(let p=a;p;p=p.parentNode) {included.add(p);if(q||filter!=="all") state.expanded.add(p.key);}
-    const box=$("list");box.replaceChildren(); if(!matching.length) {box.append(el("p","No artifacts match.","muted"));return;}
+    const box=$("list");box.replaceChildren(); if(!matching.length) {box.append(el("p",state.nodes.length ? "No artifacts match." : "Connect to a deployment stack to see its artifacts.","muted"));return;}
     const list=el("ul","","artifact-tree");
     function appendNode(parent,a) {
       const item=el("li","","tree-node"), row=el("div","","tree-row"), children=a.children.filter(c=>included.has(c));
@@ -79,14 +82,26 @@
     const i=state.inventory || {};
     $("deployment-context").textContent=i.stack || "";
     const app=$("application-view");app.replaceChildren();
-    const table=el("table","","feature-table"),head=el("thead"),row=el("tr");for(const label of ["Application / Feature","Repository"])row.append(el("th",label));head.append(row);table.append(head);
-    const body=el("tbody"),tr=el("tr");tr.append(el("td",i.project || view.title),el("td",i.repository || "Unknown"));body.append(tr);
-    for(const feature of [...new Set(state.nodes.map(a=>a.feature).filter(Boolean))]){const row=el("tr");row.append(el("td",feature),el("td",i.repository || ""));body.append(row);}table.append(body);app.append(table);
+    if (!view.inventory) {
+      app.append(el("p", "Application details appear after the target is configured.", "muted"));
+    } else {
+      const table=el("table","","feature-table"),head=el("thead"),row=el("tr");
+      for(const label of ["Application / Feature","Repository"]) row.append(el("th",label));
+      head.append(row);table.append(head);
+      const body=el("tbody"),tr=el("tr");
+      tr.append(el("td",i.project || view.title),el("td",i.repository || "Unknown"));body.append(tr);
+      for(const feature of [...new Set(state.nodes.map(a=>a.feature).filter(Boolean))]) {
+        const row=el("tr");row.append(el("td",feature),el("td",i.repository || ""));body.append(row);
+      }
+      table.append(body);app.append(table);
+    }
     const panel=$("deployment-details-view");panel.replaceChildren();const dl=el("dl");for(const [label,value] of [["Environment",i.environment],["Account",i.account],["Region",i.region],["Backend",i.backend],["Project",i.project],["Stack",i.stack],["Revision",i.revision]])if(value){dl.append(el("dt",label),el("dd",value));}panel.append(dl);
     $("artifact-total").textContent=String(i.artifacts?.length || 0);
-    $("change-total").textContent=String(view.total || 0);
+    $("change-total").textContent=view.reviewed ? String(view.total || 0) : "—";
     $("unknown-total").textContent=String((i.artifacts || []).filter(a=>a.presence==="unknown").length);
-    $("plan-state").textContent=view.reviewed ? "Plan ready" : "Artifact report";
+    $("plan-state").textContent=view.reviewed ? "Plan ready" : view.action === "report" ? "Artifact report" : "Building plan";
+    $("changes").dataset.state = view.reviewed ? "ready" : "pending";
+    $("preview-summary").hidden = !["preview", "deploy", "report"].includes(view.action);
     $("console-status").textContent=view.status === "complete" ? "Complete" : view.status === "failed" ? "Failed" : "In progress";
     const output=$("console-output"),atBottom=output.scrollHeight-output.scrollTop-output.clientHeight<35;
     const lines=view.activity || [];output.replaceChildren(...lines.map(line=>el("div",line,"log-line")));$("line-count").textContent=String(lines.length);if(atBottom)output.scrollTop=output.scrollHeight;

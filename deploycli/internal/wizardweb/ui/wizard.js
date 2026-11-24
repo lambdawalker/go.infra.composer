@@ -738,7 +738,7 @@ async function refresh() {
     footer.hidden = true;
     get("status").textContent = "Session unavailable";
     get("panel-title").textContent = "Open the URL from your terminal";
-    window.updatePreviewWorkspace?.({title: "Deployment wizard", reviewed: false});
+    window.updatePreviewWorkspace?.({title: "Deployment wizard", closed: true});
     return;
   }
   if (response.status === 204) return;
@@ -780,7 +780,7 @@ stopControl.addEventListener("click", async () => {
       footer.hidden = true;
       showConnection("");
       get("interaction").replaceChildren(node("p", "Local session closed. You can close this tab."));
-      window.updatePreviewWorkspace?.({title: current.title, reviewed: false});
+      window.updatePreviewWorkspace?.({title: current.title, closed: true});
     } else {
       await refresh();
     }

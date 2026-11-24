@@ -96,9 +96,13 @@ When an AWS SSO session needs renewal, the AWS CLI opens the sign-in page on
 a local desktop. You can also use **Open AWS sign-in** in the web wizard,
 including when it runs over SSH. Complete the sign-in in your browser to continue.
 
-The page follows the deployment stages. The plan groups artifacts by service
-and shows each artifact's type, name, purpose where known, and operation.
-Expand an artifact name to see its full Pulumi URN.
+The web wizard uses the same resizable workspace for action selection, settings,
+connection, preparation, preview, apply, and completion. The left pane tracks
+progress and deployment context; the editor has Overview and Process output
+tabs; the right pane shows artifact details and a searchable hierarchy. Artifact
+inventory appears after the stack is connected. During Preview, recorded state
+remains visible while Pulumi prepares the plan, then proposed operations appear
+in the editor. Recorded presence comes from Pulumi state, not a live AWS check.
 
 The fixed bottom bar keeps the current actions and countdown in view.
 Browser prompts with a routine default wait 15 seconds. A deployment settings

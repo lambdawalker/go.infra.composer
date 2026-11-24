@@ -271,3 +271,62 @@ body:has(.preview-workspace:not([hidden])) .preview-workspace { height:calc(100d
   --text:#24272d;--muted:#68727f;--blue:#1e65c6;--focus:#2c70d5;
   --mint:#238057;--amber:#976718;--rose:#b5414b;--tree-line:#a5afbc;
 } }
+
+/* The whole wizard shares the same IntelliJ-style workspace and editor palette. */
+.preview-workspace {
+  --ink:var(--text); --hint:var(--muted); --page:var(--editor);
+  --accent:var(--blue); --wash:var(--selected);
+  --green:var(--mint); --red:var(--rose);
+  --neutral:var(--muted); --neutral-wash:var(--elevated);
+  --control-line:var(--line); --outline-line:var(--line);
+  --outline-hover:var(--elevated); --activity-line:var(--line);
+  --red-wash:color-mix(in srgb,var(--rose) 14%,var(--surface));
+  --green-wash:color-mix(in srgb,var(--mint) 14%,var(--surface));
+}
+.preview-workspace #preview-summary { display:flex; flex-direction:column; gap:14px; }
+.preview-workspace #changes[data-state="pending"]:empty:after { content:'The Pulumi plan is being prepared. Current artifacts remain available on the right.'; }
+.preview-workspace #preview-interaction-slot #sign-in { margin-top:7px; }
+.preview-workspace #preview-interaction-slot #sign-in .section-heading { padding:10px 12px; }
+.preview-workspace #preview-interaction-slot #sign-in pre { margin:0 12px 12px; }
+.preview-workspace #application-view > .muted { padding:10px 3px; font-size:11px; }
+body:has(.preview-workspace:not([hidden])) .topbar,
+body:has(#vault-lock:not([hidden])) .topbar { background:#25272b; border-bottom:1px solid #36383c; color:#dfe1e5; }
+body:has(.preview-workspace:not([hidden])) .action-bar { background:#25272b; border-color:#36383c; }
+body:has(.preview-workspace:not([hidden])) .action-bar .button { min-height:29px; padding:4px 10px; border-radius:5px; font-size:11px; }
+body:has(.preview-workspace:not([hidden])) .action-bar .button.outline { background:#2b2d30; color:#dfe1e5; border-color:#575d66; }
+body:has(.preview-workspace:not([hidden])) .action-bar .button.primary { background:#79aaff; color:#191a1c; }
+body:has(#vault-lock:not([hidden])) { background:#25272b; color:#dfe1e5; }
+body:has(#vault-lock:not([hidden])) .lock-panel { background:#191a1c; border-color:#36383c; border-radius:8px; box-shadow:none; }
+body:has(#vault-lock:not([hidden])) .lock-panel input { background:#2b2d30; color:#dfe1e5; border-color:#575d66; }
+body:has(#vault-lock:not([hidden])) .lock-panel .button { background:#79aaff; color:#191a1c; }
+
+:root[data-theme="light"] body:has(.preview-workspace:not([hidden])) .topbar,
+:root[data-theme="light"] body:has(#vault-lock:not([hidden])) .topbar { background:#e7e9ed; color:#24272d; border-color:#cfd4dc; }
+:root[data-theme="light"] body:has(.preview-workspace:not([hidden])) .action-bar { background:#e7e9ed; border-color:#cfd4dc; }
+:root[data-theme="light"] body:has(.preview-workspace:not([hidden])) .action-bar .button.outline { background:#e9edf2; color:#24272d; border-color:#a5afbc; }
+:root[data-theme="light"] body:has(.preview-workspace:not([hidden])) .action-bar .button.primary { background:#1e65c6; color:#fff; }
+body:has(.preview-workspace:not([hidden])) .brand-mark,
+body:has(#vault-lock:not([hidden])) .brand-mark { width:24px; height:24px; display:grid; place-items:center; background:#2b2d30; border:1px solid #36383c; box-shadow:none; color:#79aaff; }
+body:has(.preview-workspace:not([hidden])) .brand-mark svg,
+body:has(#vault-lock:not([hidden])) .brand-mark svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+body:has(.preview-workspace:not([hidden])) .theme-control select,
+body:has(#vault-lock:not([hidden])) .theme-control select { min-height:27px; background:#2b2d30; color:#dfe1e5; border-color:#575d66; border-radius:5px; }
+:root[data-theme="light"] body:has(.preview-workspace:not([hidden])) .brand-mark,
+:root[data-theme="light"] body:has(#vault-lock:not([hidden])) .brand-mark { background:#e9edf2; color:#1e65c6; border-color:#cfd4dc; }
+:root[data-theme="light"] body:has(.preview-workspace:not([hidden])) .theme-control select,
+:root[data-theme="light"] body:has(#vault-lock:not([hidden])) .theme-control select { background:#e9edf2; color:#24272d; border-color:#cfd4dc; }
+.preview-workspace #panel .status { border-radius:4px; padding:2px 6px; font-size:10px; }
+.preview-workspace #panel .wide-form { gap:12px; }
+.preview-workspace #panel .settings-group { padding:10px 12px 12px; border-radius:5px; gap:10px 12px; }
+.preview-workspace #panel .settings-group legend { font-size:12px; }
+.preview-workspace #panel .settings-field { gap:3px; }
+.preview-workspace #panel .settings-field label { font-size:12px; }
+.preview-workspace #panel .field-help,
+.preview-workspace #panel .field-error { font-size:11px; }
+.preview-workspace #panel input,
+.preview-workspace #panel select { min-height:34px; border-radius:5px; padding:6px 9px; font-size:12px; }
+.preview-workspace #panel .action-grid { gap:7px; }
+.preview-workspace #panel .action-card { min-height:83px; padding:10px; border-radius:5px; gap:4px 8px; }
+.preview-workspace #panel .action-title { font-size:12px; }
+.preview-workspace #panel .action-description { font-size:11px; }
+.preview-workspace #panel .action-card input { width:15px; height:15px; min-height:0; }
