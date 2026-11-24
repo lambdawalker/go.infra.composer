@@ -148,6 +148,7 @@ function renderSettings(container, prompt) {
   form.noValidate = true;
   const groups = new Map();
   const previews = new Map();
+  const feedback = new Map();
   prompt.fields.forEach((field, index) => {
     if (!groups.has(field.group)) {
       const group = node("fieldset", "", "settings-group");
@@ -207,14 +208,20 @@ function renderSettings(container, prompt) {
         });
       }
     }
-    if (field.error) {
-      const error = node("div", field.error, "field-error");
-      error.id = id + "-error";
-      descriptions.push(error.id);
-      control.setAttribute("aria-invalid", "true");
-      row.append(error);
-    }
-    if (descriptions.length) control.setAttribute("aria-describedby", descriptions.join(" "));
+    const error = node("div", "", "field-error");
+    error.id = id + "-error";
+    error.setAttribute("aria-live", "polite");
+    descriptions.push(error.id);
+    row.append(error);
+    const showError = (message) => {
+      error.textContent = message;
+      error.hidden = !message;
+      if (message) control.setAttribute("aria-invalid", "true");
+      else control.removeAttribute("aria-invalid");
+    };
+    showError(field.error || "");
+    feedback.set(field.name, showError);
+    control.setAttribute("aria-describedby", descriptions.join(" "));
     if (field.action) {
       const action = button(field.action.label, "outline small");
       action.addEventListener("click", () => {
@@ -236,7 +243,9 @@ function renderSettings(container, prompt) {
     answer(prompt, Object.fromEntries(new FormData(form)));
   });
   container.append(form);
-  if (previews.size) {
+  if (prompt.previewFields) {
+    const touched = new Set();
+    const submittedErrors = new Set(prompt.fields.filter(field => field.error).map(field => field.name));
     const previewFields = new Set(prompt.previewFields || []);
     let timer;
     let request;
@@ -251,18 +260,23 @@ function renderSettings(container, prompt) {
         if (!response.ok) return;
         const resolved = await response.json();
         if (signal.aborted || !form.isConnected) return;
-        previews.forEach((render, name) => render(resolved[name] || ""));
+        previews.forEach((render, name) => render(resolved.values?.[name] || ""));
+        for (const name of touched) feedback.get(name)?.(resolved.errors?.[name] || "");
       } catch {
         // Continue still validates the complete form if preview is unavailable.
       }
     }
-    form.addEventListener("input", (event) => {
-      if (!previewFields.has(event.target.name)) return;
+    const validateField = (event) => {
+      const name = event.target.name;
+      if (!previewFields.has(name)) return;
+      if (event.type === "focusout" && submittedErrors.has(name) && !touched.has(name)) return;
+      touched.add(name);
       request?.abort();
       clearTimeout(timer);
-      previews.forEach(render => render(""));
       timer = setTimeout(updatePreviews, 160);
-    });
+    };
+    form.addEventListener("input", validateField);
+    form.addEventListener("focusout", validateField);
     updatePreviews();
   }
   if (hasErrors) form.querySelector('[aria-invalid="true"]')?.focus();
@@ -377,7 +391,7 @@ function render(view) {
       (step.dataset.phase === "apply" && view.action && view.action !== "deploy")
     );
     step.classList.toggle("active", selected && view.status !== "complete");
-    step.classList.toggle("passed", visited && (!selected || view.status === "complete"));
+    step.classList.toggle("passed", visited && (index < active || view.status === "complete"));
     if (selected && view.status === "running") step.setAttribute("aria-current", "step");
     else step.removeAttribute("aria-current");
   });

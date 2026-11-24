@@ -31,15 +31,20 @@ type Field struct {
 }
 
 type Prompt struct {
-	ID            uint64                                    `json:"id"`
-	Kind          string                                    `json:"kind"`
-	Label         string                                    `json:"label"`
-	Default       string                                    `json:"default,omitempty"`
-	Message       string                                    `json:"message,omitempty"`
-	Options       []Option                                  `json:"options,omitempty"`
-	Fields        []Field                                   `json:"fields,omitempty"`
-	PreviewFields []string                                  `json:"previewFields,omitempty"`
-	Preview       func(map[string]string) map[string]string `json:"-"`
+	ID            uint64                              `json:"id"`
+	Kind          string                              `json:"kind"`
+	Label         string                              `json:"label"`
+	Default       string                              `json:"default,omitempty"`
+	Message       string                              `json:"message,omitempty"`
+	Options       []Option                            `json:"options,omitempty"`
+	Fields        []Field                             `json:"fields,omitempty"`
+	PreviewFields []string                            `json:"previewFields,omitempty"`
+	Preview       func(map[string]string) FormPreview `json:"-"`
+}
+
+type FormPreview struct {
+	Values map[string]string `json:"values,omitempty"`
+	Errors map[string]string `json:"errors,omitempty"`
 }
 
 type Change struct {
@@ -155,18 +160,18 @@ func (s *Session) answer(id uint64, answer reply) bool {
 }
 
 // preview evaluates an immutable draft without advancing the current prompt.
-func (s *Session) preview(id uint64, values map[string]string) (map[string]string, bool) {
+func (s *Session) preview(id uint64, values map[string]string) (FormPreview, bool) {
 	s.mu.Lock()
 	prompt := s.view.Prompt
 	if prompt == nil || prompt.ID != id || prompt.Kind != "form" ||
 		prompt.Preview == nil || s.view.Status != "running" || len(values) != len(prompt.PreviewFields) {
 		s.mu.Unlock()
-		return nil, false
+		return FormPreview{}, false
 	}
 	for _, field := range prompt.PreviewFields {
 		if _, ok := values[field]; !ok {
 			s.mu.Unlock()
-			return nil, false
+			return FormPreview{}, false
 		}
 	}
 	compute := prompt.Preview

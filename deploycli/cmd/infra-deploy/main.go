@@ -604,11 +604,13 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 	var reconcile bool
 	offeredGitHub := !*ci && (*action == "github-setup" || (cli.spec.GitHub.Prompt && !*skipGitHub && (*action == "setup" || *action == "deploy")))
 	var profiles []wizardweb.Option
+	var profileListError error
+	var who awsIdentity
 	profileDefault := ""
 	if !*ci {
-		profiles, e = listAWSProfiles(ctx)
-		if e != nil {
-			return e
+		profiles, profileListError = listAWSProfiles(ctx)
+		if profileListError != nil && ui.browser == nil {
+			return profileListError
 		}
 		profileDefault = defaultAWSProfile(profiles)
 		if profileDefault == "" && ui.browser == nil {
@@ -659,18 +661,23 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 			form.github = &options
 			form.configureGitHub = previous.Repository != "" || *reconfigure
 		}
-		if e = form.collect(ctx); e != nil {
+		var initialIssues map[string]string
+		if profileListError != nil {
+			initialIssues = map[string]string{"profile": profileListError.Error()}
+		}
+		if e = form.collect(ctx, initialIssues, func(target Settings) (string, error) {
+			var field string
+			var err error
+			who, field, err = checkConnection(ctx, root, target, false, *workers, target.Backend != "new")
+			return field, err
+		}); e != nil {
 			return e
 		}
 		*profile, *region, *account, *backend = form.target.Profile, form.target.Region, form.target.Account, form.target.Backend
 		*memory, reconcile = form.memory, form.configureGitHub
-		if needsInputs {
-			if e = ctx.Err(); e != nil {
-				return e
-			}
-			if e = inputs.save(cli.spec.InputsFile, private); e != nil {
-				return e
-			}
+		inputs = form.inputs
+		if form.github != nil {
+			options = *form.github
 		}
 	} else {
 		choose := func(v *string, prior, label, def string) error {
@@ -800,71 +807,18 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 	if e = verifySavedTarget(saved, *account, *region, *backend); e != nil {
 		return e
 	}
-	ui.phase("connect", "Verify cloud access")
-	if !*ci {
-		if e = verifySSOProfile(ctx, *profile); e != nil {
+	if ui.browser == nil {
+		who, _, e = checkConnection(ctx, root, Settings{Profile: *profile, Region: *region, Account: *account}, *ci, *workers, false)
+		if e != nil {
 			return e
 		}
-		restoreProfile, err := setRunEnv("AWS_PROFILE", *profile)
-		if err != nil {
-			return err
-		}
-		defer restoreProfile()
 	}
-	for _, key := range []string{"AWS_REGION", "AWS_DEFAULT_REGION"} {
-		restore, err := setRunEnv(key, *region)
-		if err != nil {
-			return err
-		}
-		defer restore()
-	}
-	for _, tool := range []string{"aws", "pulumi", "go"} {
-		if _, e = exec.LookPath(tool); e != nil {
-			return fmt.Errorf("install %s and add it to PATH", tool)
-		}
-	}
-	if e = prerequisites(ctx, *workers, []func() error{
-		func() error {
-			b, e := output(ctx, "aws", "--version")
-			if e != nil || !strings.Contains(string(b), "aws-cli/2.") {
-				return errors.New("AWS CLI v2 required")
-			}
-			return nil
-		},
-		func() error {
-			b, e := output(ctx, "pulumi", "version")
-			if e != nil || !strings.HasPrefix(strings.TrimSpace(string(b)), "v3.") {
-				return errors.New("Pulumi CLI v3 required")
-			}
-			return nil
-		},
-	}); e != nil {
-		return e
-	}
-	identity, e := authenticatedIdentity(*ci, *profile, func() ([]byte, error) { return output(ctx, "aws", "sts", "get-caller-identity", "--output", "json") }, func() error {
-		args := []string{"aws", "sso", "login", "--profile", *profile}
-		if ui.browser != nil {
-			args = append(args, "--use-device-code", "--no-browser")
-		}
-		return ui.login(root, "AWS", args...)
-	})
-
+	ui.phase("connect", "Verify cloud access")
+	restoreConnection, e := connectionEnv(*profile, *region, *ci)
 	if e != nil {
 		return e
 	}
-	var who struct{ Account, Arn string }
-	if json.Unmarshal(identity, &who) != nil || !regexp.MustCompile(`^\d{12}$`).MatchString(who.Account) {
-		return errors.New("invalid AWS identity")
-	}
-	if *account != "" && *account != who.Account {
-		return errors.New("AWS account differs from the selected target; choose a matching SSO profile or separate deployment scope")
-	}
-	if *ci && !strings.Contains(who.Arn, ":assumed-role/") {
-		return errors.New("CI requires an assumed role")
-	}
-	if !*ci && !strings.Contains(who.Arn, ":assumed-role/AWSReservedSSO_") {
-		return errors.New("interactive deployments require an IAM Identity Center SSO profile")
-	}
+	defer restoreConnection()
 	*account = who.Account
 	ui.heading("AWS account")
 	ui.detail("Account", *account)
@@ -893,49 +847,12 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 	ui.heading("Deployment state")
 	ui.detail("S3 location", *backend)
 
-	// Verify the existing state bucket before using it. Bootstrap is deliberately separate.
-	bucket := strings.Split(strings.TrimPrefix(*backend, "s3://"), "/")[0]
-	if e = command(ctx, root, "aws", "s3api", "head-bucket", "--bucket", bucket, "--expected-bucket-owner", *account); e != nil {
-		return e
-	}
-	for _, check := range []struct{ cmd, field, want string }{{"get-bucket-versioning", "Status", "Enabled"}, {"get-bucket-encryption", "ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.SSEAlgorithm", ""}, {"get-public-access-block", "PublicAccessBlockConfiguration", ""}, {"get-bucket-location", "LocationConstraint", ""}} {
-		b, e := output(ctx, "aws", "s3api", check.cmd, "--bucket", bucket, "--expected-bucket-owner", *account, "--query", check.field, "--output", "json")
-		if e != nil {
+	if ui.browser == nil || newBucket {
+		if e = verifyStateBucket(ctx, root, *backend, *account, *region); e != nil {
 			return e
 		}
-		if check.cmd == "get-bucket-versioning" && strings.TrimSpace(string(b)) != `"Enabled"` {
-			return errors.New("state bucket must have versioning enabled")
-		}
-		if check.cmd == "get-bucket-encryption" && !strings.Contains(string(b), "AES256") && !strings.Contains(string(b), "aws:kms") {
-			return errors.New("state bucket encryption unavailable")
-		}
-		if check.cmd == "get-public-access-block" {
-			var fields map[string]bool
-			if json.Unmarshal(b, &fields) != nil || !fields["BlockPublicAcls"] || !fields["BlockPublicPolicy"] || !fields["IgnorePublicAcls"] || !fields["RestrictPublicBuckets"] {
-				return errors.New("state bucket must block all public access")
-			}
-		}
-		if check.cmd == "get-bucket-location" {
-			loc := strings.Trim(strings.TrimSpace(string(b)), `"`)
-			if loc == "null" {
-				loc = "us-east-1"
-			}
-			if loc != *region {
-				return errors.New("state bucket region differs from selected region")
-			}
-		}
 	}
-	policyBytes, e := output(ctx, "aws", "s3api", "get-bucket-policy", "--bucket", bucket, "--expected-bucket-owner", *account, "--output", "json")
-	if e != nil {
-		return e
-	}
-	if e = requireStateTLS(policyBytes, bucket); e != nil {
-		return e
-	}
-	statePrefix := strings.SplitN(strings.TrimPrefix(*backend, "s3://"), "/", 2)[1]
-	if _, e = output(ctx, "aws", "s3api", "list-objects-v2", "--bucket", bucket, "--prefix", statePrefix+"/", "--max-keys", "1", "--expected-bucket-owner", *account, "--output", "json"); e != nil {
-		return fmt.Errorf("state prefix is inaccessible: %w", e)
-	}
+	bucket, _, _ := strings.Cut(strings.TrimPrefix(*backend, "s3://"), "/")
 	// Recover a legacy bootstrap receipt only when it matches the verified target.
 	if _, err := os.Stat(filepath.Join(private, "state-bucket.json")); os.IsNotExist(err) && projectName == cli.spec.PulumiProject && (*action == "setup" || *action == "preview" || *action == "deploy") {
 		if prior, err := os.ReadFile(filepath.Join(legacy, "state-bucket.json")); err == nil {
@@ -981,7 +898,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string) (runErr error
 			}
 		}
 	}
-	if needsInputs && ui.browser == nil {
+	if needsInputs {
 		if e = inputs.save(cli.spec.InputsFile, private); e != nil {
 			return e
 		}

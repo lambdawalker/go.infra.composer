@@ -20,26 +20,28 @@ func TestDeploymentFormValidatesBeforeUpdatingDefaults(t *testing.T) {
 		"profile": "default", "region": "us-west-2", "account": "auto", "backend": "s3://example/test",
 		"feature.Sender": "mail@example.test", "feature.Recipient": "invalid", "feature.Domain": "example.test",
 	}
-	if issues := f.apply(values); len(issues) != 1 || issues["feature.Recipient"] == "" {
-		t.Fatalf("wrong validation errors: %v", issues)
+	preview := f.preview(values)
+	if len(preview.Errors) != 1 || preview.Errors["feature.Recipient"] == "" {
+		t.Fatalf("wrong live validation errors: %v", preview.Errors)
 	}
 	if f.target.Region != "us-east-2" || inputs[0].value != "" {
 		t.Fatal("invalid submission changed the run settings")
 	}
 
 	values["feature.Recipient"] = "  recipient@example.test  "
-	if issues := f.apply(values); len(issues) != 0 {
+	accepted, issues := f.validate(values)
+	if len(issues) != 0 {
 		t.Fatalf("valid values rejected: %v", issues)
 	}
 	dir := t.TempDir()
-	if err := inputs.save(spec.InputsFile, dir); err != nil {
+	if err := accepted.inputs.save(spec.InputsFile, dir); err != nil {
 		t.Fatal(err)
 	}
-	saved, err := inputs.defaults(spec.InputsFile, dir)
+	saved, err := accepted.inputs.defaults(spec.InputsFile, dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if f.target.Region != "us-west-2" || f.target.Account != "" || saved["Recipient"] != "recipient@example.test" {
+	if accepted.target.Region != "us-west-2" || accepted.target.Account != "" || saved["Recipient"] != "recipient@example.test" {
 		t.Fatalf("accepted settings did not become defaults: %+v, %v", f.target, saved)
 	}
 }
@@ -52,7 +54,7 @@ func TestDeploymentFormKeepsVerifiedTargetReadOnly(t *testing.T) {
 			t.Fatalf("%s should be read-only", name)
 		}
 	}
-	if issues := f.apply(map[string]string{"profile": "default"}); len(issues) != 0 || f.target != saved {
+	if accepted, issues := f.validate(map[string]string{"profile": "default"}); len(issues) != 0 || accepted.target != saved {
 		t.Fatalf("bound target changed: %+v, %v", f.target, issues)
 	}
 }

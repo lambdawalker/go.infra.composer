@@ -27,57 +27,72 @@ type deploymentForm struct {
 	defaults        map[string]string
 }
 
-func (f *deploymentForm) collect(ctx context.Context) error {
+func (f *deploymentForm) collect(ctx context.Context, issues map[string]string, check func(Settings) (string, error)) error {
 	fields := f.fields()
-	prompt := wizardweb.Prompt{Label: "Deployment settings"}
-	if slices.ContainsFunc(fields, func(field wizardweb.Field) bool { return field.Composed }) {
-		inputs := slices.Clone(f.inputs)
-		environment := f.target.Environment
-		for _, field := range fields {
-			if !field.ReadOnly && strings.HasPrefix(field.Name, "feature.") {
+	ui := wizard(ctx)
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		fields = slices.Clone(fields)
+		prompt := wizardweb.Prompt{Label: "Deployment settings", Message: issues[""], Fields: fields}
+		for i := range fields {
+			field := &fields[i]
+			field.Error = issues[field.Name]
+			if !field.ReadOnly {
 				prompt.PreviewFields = append(prompt.PreviewFields, field.Name)
 			}
 		}
-		prompt.Preview = func(values map[string]string) map[string]string {
-			draft, _ := resolveFeatureDraft(inputs, environment, values)
-			previews := make(map[string]string)
-			for _, field := range draft {
-				if field.spec.Compose != nil && field.value != "" {
-					previews["feature."+field.spec.Name] = field.display(field.value)
-				}
-			}
-			return previews
-		}
-	}
-	message := ""
-	for {
-		prompt.Message, prompt.Fields = message, fields
-		replies, action, err := wizard(ctx).browser.AskForm(ctx, prompt)
+		snapshot := *f
+		prompt.Preview = snapshot.preview
+		ui.phase("settings", "Review deployment settings")
+		replies, action, err := ui.browser.AskForm(ctx, prompt)
 		if err != nil {
 			return err
 		}
-		var issues map[string]string
+		issues = nil
 		if action == "" {
-			issues = f.apply(replies)
+			var draft deploymentForm
+			draft, issues = f.validate(replies)
 			if len(issues) == 0 {
-				return nil
+				field, err := check(draft.target)
+				if err == nil {
+					*f = draft
+					return nil
+				}
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				if field == "account" && f.saved.Account != "" {
+					field = "profile"
+				}
+				issues[field] = err.Error()
 			}
 		} else if err := f.refreshProfiles(ctx, action, replies); err != nil {
 			issues = map[string]string{"profile": err.Error()}
 		}
-		message = issues[""]
 		fields = slices.Clone(fields)
 		for i := range fields {
 			field := &fields[i]
 			if value, ok := replies[field.Name]; ok {
 				field.Value = value
 			}
-			field.Error = issues[field.Name]
 			if field.Name == "profile" {
 				field.Options = f.profiles
 			}
 		}
 	}
+}
+
+func (f deploymentForm) preview(values map[string]string) wizardweb.FormPreview {
+	draft, issues := f.validate(values)
+	previews := make(map[string]string)
+	for _, field := range draft.inputs {
+		if field.spec.Compose != nil && field.value != "" {
+			previews["feature."+field.spec.Name] = field.display(field.value)
+		}
+	}
+	return wizardweb.FormPreview{Values: previews, Errors: issues}
 }
 
 func (f deploymentForm) fields() []wizardweb.Field {
@@ -136,7 +151,8 @@ func (f deploymentForm) fields() []wizardweb.Field {
 	return fields
 }
 
-func (f *deploymentForm) apply(values map[string]string) map[string]string {
+func (f deploymentForm) validate(values map[string]string) (deploymentForm, map[string]string) {
+	values = maps.Clone(values)
 	for name, value := range values {
 		values[name] = strings.TrimSpace(value)
 	}
@@ -179,14 +195,12 @@ func (f *deploymentForm) apply(values map[string]string) map[string]string {
 		github = *f.github
 		github.readForm(values, issues)
 	}
-	if len(issues) == 0 {
-		f.target, f.memory, f.configureGitHub = target, memory, reconcile
-		copy(f.inputs, draft)
-		if reconcile {
-			*f.github = github
-		}
+	f.target, f.memory, f.configureGitHub = target, memory, reconcile
+	f.inputs = draft
+	if reconcile {
+		f.github = &github
 	}
-	return issues
+	return f, issues
 }
 
 func resolveFeatureDraft(inputs featureInputs, environment string, values map[string]string) (featureInputs, map[string]string) {

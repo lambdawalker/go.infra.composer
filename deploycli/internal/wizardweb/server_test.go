@@ -138,8 +138,8 @@ func TestFormPreviewDoesNotAnswerPrompt(t *testing.T) {
 	session.view.Prompt = &Prompt{
 		ID: 9, Kind: "form", PreviewFields: []string{"domain"},
 		Fields: []Field{{Name: "domain"}, {Name: "profile"}},
-		Preview: func(values map[string]string) map[string]string {
-			return map[string]string{"sender": "verify@" + values["domain"]}
+		Preview: func(values map[string]string) FormPreview {
+			return FormPreview{Values: map[string]string{"sender": "verify@" + values["domain"]}, Errors: map[string]string{"domain": "example issue"}}
 		},
 	}
 	session.response = make(chan reply, 1)
@@ -158,7 +158,7 @@ func TestFormPreviewDoesNotAnswerPrompt(t *testing.T) {
 		t.Fatalf("preview with an unrecognized field: %d", got)
 	}
 	rec := post("known-token", valid)
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "verify@draft.example") {
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "verify@draft.example") || !strings.Contains(rec.Body.String(), "example issue") {
 		t.Fatalf("preview: %d %s", rec.Code, rec.Body.String())
 	}
 	if session.snapshot().Prompt.ID != 9 || len(session.response) > 0 {
