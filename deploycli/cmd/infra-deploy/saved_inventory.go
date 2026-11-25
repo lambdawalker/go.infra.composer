@@ -59,6 +59,9 @@ func (cli deployCLI) savedInventory(root, requestedProject, requestedEnv string)
 	if err != nil {
 		return report, "saved-target"
 	}
+	if len(cli.spec.ArtifactFeaturePrefixes) > 0 {
+		previous.Artifacts = cli.ownFeature(previous.Artifacts)
+	}
 	// A previous report describes a known inventory, not present cloud state or
 	// a plan for this run. Keep only safe identities and relationships.
 	for i := range previous.Artifacts {

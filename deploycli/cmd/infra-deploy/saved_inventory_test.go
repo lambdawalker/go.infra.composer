@@ -126,6 +126,8 @@ func TestStartupSettingsShowSavedTargetAndManifestInputs(t *testing.T) {
 
 func TestSavedInventoryShowsRecordedNamesWithoutClaimingLivePresence(t *testing.T) {
 	cli := fixture(t, "email")
+	cli.spec.Feature = "host-app"
+	cli.spec.ArtifactFeaturePrefixes = map[string]string{"verification.": "email-verification"}
 	home, root := t.TempDir(), t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
@@ -149,7 +151,7 @@ func TestSavedInventoryShowsRecordedNamesWithoutClaimingLivePresence(t *testing.
 		Scope: scope, Metadata: reporting.Metadata{Revision: "prior-commit"},
 		Artifacts: []reporting.Artifact{{
 			Key: "urn:example:lambda", Name: "demo-lambda", Type: "aws:lambda/function:Function",
-			PlannedAction: "delete", ProviderID: "sensitive-internal-id",
+			PlannedAction: "delete", ProviderID: "sensitive-internal-id", Feature: "email-verification",
 			Observation: reporting.Observation{Status: reporting.Present, ObservedAt: time.Now().UTC()},
 		}},
 	}
@@ -163,6 +165,9 @@ func TestSavedInventoryShowsRecordedNamesWithoutClaimingLivePresence(t *testing.
 		t.Fatalf("unexpected bootstrap inventory: source=%s report=%+v", source, got)
 	}
 	a := got.Artifacts[0]
+	if a.Feature != "host-app" {
+		t.Fatalf("saved artifact retained the old owner label: %+v", a)
+	}
 	if a.Name != "demo-lambda" || a.PlannedAction != "" || a.Observation.Status != reporting.Unknown || a.Observation.Reason != reporting.Unchecked {
 		t.Fatalf("stale cached evidence leaked into bootstrap view: %+v", a)
 	}

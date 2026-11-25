@@ -43,7 +43,7 @@ func destructivePlan(data []byte) (bool, error) {
 	return false, nil
 }
 
-func (w interaction) preview(data []byte) error {
+func (w interaction) preview(data []byte, spec manifest) error {
 	resources, err := readPlan(data)
 	if err != nil {
 		return err
@@ -57,7 +57,7 @@ func (w interaction) preview(data []byte) error {
 			}
 			total++
 			if len(changes) < 100 {
-				changes = append(changes, wizardweb.Change{Resource: resource, Operation: step})
+				changes = append(changes, wizardweb.Change{Resource: resource, Operation: step, Feature: spec.artifactFeature(resource, "")})
 			}
 		}
 	}

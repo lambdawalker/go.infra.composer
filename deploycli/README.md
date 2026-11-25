@@ -17,7 +17,7 @@ writing identity configuration.
 
 | Manifest fields | Responsibility |
 | --- | --- |
-| `Version`, `Repository`, `Feature`, `Title`, `Description` | Schema version, canonical GitHub owner/repo, report ownership, and console labels |
+| `Version`, `Repository`, `Feature`, `Title`, `Description` | Schema version, canonical GitHub owner/repo, default artifact feature, and console labels |
 | `DefaultProject` | Optional project name suggested on the first interactive run. Defaults to `PulumiProject`. |
 | `PulumiProject`, `PulumiDir`, `StackPrefix` | Existing Pulumi project name, relative program directory, and stack prefix |
 | `BucketPrefix` | Name prefix for newly authorized S3 state storage |
@@ -25,6 +25,7 @@ writing identity configuration.
 | `Memory`, `StackIdentity` | Optional Lambda memory setting and opt-in ownership verification for programs with a compatible `deploymentIdentity` output |
 | `InputsFile`, `Inputs`, `Functions`, `ConfigDefaults` | Optional versioned nonsecret settings, validated input flags, composition functions, and defaults written only for missing Pulumi keys |
 | `ArtifactDescriptions` | Optional map from exact Pulumi logical resource names to short, nonsecret purpose descriptions. The wizard and exported reports show them for resources already in state and resources proposed by preview. |
+| `ArtifactFeaturePrefixes` | Optional map from Pulumi logical resource name prefixes to artifact feature labels. The longest matching prefix wins. Unmatched resources and the bootstrap state bucket use `Feature`. |
 | `Outputs` | Allowlist of nonsecret string outputs for status and persisted output receipts |
 | `GitHub` | Workflow and environment prefix. A managed policy name enables reviewed role/policy setup. Without one, GitHub setup uses an existing protected environment, OIDC provider and explicitly supplied role. |
 | `DiscoveryStack` | Optional shared index program directory, Pulumi project and stack to remove after all saved environments. |
@@ -40,6 +41,11 @@ last `::` in a Pulumi URN, not generated AWS physical names. For example,
 describes the resource named `testhost.app-demo-domain` in state and preview.
 Keep descriptions short and free of credentials; the wizard also includes them
 in exported artifact reports.
+
+For a component's test host, set `Feature` to `host-app` and map the
+imported component's name prefix to its feature label. For example,
+`"ArtifactFeaturePrefixes": {"verification.": "email-verification"}`
+labels the verifier's storage and signing resources separately from the host.
 
 Pin a reviewed module version or commit in both launchers. For example,
 from a consumer checkout where `infra-deploy` is already installed:

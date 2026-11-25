@@ -111,7 +111,7 @@
     for (const change of state.plan) if (!change.node) { // Some Pulumi plan entries are not managed artifacts in the report.
       const resource = change.resource, name = resource.split("::").at(-1);
       const type = resource.split("::").at(-2)?.split("$").at(-1) || "Resource";
-      const a = {key:resource, name, type, id:nodes.length, parent:"", children:[], parentNode:null, owner:inventory.repository, feature:"", description:purposeFor(type), presence:"unknown", action:operation(change.operation), symbol:symbolFor(type)};
+      const a = {key:resource, name, type, id:nodes.length, parent:"", children:[], parentNode:null, owner:inventory.repository, feature:change.feature, description:purposeFor(type), presence:"unknown", action:operation(change.operation), symbol:symbolFor(type)};
       nodes.push(a); state.roots.push(a); resources.set(resource,a); change.node = a;
     }
     // Prefer the saved plan's operation when its event log was not available.
@@ -131,7 +131,7 @@
     box.append(identity, el("div", a.type || "Resource", "kind"), el("p", a.description || purposeFor(a.type || ""), "artifact-description"));
     const tags = el("div", "", "detail-actions"); tags.append(badge(a.action), el("span", a.feature || state.inventory?.repository?.split("/").at(-1) || "Project", "depth-label")); box.append(tags);
     const dl = el("dl", "", "data-grid");
-    for (const [label, value] of [["Presence", ({present:"Live check: present",recorded:"Recorded in Pulumi state",absent:"Live check: absent",unknown:"Not checked"})[a.presence] || "Not checked"], ["Pulumi identity",a.key], ["Owner",a.owner || state.inventory?.repository || "Unknown"]]) {
+    for (const [label, value] of [["Presence", ({present:"Live check: present",recorded:"Recorded in Pulumi state",absent:"Live check: absent",unknown:"Not checked"})[a.presence] || "Not checked"], ["Pulumi identity",a.key], ["Repository",a.owner || state.inventory?.repository || "Unknown"]]) {
       dl.append(el("dt",label),el("dd",value));
     }
     box.append(dl);

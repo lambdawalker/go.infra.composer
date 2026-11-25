@@ -54,6 +54,7 @@ type FormPreview struct {
 type Change struct {
 	Resource  string `json:"resource"`
 	Operation string `json:"operation"`
+	Feature   string `json:"feature,omitempty"`
 }
 
 // ArtifactView contains only the safe identity and relationship fields used by
@@ -476,6 +477,7 @@ func (s *Session) Preview(changes []Change, total int) {
 	for i := range changes {
 		changes[i].Resource = s.redact(changes[i].Resource)
 		changes[i].Operation = s.redact(changes[i].Operation)
+		changes[i].Feature = s.redact(changes[i].Feature)
 	}
 	s.view.Changes, s.view.Total, s.view.Reviewed = changes, total, true
 	s.view.Revision++
