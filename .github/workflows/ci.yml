@@ -60,6 +60,7 @@ jobs:
         with:
           go-version-file: deploycli/go.mod
           cache-dependency-path: deploycli/go.sum
+      - run: node --test internal/wizardweb/ui/aws-icons.test.js internal/wizardweb/ui/topology.test.js
       - run: go mod verify
       - run: go test -race ./...
       - run: go vet ./...
