@@ -50,6 +50,7 @@ let lastActivityReport = -Infinity;
 const footer = get("action-bar");
 const promptActions = get("prompt-actions");
 const stopControl = get("stop");
+get("teardown-close").addEventListener("click", () => stopControl.click());
 
 const actions = {
   setup: "Setup", build: "Build", preview: "Preview", deploy: "Deploy", status: "Status",
@@ -256,6 +257,10 @@ async function answer(prompt, value, action) {
   } finally {
     controls.forEach((control) => { control.disabled = false; });
     if (answeringPrompt === prompt.id) answeringPrompt = undefined;
+    if (current?.prompt?.id === prompt.id && prompt.teardown?.step === 3) {
+      const field = get("teardown-target");
+      get("wizard-continue").disabled = field.value !== prompt.teardown.type;
+    }
     updateActionTarget(current);
   }
 }
@@ -283,6 +288,57 @@ function renderSingleInput(container, prompt) {
   });
   container.append(form);
   field.focus();
+}
+
+function renderTeardown(container, prompt) {
+  const review = prompt.teardown;
+  const target = node("section", "", "teardown-target");
+  const icon = node("span", "◇", "teardown-target-icon");
+  icon.setAttribute("aria-hidden", "true");
+  target.append(icon, node("p", review.name, "teardown-target-name"));
+  const targets = node("ul", "", "teardown-target-list");
+  for (const name of review.targets) targets.append(node("li", name));
+  target.append(targets);
+  container.append(target);
+
+  if (review.step === 2) {
+    const warning = node("section", "", "teardown-effects");
+    warning.append(node("h3", "Review what will be removed"));
+    const effects = node("ul");
+    for (const effect of review.effects) effects.append(node("li", effect));
+    warning.append(effects);
+    container.append(warning);
+  }
+  if (review.step < 3) {
+    const label = review.step === 1 ? review.intent : "I understand what will be removed";
+    const next = button(label, "outline");
+    next.classList.add("teardown-next");
+    next.addEventListener("click", () => answer(prompt, "yes"));
+    promptActions.append(next);
+    return;
+  }
+
+  const form = node("form", "", "teardown-form");
+  const label = node("label", "Type ");
+  label.htmlFor = "teardown-target";
+  label.append(node("strong", review.type), document.createTextNode(" to confirm."));
+  const field = node("input");
+  field.id = "teardown-target";
+  field.type = "text";
+  field.required = true;
+  field.autocomplete = "off";
+  field.spellcheck = false;
+  form.append(label, field);
+  addSubmit(form, review.final);
+  const submit = get("wizard-continue");
+  submit.classList.add("teardown-submit");
+  submit.disabled = true;
+  field.addEventListener("input", () => { submit.disabled = field.value !== review.type; });
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+    if (field.value === review.type) answer(prompt, field.value);
+  });
+  container.append(form);
 }
 
 function renderActions(container, prompt) {
@@ -607,6 +663,7 @@ function renderPrompt(view) {
   const content = get("interaction");
   content.replaceChildren();
   const title = get("panel-title");
+  get("teardown-close").hidden = prompt?.kind !== "teardown";
   get("wizard-panel-heading").hidden = prompt?.kind === "actions" || prompt?.kind === "environment";
   if (!prompt) {
     title.textContent = view.status === "complete" ? (actions[view.action] || "Wizard") + " complete" :
@@ -641,6 +698,8 @@ function renderPrompt(view) {
     content.append(node("p", "Use the main menu to create or open an environment before continuing."));
   } else if (prompt.kind === "form") {
     renderSettings(content, prompt);
+  } else if (prompt.kind === "teardown") {
+    renderTeardown(content, prompt);
   } else if (prompt.kind === "confirm") {
     for (const option of prompt.options) {
       const control = button(option.label, option.value === "yes" ? "primary" : "outline");

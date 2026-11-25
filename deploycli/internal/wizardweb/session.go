@@ -43,6 +43,7 @@ type Prompt struct {
 	Fields           []Field                             `json:"fields,omitempty"`
 	PreviewFields    []string                            `json:"previewFields,omitempty"`
 	Preview          func(map[string]string) FormPreview `json:"-"`
+	Teardown         *TeardownPrompt                     `json:"teardown,omitempty"`
 }
 
 type FormPreview struct {
@@ -287,6 +288,10 @@ func (s *Session) answer(id uint64, answer reply) bool {
 		return false
 	}
 	if prompt.Kind == "environment" {
+		return false
+	}
+	if prompt.Teardown != nil && (answer.Value == nil || answer.Values != nil || answer.Action != "" ||
+		*answer.Value != prompt.Teardown.expectedAnswer()) {
 		return false
 	}
 	if prompt.Kind == "actions" {

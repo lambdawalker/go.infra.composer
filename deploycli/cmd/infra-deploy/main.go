@@ -284,6 +284,7 @@ func (cli deployCLI) run() error {
 
 func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions bool) (runErr error) {
 	ui := wizard(ctx)
+	batch, _ := ctx.Value(teardownBatchKey{}).(*teardownBatch)
 	fs := flag.NewFlagSet("infra-deploy", flag.ContinueOnError)
 	env := fs.String("environment", "", "isolated environment")
 	var discoveryURL, discoveryRegion string
@@ -423,7 +424,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 		*action = operation
 		*exportPath, *importPath = "", ""
 		*refreshReport, *adoptLegacy, *forceReconcile = false, false, false
-	} else if ui.browser != nil && (actionExplicit || *exportPath != "") {
+	} else if ui.browser != nil && batch == nil && (actionExplicit || *exportPath != "") {
 		ui.browser.Action(*action)
 	}
 	ui.phase("settings", "Configure deployment")
@@ -531,12 +532,16 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	if e != nil {
 		return e
 	}
-	// Pulumi writes shared workspace files even across environments.
-	workspaceUnlock, e := operationLock(filepath.Join(local, "workspace.lock"))
-	if e != nil {
-		return e
+	// A reviewed browser batch holds the workspace lock across all its targets.
+	if batch == nil {
+		workspaceUnlock, err := operationLock(filepath.Join(local, "workspace.lock"))
+		if err != nil {
+			return err
+		}
+		defer workspaceUnlock()
+	} else if *action != "destroy" || projectName != batch.project || local != batch.workspace {
+		return errors.New("operation is outside the approved teardown scope")
 	}
-	defer workspaceUnlock()
 	ui.detail("Project", projectName)
 	var projectFlags struct {
 		Version     int
@@ -634,6 +639,9 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	} else if !os.IsNotExist(e) {
 		return e
 	}
+	if batch != nil && (batch.targets[*env].Environment == "" || batch.targets[*env] != saved) {
+		return errors.New("saved environment changed after teardown review")
+	}
 	// The selected environment may differ from the last saved default. Replace
 	// the early workspace snapshot before asking for cloud credentials.
 	cli.publishSavedInventory(ui.browser, root, projectName, *env)
@@ -706,7 +714,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	var profileListError error
 	var who awsIdentity
 	profileDefault := ""
-	if !*ci {
+	if !*ci && batch == nil {
 		profiles, profileListError = listAWSProfiles(ctx)
 		if profileListError != nil && ui.browser == nil {
 			return profileListError
@@ -717,7 +725,13 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 		}
 	}
 
-	if ui.browser != nil && !*ci {
+	if batch != nil {
+		*profile, *region, *account, *backend = saved.Profile, saved.Region, saved.Account, saved.Backend
+		who, _, e = checkConnection(ctx, root, saved, false, *workers, true)
+		if e != nil {
+			return e
+		}
+	} else if ui.browser != nil && !*ci {
 		form := deploymentForm{
 			project: projectName, action: *action, root: root, saved: saved, profiles: profiles, canConfigureSSO: profileSetupTerminal(),
 			target:          Settings{Version: 1, Environment: *env, Profile: *profile, Region: *region, Account: *account, Backend: *backend},
@@ -929,7 +943,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	ui.detail("Environment", *env)
 	ui.detail("Stack", cli.spec.stackName(projectName, *env))
 
-	if !*ci {
+	if !*ci && batch == nil {
 		yes, err := ui.choose("Proceed with this AWS account? [Y/n]", "Use this AWS account", true, "Account "+*account, "Region "+*region, "Stack "+cli.spec.stackName(projectName, *env))
 		if err != nil {
 			return err
@@ -1124,8 +1138,24 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 		ui.heading("Destroy this stack?")
 		ui.detail("Stack", stack)
 		ui.note("This removes stack resources; protected resources can still block deletion.")
-		if err := ui.deliberate("Type the stack name to destroy", stack); err != nil {
-			return err
+		switch {
+		case ui.browser != nil && batch == nil:
+			target := wizardweb.TeardownTarget{
+				Title: "Remove environment " + *env, Name: projectName + " / " + *env,
+				Targets: []string{fmt.Sprintf("%s · AWS %s · %s", stack, *account, *region)},
+				Effects: []string{"Pulumi will permanently delete resources managed by this stack. Protected resources can block removal."},
+				Intent:  "I want to remove this environment", Final: "Remove this environment", Type: stack,
+			}
+			if index != nil {
+				target.Effects = append(target.Effects, "Composer will retire this environment from discovery before deleting its stack resources.")
+			}
+			if err := ui.browser.ConfirmTeardown(ctx, target); err != nil {
+				return err
+			}
+		case ui.browser == nil:
+			if err := ui.deliberate("Type the stack name to destroy", stack); err != nil {
+				return err
+			}
 		}
 		ui.phase("apply", "Destroy the confirmed stack")
 		if index != nil {

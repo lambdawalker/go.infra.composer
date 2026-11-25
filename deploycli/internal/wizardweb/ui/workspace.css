@@ -405,7 +405,6 @@ body:has(.preview-workspace:not([hidden])) .action-bar-inner { min-height:41px; 
 }
 .environment-dialog-actions .button { min-height:30px; padding:4px 10px; font-size:12px; }
 .environment-dialog-actions .primary { background:var(--blue); color:var(--editor); }
-.environment-dialog-actions .project-teardown-submit { background:light-dark(#ab2f43,#eb94a0); color:light-dark(#fff,#191a1c); }
 .environment-dialog-actions .outline { background:var(--elevated); color:var(--text); border-color:var(--line); }
 @media (max-width:640px) {
   .topbar .local, .topbar .brand-mark { display:none; }
@@ -494,6 +493,45 @@ body:has(#vault-lock:not([hidden])) .theme-control select { min-height:27px; bac
 .preview-workspace #workspace-dialog .button {min-height:30px;padding:4px 10px;border-radius:5px;font-size:12px}
 .preview-workspace #workspace-dialog .button.primary {background:var(--blue);color:var(--editor)}
 .preview-workspace #workspace-dialog .button.outline {background:var(--elevated);color:var(--text);border-color:var(--line)}
+.preview-workspace #workspace-dialog[data-mode="teardown"] { width:min(540px,calc(100vw - 32px)); }
+.preview-workspace #workspace-dialog[data-mode="teardown"] #panel .panel-heading {
+  display:flex; min-height:50px; padding:10px 16px;
+}
+.preview-workspace #workspace-dialog[data-mode="teardown"] #panel-title { margin:0; font-size:15px; }
+.preview-workspace #workspace-dialog[data-mode="teardown"] #status,
+.preview-workspace #workspace-dialog[data-mode="teardown"] #stop,
+.preview-workspace #workspace-dialog[data-mode="teardown"] #dialog-countdown { display:none; }
+.teardown-close {
+  flex:none; width:28px; height:28px; padding:0; border:1px solid transparent; border-radius:5px;
+  background:transparent; color:var(--muted); font:22px/1 system-ui,sans-serif; cursor:pointer;
+}
+.teardown-close:hover { background:var(--elevated); color:var(--text); }
+.teardown-target { text-align:center; padding:3px 0 8px; }
+.teardown-target-icon { color:var(--muted); font-size:24px; }
+.teardown-target-name { margin:4px 0 7px; font-weight:650; font-size:17px; overflow-wrap:anywhere; }
+.teardown-target-list { display:grid; gap:3px; margin:0; padding:0; list-style:none; color:var(--muted); overflow-wrap:anywhere; }
+.teardown-effects {
+  margin-top:10px; padding:10px 12px; border:1px solid color-mix(in srgb,var(--amber) 45%,var(--line));
+  border-radius:6px; background:color-mix(in srgb,var(--amber) 8%,var(--surface));
+}
+.teardown-effects h3 { margin:0 0 4px; color:var(--amber); font-size:13px; }
+.teardown-effects ul { margin:0; padding-left:18px; }
+.teardown-effects li + li { margin-top:4px; }
+.preview-workspace #workspace-dialog .teardown-form {
+  display:grid; gap:6px; margin-top:10px; padding-top:10px; border-top:1px solid var(--line);
+}
+.teardown-form label { overflow-wrap:anywhere; }
+.preview-workspace #workspace-dialog .teardown-form input { border-color:var(--rose); }
+.preview-workspace #workspace-dialog[data-mode="teardown"] #dialog-actions,
+.preview-workspace #workspace-dialog[data-mode="teardown"] #prompt-actions,
+.preview-workspace #workspace-dialog[data-mode="teardown"] .teardown-next,
+.preview-workspace #workspace-dialog[data-mode="teardown"] .teardown-submit { width:100%; }
+.preview-workspace #workspace-dialog[data-mode="teardown"] .teardown-submit {
+  background:light-dark(#a52e40,#e8909d); color:light-dark(#fff,#191a1c);
+}
+.preview-workspace #workspace-dialog[data-mode="teardown"] .teardown-submit:disabled {
+  background:var(--elevated); color:var(--muted); opacity:1;
+}
 .preview-workspace #dialog-footer {display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding:10px 20px;border-top:1px solid var(--line);background:var(--header)}
 .preview-workspace #dialog-footer:empty, .preview-workspace #workspace-dialog[data-mode="vault"] #dialog-footer {display:none}
 .preview-workspace #dialog-actions {display:flex;align-items:center;gap:10px;margin-left:auto}

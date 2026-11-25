@@ -55,7 +55,10 @@
   const dialog = $("workspace-dialog"), dialogContent = $("dialog-content"), promptActions = $("prompt-actions"), signInActions = $("sign-in-actions"), countdown = $("countdown"), stop = $("stop"), lockPanel = document.querySelector("#vault-lock .lock-panel");
   const actionHome = promptActions.parentNode, signInActionHome = signInActions.parentNode, countdownHome = countdown.parentNode, stopHome = stop.parentNode, lockHome = $("vault-lock");
   let routeKey = null;
-  dialog.addEventListener("cancel", event => event.preventDefault());
+  dialog.addEventListener("cancel", event => {
+    event.preventDefault();
+    if (dialog.dataset.mode === "teardown") stop.click();
+  });
   function setDialog(mode) {
     if ((mode || "") === (dialog.dataset.mode || "") && (!mode || dialog.open)) return;
     if (dialog.open) dialog.close();
@@ -235,7 +238,7 @@
     const kind=view.prompt?.kind;
     const choosingTarget=kind==="actions" || kind==="environment";
     const target=choosingTarget?$("actions-slot"):kind==="form"?$("inputs-slot"):slot;
-    const modal=kind && !choosingTarget && kind!=="form" ? "prompt" :
+    const modal=kind && !choosingTarget && kind!=="form" ? (kind==="teardown" ? "teardown" : "prompt") :
       view.signIn ? "signIn" : null;
     setDialog(modal);
     if(!modal && panel.parentNode!==target) target.prepend(panel);
