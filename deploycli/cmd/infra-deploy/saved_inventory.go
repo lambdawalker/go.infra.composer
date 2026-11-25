@@ -45,12 +45,11 @@ func (cli deployCLI) savedInventory(root, requestedProject, requestedEnv string)
 			requestedEnv = flags.Environment
 		}
 	}
-	if !pattern(`^[a-z][a-z0-9-]{0,30}$`, requestedEnv) ||
-		requestedEnv == "prod" || requestedEnv == "production" {
+	if !cli.spec.validEnvironment(requestedEnv) {
 		return report, "repository"
 	}
 	report.Scope.Environment = requestedEnv
-	report.Scope.Stack = cli.spec.StackPrefix + requestedEnv
+	report.Scope.Stack = cli.spec.stackName(project.Name, requestedEnv)
 	private := filepath.Join(central, "environments", requestedEnv)
 	var settings Settings
 	if b, err := os.ReadFile(filepath.Join(private, "settings.json")); err != nil ||

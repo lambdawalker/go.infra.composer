@@ -314,3 +314,66 @@ instructions for adding records.
 
 DNS providers live in [`internal/dnsprovider`](internal/dnsprovider), with one
 source file per provider and a shared list of selectable providers.
+
+## Standalone websites and nested Go modules
+
+An application can opt into the same CLI without moving its backend module:
+
+```json
+{
+  "BuildWorkingDir": "backend",
+  "BuildPackage": "./cmd/lambda",
+  "BuildDir": "dist/deploy",
+  "StackPrefix": "{project}-",
+  "AllowProduction": true,
+  "PrepareBuild": {
+    "Directory": "deploy",
+    "Package": "./cmd/assets",
+    "Inputs": ["web", "packages", "assets", "deploy"],
+    "Outputs": ["web/dist", "backend/internal/catalog/catalog.json"],
+    "Tools": ["node", "npm"]
+  },
+  "HealthCheck": {
+    "APIURL": "siteUrl",
+    "ProbeMethod": "GET",
+    "ProbePath": "/api/config",
+    "ProbeStatus": 200
+  }
+}
+```
+
+These are optional fields added to the existing manifest, not a complete
+manifest. `PrepareBuild` executes `go run <Package>` in its repository-relative
+`Directory`. The package is trusted repository code: review it like the Pulumi
+program. No arbitrary shell command is accepted. It must produce every declared
+output and return nonzero on failure. The consumer owns only its application
+build recipe, not a fork of the deployment wizard.
+
+The shared CLI caches prepared outputs using source bytes, the Go dependency
+graph/toolchain, declared recipe and optional Node/npm versions. Input traversal
+excludes `.git`, `.deploy`, `node_modules` and `dist`; output traversal excludes
+nothing. Missing/empty outputs, symlinks, tampering and changed inputs invalidate
+reuse or fail closed. Declare every source/lockfile and every generated file
+that Pulumi consumes. Environment-dependent build configuration must also be a
+declared input; ambient environment variables are not a build configuration API.
+`--force-rebuild` reruns preparation and Lambda compilation; `clean-cache` clears
+both cache receipts. It leaves generated files in place but they are verified or
+rebuilt before reuse.
+
+Preview approval checks the Lambda archive, current Go inputs, infrastructure
+source/configuration and declared preparation inputs/outputs before apply.
+The build lock remains held through preview/approval/apply. A changed prepared
+website, config file or source requires a fresh preview. No frontend compiler
+runs inside the Pulumi program.
+
+`{project}-` preserves applications whose established stack naming is
+`<selected-project>-<environment>`. Literal prefixes keep their existing behavior.
+`AllowProduction` is false by default for isolated test hosts; applications must
+explicitly opt in. This does not grant apply approval or relax destructive-plan
+confirmation. An empty `GitHub.EnvironmentPrefix` preserves existing environment
+names such as `dev`, `qa` and `prod` and their OIDC trust/protection rules.
+
+`HealthCheck` reuses the bounded HTTPS readiness probe without requiring a shared
+discovery index. Its URL must be an allowlisted stack output. It runs only after
+apply; failure reports **applied, readiness failed**. The applied receipt remains
+an apply fact, not an end-to-end acceptance claim.

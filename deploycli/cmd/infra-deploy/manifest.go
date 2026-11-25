@@ -28,6 +28,10 @@ type manifest struct {
 	BucketPrefix         string
 	BuildPackage         string
 	BuildDir             string
+	BuildWorkingDir      string
+	PrepareBuild         *prepareBuildSpec
+	AllowProduction      bool
+	HealthCheck          *discoverySpec
 	Memory               int
 	StackIdentity        bool
 	Outputs              []string
@@ -108,6 +112,11 @@ func (m *manifest) validate() error {
 			!pattern(`^[a-z][a-z0-9-]{0,47}$`, m.DiscoveryStack.Stack)) {
 		return fmt.Errorf("invalid shared discovery stack")
 	}
+	if m.HealthCheck != nil {
+		if err := m.HealthCheck.validate(m.Outputs); err != nil {
+			return err
+		}
+	}
 	if m.Discovery != nil {
 		if err := m.Discovery.validate(m.Outputs); err != nil {
 			return err
@@ -120,7 +129,7 @@ func (m *manifest) validate() error {
 		return fmt.Errorf("deployment title and GitHub repository are required")
 	}
 	if !pattern(`^[a-z][a-z0-9-]{0,47}$`, m.PulumiProject) || !pattern(`^[a-z][a-z0-9-]{0,47}$`, m.Feature) ||
-		!pattern(`^[a-z][a-z0-9-]{0,15}-$`, m.StackPrefix) || !pattern(`^[a-z][a-z0-9-]{0,29}$`, m.BucketPrefix) {
+		(!pattern(`^[a-z][a-z0-9-]{0,47}-$`, m.StackPrefix) && m.StackPrefix != "{project}-") || !pattern(`^[a-z][a-z0-9-]{0,29}$`, m.BucketPrefix) {
 		return fmt.Errorf("invalid project, feature, stack prefix or bucket prefix")
 	}
 	if m.DefaultProject != "" && !validProjectName(m.DefaultProject) {
@@ -129,6 +138,9 @@ func (m *manifest) validate() error {
 	if !repoPath(m.PulumiDir) || !repoPath(m.BuildDir) || !strings.HasPrefix(m.BuildDir, "dist/") ||
 		!strings.HasPrefix(m.BuildPackage, "./") || !repoPath(strings.TrimPrefix(m.BuildPackage, "./")) {
 		return fmt.Errorf("invalid Pulumi or build path; output must be under dist/")
+	}
+	if err := m.validateBuild(); err != nil {
+		return err
 	}
 	if m.Memory != 0 && (m.Memory < 128 || m.Memory > 10240) {
 		return fmt.Errorf("manifest memory must be 128..10240 MB")
@@ -183,7 +195,7 @@ func (m *manifest) validate() error {
 		}
 	}
 	if !pattern(`^[a-zA-Z0-9_-]+\.ya?ml$`, m.GitHub.Workflow) ||
-		!pattern(`^[a-zA-Z0-9_-]+-$`, m.GitHub.EnvironmentPrefix) ||
+		(m.GitHub.EnvironmentPrefix != "" && !pattern(`^[a-zA-Z0-9_-]+-$`, m.GitHub.EnvironmentPrefix)) ||
 		(m.GitHub.ManagedPolicy != "" && !pattern(`^[A-Za-z0-9+=,.@_-]{1,128}$`, m.GitHub.ManagedPolicy)) {
 		return fmt.Errorf("invalid GitHub workflow, environment prefix or managed policy name")
 	}

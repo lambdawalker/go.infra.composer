@@ -11,11 +11,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -195,7 +195,11 @@ func (cli deployCLI) build(ctx context.Context, root string, force bool) (string
 		return "", e
 	}
 	defer unlock()
-	fingerprint, e := buildFingerprint(ctx, root, cli.spec.BuildPackage)
+	if e = cli.prepareBuild(ctx, root, out, force); e != nil {
+		return "", e
+	}
+	buildRoot := cli.spec.buildRoot(root)
+	fingerprint, e := buildFingerprint(ctx, buildRoot, cli.spec.BuildPackage)
 	if e != nil {
 		return "", e
 	}
@@ -220,7 +224,7 @@ func (cli deployCLI) build(ctx context.Context, root string, force bool) (string
 	defer os.RemoveAll(temp)
 	binary := filepath.Join(temp, "bootstrap")
 	c := exec.CommandContext(ctx, "go", "build", "-trimpath", "-tags", "lambda.norpc", "-o", binary, cli.spec.BuildPackage)
-	c.Dir = root
+	c.Dir = buildRoot
 	c.Env = append(os.Environ(), "GOOS=linux", "GOARCH=arm64", "CGO_ENABLED=0")
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
@@ -254,7 +258,7 @@ func (cli deployCLI) build(ctx context.Context, root string, force bool) (string
 	if e = f.Close(); e != nil {
 		return "", e
 	}
-	after, e := buildFingerprint(ctx, root, cli.spec.BuildPackage)
+	after, e := buildFingerprint(ctx, buildRoot, cli.spec.BuildPackage)
 	if e != nil {
 		return "", e
 	}
@@ -405,7 +409,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 			return e
 		}
 		defer unlock()
-		for _, name := range []string{"lambda.zip", "lambda.zip.json"} {
+		for _, name := range []string{"lambda.zip", "lambda.zip.json", "prepare.json"} {
 			if e = os.Remove(filepath.Join(dir, name)); e != nil && !os.IsNotExist(e) {
 				return e
 			}
@@ -413,7 +417,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 		return nil
 	}
 	if *action == "build" {
-		ui.phase("prepare", "Build Lambda")
+		ui.phase("prepare", "Build deployment artifacts")
 		root, e := os.Getwd()
 		if e != nil {
 			return e
@@ -495,6 +499,9 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 			return errors.New("--environment required")
 		}
 		names := []string{"dev", "qa"}
+		if cli.spec.AllowProduction {
+			names = append(names, "prod")
+		}
 		if entries, err := os.ReadDir(filepath.Join(central, "environments")); err == nil {
 			for _, entry := range entries {
 				if entry.IsDir() && entry.Name() != "dev" && entry.Name() != "qa" {
@@ -502,12 +509,12 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 				}
 			}
 		}
-		*env = ui.prompt("Environment ("+strings.Join(names, ", ")+", or custom test name)", "dev")
+		*env = ui.prompt("Environment ("+strings.Join(names, ", ")+", or custom name)", "dev")
 	}
-	if !regexp.MustCompile(`^[a-z][a-z0-9-]{0,30}$`).MatchString(*env) || *env == "prod" || *env == "production" {
-		return errors.New("use a validated non-production test environment")
+	if !cli.spec.validEnvironment(*env) {
+		return errors.New("invalid environment (production requires AllowProduction in deploy.json)")
 	}
-	if _, e = os.Stat(filepath.Join(root, "go.mod")); e != nil {
+	if _, e = os.Stat(filepath.Join(cli.spec.buildRoot(root), "go.mod")); e != nil {
 		return errors.New("run from repository root or use deploy launcher")
 	}
 	private := filepath.Join(central, "environments", *env)
@@ -862,10 +869,10 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	ui.detail("Identity", who.Arn)
 	ui.detail("Region", *region)
 	ui.detail("Environment", *env)
-	ui.detail("Stack", cli.spec.StackPrefix+*env)
+	ui.detail("Stack", cli.spec.stackName(projectName, *env))
 
 	if !*ci {
-		yes, err := ui.choose("Proceed with this AWS account? [Y/n]", "Use this AWS account", true, "Account "+*account, "Region "+*region, "Stack "+cli.spec.StackPrefix+*env)
+		yes, err := ui.choose("Proceed with this AWS account? [Y/n]", "Use this AWS account", true, "Account "+*account, "Region "+*region, "Stack "+cli.spec.stackName(projectName, *env))
 		if err != nil {
 			return err
 		}
@@ -968,7 +975,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 
 	ui.phase("prepare", "Prepare the Pulumi stack")
 	dir := filepath.Join(root, cli.spec.PulumiDir)
-	stack := cli.spec.StackPrefix + *env
+	stack := cli.spec.stackName(projectName, *env)
 	if e = command(ctx, dir, "pulumi", "login", *backend, "--non-interactive"); e != nil {
 		return e
 	}
@@ -1081,8 +1088,8 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	if e = cli.spec.setMissingConfig(ctx, dir, stack); e != nil {
 		return e
 	}
-	ui.phase("prepare", "Build Lambda")
-	ui.heading("Build Lambda")
+	ui.phase("prepare", "Build deployment artifacts")
+	ui.heading("Build deployment artifacts")
 	archive, e := cli.build(ctx, root, *force)
 	if e != nil {
 		return e
@@ -1117,9 +1124,13 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 		return e
 	}
 	approvedArchive := sha256.Sum256(archiveBytes)
+	approvedInputs, e := cli.deploymentDigest(ctx, root)
+	if e != nil {
+		return e
+	}
 	ui.phase("preview", "Preview changes with Pulumi")
 	ui.heading("Preview changes")
-	if e = command(ctx, dir, "pulumi", "preview", "--stack", stack, "--save-plan", plan, "--event-log", activeFeatureReport.previewLog, "--non-interactive"); e != nil {
+	if e = command(ctx, dir, "pulumi", "preview", "--refresh", "--stack", stack, "--save-plan", plan, "--event-log", activeFeatureReport.previewLog, "--non-interactive"); e != nil {
 		return e
 	}
 	if *action == "preview" && ui.browser == nil {
@@ -1173,6 +1184,9 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	if current, err := os.ReadFile(archive); err != nil || sha256.Sum256(current) != approvedArchive {
 		return errors.New("artifact changed after preview; preview again")
 	}
+	if current, err := cli.deploymentDigest(ctx, root); err != nil || current != approvedInputs {
+		return errors.New("deployment inputs or prepared artifacts changed after preview; preview again")
+	}
 	var revision int64
 	if index != nil {
 		revision, e = index.begin(ctx, private)
@@ -1204,6 +1218,16 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	}{1, projectName, *env, *account, *region, *backend, stack, canonicalHash(json.RawMessage(planBytes)), time.Now().UTC()})
 	if e = atomicWrite(filepath.Join(private, "applied.json"), success); e != nil {
 		return e
+	}
+	if cli.spec.HealthCheck != nil {
+		connection, err := cli.spec.HealthCheck.fromOutputs(outputs)
+		if err != nil {
+			return fmt.Errorf("stack applied, readiness failed: %w", err)
+		}
+		client := &http.Client{Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+		if err := cli.spec.HealthCheck.ready(ctx, client, connection); err != nil {
+			return fmt.Errorf("stack applied, readiness failed: %w", err)
+		}
 	}
 	if index != nil {
 		ui.heading("Publish environment discovery")

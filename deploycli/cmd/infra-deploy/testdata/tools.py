@@ -11,6 +11,10 @@ if name == 'go':
     if args[0] == 'version': print('go version go1.27.3 linux/amd64')
     elif args[0] == 'env': emit({})
     elif args[0] == 'list': emit({'Dir': os.getcwd(), 'GoFiles': ['source.go'], 'Module': {'GoMod': os.path.join(os.getcwd(),'go.mod')}})
+    elif args[0] == 'run':
+        if os.getenv('MOCK_PREPARE_FAIL'): sys.exit(14)
+        out = pathlib.Path('../web/dist'); out.mkdir(parents=True, exist_ok=True)
+        (out/'index.html').write_text('prepared')
     elif args[0] == 'build': pathlib.Path(args[args.index('-o')+1]).write_bytes(b'fake binary')
     else: sys.exit(8)
 elif name == 'aws':
@@ -34,6 +38,7 @@ elif name == 'pulumi':
     elif args[0] == 'preview':
         if os.getenv('MOCK_PREVIEW_FAIL'): sys.exit(11)
         pathlib.Path(args[args.index('--save-plan')+1]).write_text(json.dumps({'resourcePlans':{'urn':{'steps':['delete' if os.getenv('MOCK_DESTRUCTIVE') else 'create']}}}))
+        if os.getenv('MOCK_MUTATE_PATH'): pathlib.Path(os.environ['MOCK_MUTATE_PATH']).write_text('changed after preview')
     elif args[0] in ['login','stack','config','refresh','up']: pass
     else: sys.exit(12)
 else: sys.exit(13)
