@@ -7,6 +7,17 @@
   const operation = value => (value || "unknown").toLowerCase();
   const badge = action => el("span", action === "same" ? "Unchanged" : action === "unknown" ? "Not planned" : action.replaceAll("-", " "), "badge " + (action.includes("delete") || action.includes("replace") ? "delete" : action.includes("create") ? "create" : action.includes("update") ? "update" : action === "unknown" ? "unknown" : "same"));
   const symbolFor = type => /route53|cloudflare|acm|domain|apiGateway/i.test(type) ? "globe" : /dynamodb|s3|storage/i.test(type) ? "database" : /iam|secret|cognito|kms|authorizer/i.test(type) ? "shield" : /ses|email/i.test(type) ? "mail" : /lambda|eventRule|eventTarget/i.test(type) ? "bolt" : "layers";
+  const typeLabelFor = type => {
+    const [provider, resource = ""] = type.split(":");
+    const service = resource.split("/")[0];
+    const kind = (type.split(":").at(-1) || "Resource").split("/").at(-1)
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").toLowerCase();
+    const labels = {apigatewayv2:"API Gateway", dynamodb:"DynamoDB", lambda:"Lambda", cognito:"Cognito", ses:"SES", kms:"KMS", iam:"IAM", acm:"Certificate Manager", s3:"S3", route53:"Route 53", secretsmanager:"Secrets Manager", random:"Random", "email-verification":"Email verification"};
+    const family = provider === "aws" && service === "cloudwatch" ? (/event/i.test(kind) ? "EventBridge" : "CloudWatch") :
+      provider === "cloudflare" ? "Cloudflare" : labels[provider === "aws" ? service : provider === "apexfission" ? service : provider];
+    return family ? family + " · " + kind : kind;
+  };
+  window.wizardArtifactVisuals = Object.freeze({symbolFor,typeLabelFor});
   const purposeFor = type => ({
     Function:"Runs backend code", Permission:"Allows a service to invoke the Lambda function",
     Table:"Stores application data", Bucket:"Stores deployment files or state",
@@ -22,8 +33,14 @@
     SecretVersion:"Sets the protected configuration value", LogGroup:"Stores diagnostic logs",
     EventRule:"Schedules or responds to background events", EventTarget:"Routes a background event to its handler"
   })[type.split(":").at(-1)] || "Deployment resource for this application";
-  const state = { selected:null, expanded:new Set(), filterKey:null, detailOpen:true, progressOpen:true, deploymentView:"application", inventory:null, plan:[], nodes:[], roots:[], reportRun:null };
+  const state = { selected:null, expanded:new Set(), filterKey:null, detailOpen:true, progressOpen:true, progressKey:null, progressTarget:null, deploymentView:"application", inventory:null, plan:[], nodes:[], roots:[], reportRun:null };
   const workspace = $("preview-workspace"), wizard = $("wizard"), slot = $("preview-interaction-slot"), panel = $("panel"), signIn = $("sign-in"), originalParent = panel.parentNode;
+  const topology = window.createArtifactTopology({
+    stage:$("topology-stage"),canvas:$("topology-canvas"),tooltip:$("topology-tooltip"),
+    message:$("topology-message"),selectedLabel:$("topology-selected"),
+    list:$("topology-list"),search:$("topology-search"),count:$("topology-count"),fit:$("topology-fit"),
+    onSelect:key=>{const artifact=state.nodes.find(a=>a.key===key);if(artifact)select(artifact,true);}
+  });
   const dialog = $("workspace-dialog"), dialogContent = $("dialog-content"), promptActions = $("prompt-actions"), signInActions = $("sign-in-actions"), countdown = $("countdown"), stop = $("stop"), lockPanel = document.querySelector("#vault-lock .lock-panel");
   const actionHome = promptActions.parentNode, signInActionHome = signInActions.parentNode, countdownHome = countdown.parentNode, stopHome = stop.parentNode, lockHome = $("vault-lock");
   let routeKey = null;
@@ -63,6 +80,7 @@
     if (!show && signIn.parentNode !== originalParent) originalParent.prepend(signIn);
     if (!show && panel.parentNode !== originalParent) originalParent.insertBefore(panel, signIn);
     wizard.hidden = show; workspace.hidden = !show;
+    if(!show)topology.deactivate();
     $("brand-title").textContent = view.title || "Deployment wizard";
     $("brand-operation").textContent = view.phase === "preview" ? "Preview" : view.phase === "apply" ? "Apply" :
       ({deploy:"Deploy",preview:"Preview",report:"Artifact report",setup:"Setup",status:"Status"})[view.action] || "Choose action";
@@ -88,13 +106,19 @@
     }
     // Prefer the saved plan's operation when its event log was not available.
     for (const change of state.plan) change.node.action = operation(change.operation);
-    if (!nodes.includes(state.selected)) state.selected = state.plan[0]?.node || nodes[0] || null;
+    state.selected = resources.get(state.selected?.key) || state.plan[0]?.node || nodes[0] || null;
+    topology.setArtifacts(nodes);
+    topology.setSelection(state.selected?.key);
   }
   function details() {
     const box = $("detail-content"); box.replaceChildren();
     const a = state.selected;
     if (!a) { box.append(el("p", "No artifacts loaded. Connect to a deployment stack to check.", "muted")); return; }
-    box.append(el("div", a.name || a.key, "detail-name"), el("div", a.type || "Resource", "kind"), el("p", a.description || purposeFor(a.type || ""), "artifact-description"));
+    const identity = el("div", "", "detail-identity"), glyph = el("span", "", "detail-symbol"), names = el("div", "", "detail-heading");
+    glyph.append(icon(a.symbol || symbolFor(a.type || "")));
+    names.append(el("div", a.name || a.key, "detail-name"), el("span", typeLabelFor(a.type || ""), "resource-type"));
+    identity.append(glyph, names);
+    box.append(identity, el("div", a.type || "Resource", "kind"), el("p", a.description || purposeFor(a.type || ""), "artifact-description"));
     const tags = el("div", "", "detail-actions"); tags.append(badge(a.action), el("span", a.feature || state.inventory?.repository?.split("/").at(-1) || "Project", "depth-label")); box.append(tags);
     const dl = el("dl", "", "data-grid");
     for (const [label, value] of [["Presence", ({present:"Live check: present",recorded:"Recorded in Pulumi state",absent:"Live check: absent",unknown:"Not checked"})[a.presence] || "Not checked"], ["Pulumi identity",a.key], ["Owner",a.owner || state.inventory?.repository || "Unknown"]]) {
@@ -106,7 +130,7 @@
     if (!a.children.length) box.append(el("p", "No subartifacts", "muted"));
     else { const list=el("ul","","detail-tree"); for (const child of a.children) { const item=el("li"); const button=el("button",child.name || child.key,"detail-tree-entry"); button.type="button"; button.onclick=()=>select(child); item.append(button);list.append(item); }box.append(list); }
   }
-  function select(a, reveal=false) { state.selected=a; for(let p=a.parentNode;p;p=p.parentNode) state.expanded.add(p.key); if(reveal) toggleDetails(true); details(); tree(); changes(); }
+  function select(a, reveal=false) { state.selected=a; for(let p=a.parentNode;p;p=p.parentNode) state.expanded.add(p.key); if(reveal) toggleDetails(true); details(); tree(); changes(); topology.setSelection(a.key); }
   function matches(a,q,filter) { return (a.name || a.key).toLowerCase().includes(q) && (filter==="all" || filter==="changed" && a.action!=="same" && a.action!=="unknown" || filter==="unchanged" && a.action==="same" || filter==="unknown" && a.presence==="unknown"); }
   function tree() {
     const q=$("search").value.trim().toLowerCase(), filter=$("filter").value;
@@ -155,13 +179,6 @@
       table.append(body);app.append(table);
     }
     const panel=$("deployment-details-view");panel.replaceChildren();const dl=el("dl");for(const [label,value] of [["Environment",i.environment],["Account",i.account],["Region",i.region],["Backend",i.backend],["Project",i.project],["Stack",i.stack],["Revision",i.revision]])if(value){dl.append(el("dt",label),el("dd",value));}panel.append(dl);
-    const settings=$("settings-summary"),values=$("settings-values");
-    settings.hidden=view.prompt?.kind==="form";
-    values.replaceChildren();
-    for(const [label,value] of [["Project",i.project],["Environment",i.environment],["AWS account",i.account],["AWS region",i.region],["S3 state URL",i.backend]])if(value){values.append(el("dt",label),el("dd",value));}
-    $("settings-note").textContent=i.environment ?
-      "Saved target values. You can edit the deployment inputs when the wizard opens its form." :
-      "No saved target yet. Select an action to configure this deployment.";
     $("artifact-total").textContent=String(i.artifacts?.length || 0);
     $("change-total").textContent=view.reviewed ? String(view.total || 0) : "—";
     $("unknown-total").textContent=String((i.artifacts || []).filter(a=>a.presence==="unknown").length);
@@ -181,14 +198,21 @@
     const lines=view.activity || [];output.replaceChildren(...lines.map(line=>el("div",line,"log-line")));$("line-count").textContent=String(lines.length);if(atBottom)output.scrollTop=output.scrollHeight;
   }
   function toggleDetails(open) { state.detailOpen=open;const body=$("detail-content");body.hidden=!open;const pane=$("right"),toggle=$("toggle-details"),stripe=$("stripe-details");toggle.textContent=open?"−":"+";for(const b of [toggle,stripe]){b.setAttribute("aria-expanded",String(open));b.setAttribute("aria-label",(open?"Collapse":"Expand")+" artifact details");}pane.dataset.detailsCollapsed=String(!open);pane.style.gridTemplateRows=open?(pane.dataset.openRows||""):"36px 0 minmax(225px,1fr)";stripe.classList.toggle("active",open); }
-  function toggleProgress(open) {state.progressOpen=open;const pane=$("sidebar"),toggle=$("toggle-progress"),stripe=$("stripe-progress");$("progress-body").hidden=!open;toggle.textContent=open?"−":"+";for(const b of [toggle,stripe]){b.setAttribute("aria-expanded",String(open));b.setAttribute("aria-label",(open?"Collapse":"Expand")+" progress");}pane.dataset.progressCollapsed=String(!open);pane.style.gridTemplateRows=open?(pane.dataset.openRows||""):"36px 0 minmax(225px,1fr)";stripe.classList.toggle("active",open); }
+  function revealProgress(target) {
+    const body=$("progress-body");
+    if(!target || !target.isConnected || body.hidden || !body.clientHeight || getComputedStyle(body).overflowY==="visible")return;
+    const frame=body.getBoundingClientRect(), item=target.getBoundingClientRect();
+    if(item.bottom>frame.bottom-8)body.scrollTop+=item.bottom-(frame.bottom-8);
+    else if(item.top<frame.top+8)body.scrollTop+=item.top-(frame.top+8);
+  }
+  function toggleProgress(open) {state.progressOpen=open;const pane=$("sidebar"),toggle=$("toggle-progress"),stripe=$("stripe-progress");$("progress-body").hidden=!open;toggle.textContent=open?"−":"+";for(const b of [toggle,stripe]){b.setAttribute("aria-expanded",String(open));b.setAttribute("aria-label",(open?"Collapse":"Expand")+" progress");}pane.dataset.progressCollapsed=String(!open);pane.style.gridTemplateRows=open?(pane.dataset.openRows||""):"36px 0 minmax(225px,1fr)";stripe.classList.toggle("active",open);if(open)requestAnimationFrame(()=>revealProgress(state.progressTarget)); }
   $("toggle-details").onclick=()=>toggleDetails(!state.detailOpen);$("stripe-details").onclick=()=>toggleDetails(!state.detailOpen);
   $("toggle-progress").onclick=()=>toggleProgress(!state.progressOpen);$("stripe-progress").onclick=()=>toggleProgress(!state.progressOpen);
   function setDeployment(which) {state.deploymentView=which;const app=which==="application";$("application-view").hidden=!app;$("deployment-details-view").hidden=app;$("deployment-title").textContent=app?"Application & features":"Deployment details";$("stripe-application").classList.toggle("active",app);$("stripe-deployment-details").classList.toggle("active",!app);$("stripe-application").setAttribute("aria-pressed",String(app));$("stripe-deployment-details").setAttribute("aria-pressed",String(!app));}
   $("stripe-application").onclick=()=>setDeployment("application");$("stripe-deployment-details").onclick=()=>setDeployment("details");
   $("search").oninput=tree;$("filter").onchange=tree;
-  const tabs=[$("overview-tab"),$("actions-tab"),$("inputs-tab"),$("console-tab")], tablist=workspace.querySelector(".tabs");
-  function activate(tab,focus=false){for(const t of tabs){const selected=t===tab;t.setAttribute("aria-selected",String(selected));t.tabIndex=selected?0:-1;$(t.getAttribute("aria-controls")).hidden=!selected;}if(focus)tab.focus();}
+  const tabs=[$("overview-tab"),$("actions-tab"),$("inputs-tab"),$("topology-tab"),$("console-tab")], tablist=workspace.querySelector(".tabs");
+  function activate(tab,focus=false){for(const t of tabs){const selected=t===tab;t.setAttribute("aria-selected",String(selected));t.tabIndex=selected?0:-1;$(t.getAttribute("aria-controls")).hidden=!selected;}if(tab===$("topology-tab"))topology.activate();else topology.deactivate();if(focus)tab.focus();}
   for(const tab of tabs) {tab.onclick=()=>activate(tab);tab.onkeydown=e=>{const order=[...tablist.querySelectorAll(".tab")],index=order.indexOf(tab);if(e.altKey&&e.shiftKey&&["ArrowLeft","ArrowRight"].includes(e.key)){e.preventDefault();const neighbor=order[index+(e.key==="ArrowLeft"?-1:1)];if(neighbor)tablist.insertBefore(tab,e.key==="ArrowLeft"?neighbor:neighbor.nextSibling);return;}const next=e.key==="ArrowRight"?order[(index+1)%order.length]:e.key==="ArrowLeft"?order[(index+order.length-1)%order.length]:e.key==="Home"?order[0]:e.key==="End"?order.at(-1):null;if(next){e.preventDefault();activate(next,true);}};}
   let tabDrag=null;tablist.addEventListener("pointerdown",e=>{const tab=e.target.closest(".tab");if(tab&&e.button===0)tabDrag={tab,x:e.clientX,y:e.clientY,id:e.pointerId,started:false};});window.addEventListener("pointermove",e=>{if(!tabDrag||e.pointerId!==tabDrag.id)return;if(!tabDrag.started&&Math.hypot(e.clientX-tabDrag.x,e.clientY-tabDrag.y)<6)return;tabDrag.started=true;tabDrag.tab.classList.add("dragging");e.preventDefault();const before=[...tablist.querySelectorAll(".tab")].filter(t=>t!==tabDrag.tab).find(t=>e.clientX<t.getBoundingClientRect().left+t.getBoundingClientRect().width/2);tablist.insertBefore(tabDrag.tab,before||null);});window.addEventListener("pointerup",e=>{if(tabDrag?.id===e.pointerId){tabDrag.tab.classList.remove("dragging");tabDrag=null;}});
   $("wrap-output").onclick=e=>{const pressed=e.currentTarget.getAttribute("aria-pressed")!=="true";e.currentTarget.setAttribute("aria-pressed",String(pressed));$("console-output").classList.toggle("wrapped",pressed);};
@@ -209,7 +233,7 @@
     // A running stage is already represented by its progress substep. Keep
     // the center panel for forms, questions, outcomes, and diagnostics.
     panel.hidden=!kind && Boolean(view.action) && ["running","stopping"].includes(view.status);
-    $("actions-empty").hidden=kind==="actions";
+    window.renderStandbyWorkspace?.(view);
     const nextRoute=view.run+":"+(view.prompt?.id||view.phase+":"+view.status);
     if(routeKey!==nextRoute) {
       routeKey=nextRoute;
@@ -221,7 +245,9 @@
     const key=view.run+":"+JSON.stringify(view.inventory)+":"+JSON.stringify(view.changes);
     if(key!==state.reportRun) {state.reportRun=key;buildInventory(view);details();tree();changes();}
     context(view);
-    const source=[...$("phases").children];
+    const source=[...$("phases").children], progressBody=$("progress-body"), previousScroll=progressBody.scrollTop;
+    const latest=(view.substeps||[]).at(-1), progressKey=[view.run,view.phase,view.phaseTitle,(view.substeps||[]).length,view.status].join(":");
+    let progressTarget=null;
     $("workspace-phases").replaceChildren(...source.filter(n=>!n.hidden).map(n=>{
       const li=el("li","",n.className),phase=n.dataset.phase;
       li.append(el("div",n.textContent,"phase-row"));
@@ -236,11 +262,19 @@
           const item=el("li","","substep "+(step.status||"running"));
           item.append(el("span","","substep-marker"),el("span",step.title,"substep-title"));
           if(step.status==="running" || step.status==="stopping")item.setAttribute("aria-current","step");
+          if(step===latest || (!latest && phase===view.phase))progressTarget=item;
           steps.append(item);
         }
         li.append(steps);
       } else if(n.getAttribute("aria-current"))li.setAttribute("aria-current","step");
       return li;
     }));
+    progressBody.scrollTop=previousScroll;
+    state.progressTarget=progressTarget || progressBody.querySelector('[aria-current="step"]');
+    if(progressKey!==state.progressKey) {
+      state.progressKey=progressKey;
+      const target=state.progressTarget;
+      if(target)requestAnimationFrame(()=>{if(state.progressKey===progressKey)revealProgress(target);});
+    }
   };
 })();

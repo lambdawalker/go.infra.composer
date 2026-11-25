@@ -1,0 +1,41 @@
+/* The topology is local to the deployment workspace and uses its theme tokens. */
+.preview-workspace .topology-panel {padding:16px 18px 24px;color:var(--text)}
+.preview-workspace .topology-toolbar {display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:11px}
+.preview-workspace .topology-toolbar h2 {margin:0;font-size:15px}
+.preview-workspace .topology-toolbar p {margin:3px 0 0;color:var(--muted);font-size:11px}
+.preview-workspace .topology-toolbar button {flex:none;padding:5px 10px;border:1px solid var(--line);border-radius:5px;background:var(--elevated);color:var(--text);font-size:11px}
+.preview-workspace .topology-toolbar button:hover {border-color:var(--blue)}
+.preview-workspace .topology-stage {position:relative;height:clamp(280px,50vh,570px);overflow:hidden;border:1px solid var(--line);border-radius:6px;background:var(--editor);touch-action:none;cursor:grab}
+.preview-workspace .topology-stage.dragging {cursor:grabbing}
+.preview-workspace .topology-stage:focus-visible {outline:2px solid var(--focus);outline-offset:1px}
+.preview-workspace #topology-canvas {display:block;width:100%;height:100%}
+.preview-workspace #topology-canvas[hidden] {display:none}
+.preview-workspace .topology-tooltip {position:absolute;z-index:2;max-width:min(270px,70%);padding:7px 9px;border:1px solid var(--line);border-radius:5px;background:var(--surface);box-shadow:0 4px 14px #0007;color:var(--text);font-size:11px;overflow-wrap:anywhere;pointer-events:none}
+.preview-workspace .topology-tooltip strong,.preview-workspace .topology-tooltip small {display:block}
+.preview-workspace .topology-tooltip small {margin-top:3px;color:var(--muted)}
+.preview-workspace .topology-message {position:absolute;left:12px;right:12px;top:12px;margin:0;padding:8px 10px;border:1px solid var(--line);border-radius:5px;background:var(--surface);color:var(--muted);font-size:11px;pointer-events:none}
+.preview-workspace .topology-selected {position:absolute;left:12px;bottom:12px;max-width:min(360px,75%);padding:6px 9px;border:1px solid var(--line);border-radius:5px;background:var(--surface);color:var(--text);font-size:11px;overflow-wrap:anywhere;pointer-events:none}
+.preview-workspace .topology-legend {display:flex;gap:7px 16px;flex-wrap:wrap;padding:11px 2px 13px;color:var(--muted);font-size:10.5px}
+.preview-workspace .topology-legend span {display:inline-flex;align-items:center;gap:7px}
+.preview-workspace .topology-key {width:10px;height:10px;display:inline-block;flex:none;background:#85acff}
+.preview-workspace .topology-key.compute {background:#80adff;clip-path:polygon(50% 0,100% 100%,0 100%)}
+.preview-workspace .topology-key.storage {background:#70c6bb;border-radius:2px}
+.preview-workspace .topology-key.network {background:#a998ef;border-radius:50%}
+.preview-workspace .topology-key.security {background:#e0bd77;transform:rotate(45deg);width:8px;height:8px;margin-inline:1px}
+.preview-workspace .topology-key.message {background:#e8a27e;border-radius:50% 50% 3px 3px}
+.preview-workspace .topology-list-head {display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding:13px 0 8px}
+.preview-workspace .topology-list-head h3 {margin:0;font-size:12px}
+.preview-workspace .topology-list-head h3 span {margin-left:4px;color:var(--muted);font-weight:400}
+.preview-workspace .topology-list-head input {width:min(260px,55%);min-height:29px;padding:4px 8px;border:1px solid var(--line);border-radius:5px;background:var(--elevated);color:var(--text);font-size:11px}
+.preview-workspace .topology-list {display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:5px;margin:0;padding:0;list-style:none}
+.preview-workspace .topology-list li {min-width:0}
+.preview-workspace .topology-list .topology-empty {padding:9px;color:var(--muted);font-size:11px}
+.preview-workspace .topology-list button {display:flex;align-items:center;gap:8px;width:100%;min-height:35px;padding:6px 8px;border:1px solid var(--line);border-radius:5px;background:var(--surface);color:var(--text);text-align:left;font-size:11px}
+.preview-workspace .topology-list button:hover,.preview-workspace .topology-list button[aria-current="true"] {border-color:var(--blue);background:var(--selected)}
+.preview-workspace .topology-list .topology-list-text {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.preview-workspace .topology-list .topology-list-kind {margin-left:auto;color:var(--muted);font-size:9px;white-space:nowrap}
+@media (max-width:750px) {
+  .preview-workspace .topology-panel {padding:12px}
+  .preview-workspace .topology-stage {height:340px}
+  .preview-workspace .topology-list {grid-template-columns:1fr}
+}

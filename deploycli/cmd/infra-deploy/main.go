@@ -369,6 +369,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	}
 	if *server && ui.browser == nil {
 		return wizardweb.Serve(ctx, cli.spec.Title, !*noOpen, func(ctx context.Context, session *wizardweb.Session, showActions bool) error {
+			session.SetActionOptions(wizardActionOptions(), "preview")
 			if root, err := os.Getwd(); err == nil {
 				cli.publishSavedInventory(session, root, *project, *env)
 			}
@@ -602,6 +603,10 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 		defer restorePassphrase()
 		if ui.browser != nil {
 			ui.browser.Protect(pass, credentials.Cloudflare, credentials.GitHub)
+			ui.browser.SetPasswordSaved(map[string]bool{
+				cloudflareField: credentials.configured(cloudflareField),
+				githubField:     credentials.configured(githubField),
+			})
 		}
 	}
 	if *importPath != "" {

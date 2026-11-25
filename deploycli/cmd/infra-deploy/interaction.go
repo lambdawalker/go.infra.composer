@@ -124,8 +124,8 @@ func (w interaction) deliberate(label, expected string) error {
 	return nil
 }
 
-func (w interaction) selectAction(countdown bool) (string, error) {
-	options := []wizardweb.Option{
+func wizardActionOptions() []wizardweb.Option {
+	return []wizardweb.Option{
 		{Value: "preview", Label: "Preview changes", Description: "Build and see what Pulumi plans to change. The run stops after the preview."},
 		{Value: "deploy", Label: "Preview and deploy", Description: "Review the Pulumi plan, then approve it to make changes in AWS."},
 		{Value: "setup", Label: "Set up deployment", Description: "Prepare the state bucket, Pulumi stack, and deployment settings."},
@@ -136,6 +136,10 @@ func (w interaction) selectAction(countdown bool) (string, error) {
 		{Value: "destroy-all", Label: "Remove all environments and index", Description: "Destroy every saved environment, then the shared discovery index. Requires explicit confirmations."},
 		{Value: "github-teardown", Label: "Remove GitHub configuration", Description: "Remove the selected environment's GitHub deployment configuration and its dedicated IAM role when managed here."},
 	}
+}
+
+func (w interaction) selectAction(countdown bool) (string, error) {
+	options := wizardActionOptions()
 	prompt := wizardweb.Prompt{Kind: "actions", Label: "What would you like to run?", Default: "preview", Options: options}
 	if countdown {
 		prompt.CountdownSeconds = defaultCountdownSeconds
