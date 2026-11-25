@@ -201,12 +201,19 @@ func TestLoopbackWizardProtectsStateAndReplies(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "topology-tab") {
 		t.Fatal("topology tab missing from local UI")
 	}
+	if !strings.Contains(rec.Body.String(), `src="/aws-icons.js"`) {
+		t.Fatal("AWS icon mapper missing from local UI")
+	}
 	for _, asset := range []string{"/topology.js", "/topology.css"} {
 		assetResponse := request(handler, http.MethodGet, asset, testHost, "", "", "")
 		if assetResponse.Code != http.StatusOK || assetResponse.Body.Len() == 0 ||
 			strings.Contains(assetResponse.Header().Get("Content-Security-Policy"), "unsafe-eval") {
 			t.Fatalf("topology asset %s or restrictive CSP missing: %d", asset, assetResponse.Code)
 		}
+	}
+	iconMap := request(handler, http.MethodGet, "/aws-icons.js", testHost, "", "", "")
+	if iconMap.Code != http.StatusOK || !strings.Contains(iconMap.Body.String(), "awsIconFor") {
+		t.Fatalf("AWS icon mapper was not served locally: %d", iconMap.Code)
 	}
 	for asset := range awsIconPaths {
 		response := request(handler, http.MethodGet, asset, testHost, "", "", "")

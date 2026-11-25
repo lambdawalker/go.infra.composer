@@ -143,7 +143,8 @@ func (s *Session) handler(host, key string) http.Handler {
 			if (r.Method == http.MethodGet || r.Method == http.MethodHead) &&
 				(r.URL.Path == "/" || r.URL.Path == "/wizard.css" || r.URL.Path == "/wizard.js" ||
 					r.URL.Path == "/workspace.css" || r.URL.Path == "/workspace.js" ||
-					r.URL.Path == "/topology.css" || r.URL.Path == "/topology.js" || isAWSIcon) {
+					r.URL.Path == "/topology.css" || r.URL.Path == "/topology.js" ||
+					r.URL.Path == "/aws-icons.js" || isAWSIcon) {
 				files.ServeHTTP(w, r)
 			} else {
 				http.NotFound(w, r)

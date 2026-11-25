@@ -7,16 +7,7 @@
   const operation = value => (value || "unknown").toLowerCase();
   const badge = action => el("span", action === "same" ? "Unchanged" : action === "unknown" ? "Not planned" : action.replaceAll("-", " "), "badge " + (action.includes("delete") || action.includes("replace") ? "delete" : action.includes("create") ? "create" : action.includes("update") ? "update" : action === "unknown" ? "unknown" : "same"));
   const symbolFor = type => /route53|cloudflare|acm|domain|apiGateway/i.test(type) ? "globe" : /dynamodb|s3|storage/i.test(type) ? "database" : /iam|secret|cognito|kms|authorizer/i.test(type) ? "shield" : /ses|email/i.test(type) ? "mail" : /lambda|eventRule|eventTarget/i.test(type) ? "bolt" : "layers";
-  // Only known AWS resource families resolve to bundled icons. Other providers
-  // and custom components retain the local neutral symbol.
-  const awsIconFor = type => {
-    const match = /^aws:([a-z0-9]+)\/([^:]+):/.exec(type);
-    if (!match) return "";
-    const [, service, resource] = match;
-    const names = {acm:"acm",apigateway:"api-gateway",apigatewayv2:"api-gateway",cognito:"cognito",dynamodb:"dynamodb",iam:"iam",kms:"kms",lambda:"lambda",route53:"route53",s3:"s3",secretsmanager:"secretsmanager",ses:"ses"};
-    const name = service === "cloudwatch" ? (/^event(Rule|Target)$/.test(resource) ? "eventbridge" : "cloudwatch") : names[service];
-    return name ? "/icons/aws/" + name + ".svg" : "";
-  };
+  const awsIconFor = window.wizardAWSIconFor || (() => "");
   const artifactIcon = a => {
     const source = awsIconFor(a.type || "");
     if (!source) return icon(a.symbol || symbolFor(a.type || ""));
