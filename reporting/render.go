@@ -58,7 +58,11 @@ func issues(r Report) []Artifact {
 	return as
 }
 func artifactFields(a Artifact) []field {
-	fields := []field{{"Logical identity", a.Key}, {"Type", a.Type}, {"Provider ID", a.ProviderID}, {"Owner", a.Owner}, {"Feature", a.Feature}, {"Planned action", a.PlannedAction}, {"Presence", string(a.Observation.Status)}, {"Source", a.Observation.Source}, {"Observed", date(a.Observation.ObservedAt)}, {"Reason", string(a.Observation.Reason)}}
+	fields := []field{}
+	if a.Description != "" {
+		fields = append(fields, field{"Purpose", a.Description})
+	}
+	fields = append(fields, []field{{"Logical identity", a.Key}, {"Type", a.Type}, {"Provider ID", a.ProviderID}, {"Owner", a.Owner}, {"Feature", a.Feature}, {"Planned action", a.PlannedAction}, {"Presence", string(a.Observation.Status)}, {"Source", a.Observation.Source}, {"Observed", date(a.Observation.ObservedAt)}, {"Reason", string(a.Observation.Reason)}}...)
 	if c := a.Configuration; c != nil {
 		fields = append(fields, field{"Recorded configuration", "Pulumi state outputs"}, field{"Configuration source", c.Source}, field{"Configuration state read at", date(c.ObservedAt)})
 		keys := make([]string, 0, len(c.Values))
