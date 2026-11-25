@@ -286,7 +286,6 @@
 @media(max-width:640px) {
 .preview-workspace .top {padding:5px 9px;flex-wrap:wrap}
 .preview-workspace .identity h1 {font-size:11px}
-.preview-workspace .header-tools .local {display:none}
 .preview-workspace .metric-row {gap:4px}
 .preview-workspace .metric {padding:7px}
 .preview-workspace .metric b {font-size:16px}
@@ -323,7 +322,7 @@ body:has(.preview-workspace:not([hidden])) .topbar-controls { gap:13px; font-siz
 body:has(.preview-workspace:not([hidden])) .action-bar-inner { min-height:41px; padding:5px 13px 5px 43px; }
 .topbar .brand { min-width:0; gap:8px; height:100%; }
 .topbar .brand-mark { flex:none; }
-.topbar .topbar-controls { flex:none; }
+.topbar .topbar-controls { min-width:0; max-width:calc(100% - 48px); }
 .environment-menu { position:relative; flex:none; }
 .main-menu-toggle {
   display:grid; place-items:center; width:30px; height:28px; padding:0;
@@ -407,7 +406,7 @@ body:has(.preview-workspace:not([hidden])) .action-bar-inner { min-height:41px; 
 .environment-dialog-actions .primary { background:var(--blue); color:var(--editor); }
 .environment-dialog-actions .outline { background:var(--elevated); color:var(--text); border-color:var(--line); }
 @media (max-width:640px) {
-  .topbar .local, .topbar .brand-mark { display:none; }
+  .topbar .brand-mark { display:none; }
 }
 body:has(.preview-workspace:not([hidden])) .preview-workspace { height:calc(100dvh - 44px - var(--action-bar-size, 41px)); }
 @media (max-width:1150px) { body:has(.preview-workspace:not([hidden])) .preview-workspace { height:auto; } }
