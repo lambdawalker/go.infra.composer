@@ -32,6 +32,14 @@ var awsIconPaths = map[string]struct{}{
 	"/icons/aws/ses.svg": {},
 }
 
+var awsModelPaths = func() map[string]struct{} {
+	paths := make(map[string]struct{}, len(awsIconPaths))
+	for icon := range awsIconPaths {
+		paths[strings.Replace(strings.TrimSuffix(icon, ".svg"), "/icons/", "/models/", 1)+".glb"] = struct{}{}
+	}
+	return paths
+}()
+
 func Serve(ctx context.Context, title string, open bool, run func(context.Context, *Session, bool) error) error {
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
@@ -140,11 +148,16 @@ func (s *Session) handler(host, key string) http.Handler {
 		}
 		if !strings.HasPrefix(r.URL.Path, "/api/") {
 			_, isAWSIcon := awsIconPaths[r.URL.Path]
+			_, isAWSModel := awsModelPaths[r.URL.Path]
 			if (r.Method == http.MethodGet || r.Method == http.MethodHead) &&
 				(r.URL.Path == "/" || r.URL.Path == "/wizard.css" || r.URL.Path == "/wizard.js" ||
 					r.URL.Path == "/workspace.css" || r.URL.Path == "/workspace.js" ||
 					r.URL.Path == "/topology.css" || r.URL.Path == "/topology.js" ||
-					r.URL.Path == "/aws-icons.js" || isAWSIcon) {
+					r.URL.Path == "/aws-icons.js" || r.URL.Path == "/vendor/topology-three.js" ||
+					isAWSIcon || isAWSModel) {
+				if isAWSModel {
+					w.Header().Set("Content-Type", "model/gltf-binary")
+				}
 				files.ServeHTTP(w, r)
 			} else {
 				http.NotFound(w, r)

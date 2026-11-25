@@ -8,8 +8,9 @@
   <link rel="stylesheet" href="/workspace.css">
   <link rel="stylesheet" href="/topology.css">
   <script src="/wizard.js" defer></script>
-  <script src="/topology.js" defer></script>
   <script src="/aws-icons.js" defer></script>
+  <script src="/vendor/topology-three.js" defer></script>
+  <script src="/topology.js" defer></script>
   <script src="/workspace.js" defer></script>
 </head>
 <body>
@@ -80,7 +81,7 @@
         <section class="tab-panel topology-panel" id="topology-panel" role="tabpanel" aria-labelledby="topology-tab" tabindex="0" hidden>
           <div class="topology-toolbar"><div><h2>Artifact topology</h2><p>Parent and child resources · drag to orbit, scroll to zoom</p></div><button type="button" id="topology-fit">Fit view</button></div>
           <div class="topology-stage" id="topology-stage" role="group" tabindex="0" aria-label="3D artifact topology. Arrow keys orbit, plus and minus zoom. Select artifacts from the list below."><canvas id="topology-canvas" aria-hidden="true"></canvas><div class="topology-tooltip" id="topology-tooltip" hidden></div><p class="topology-message" id="topology-message">Select the deployment target to view its artifacts.</p><div class="topology-selected" id="topology-selected" aria-live="polite" hidden></div></div>
-          <div class="topology-legend" aria-label="Shape legend"><span><i class="topology-key compute"></i> Compute · pyramid</span><span><i class="topology-key storage"></i> Storage · cube</span><span><i class="topology-key network"></i> API &amp; DNS · sphere</span><span><i class="topology-key security"></i> Identity &amp; security · diamond</span><span><i class="topology-key message"></i> Email &amp; events · cone</span></div>
+          <div class="topology-legend" aria-label="Topology legend"><span><i class="topology-key glass"></i> AWS glass cubes</span><span><i class="topology-key connection"></i> Parent and child resources</span><span><i class="topology-key selected"></i> Selected artifact</span></div>
           <div class="topology-list-head"><h3>Artifacts <span id="topology-count">0</span></h3><input id="topology-search" type="search" placeholder="Find an artifact" aria-label="Find an artifact in topology"></div>
           <ol class="topology-list" id="topology-list" aria-label="Artifact topology in text form"></ol>
         </section>

@@ -1,7 +1,7 @@
 "use strict";
 
-// A small, dependency-free WebGL renderer. All labels and controls remain DOM
-// elements so the inventory is usable without WebGL and with a keyboard.
+// AWS glass models are bundled locally. Labels and controls remain DOM elements
+// so the inventory stays usable without WebGL and with a keyboard.
 (() => {
   const categories = {
     compute: {label:"Compute", shape:"pyramid", color:[.45,.67,1]},
@@ -92,225 +92,275 @@
     return {x:(px+1)*width/2,y:(1-py)*height/2,visible:Math.abs(px)<=1.05&&Math.abs(py)<=1.05};
   }
 
-  function mesh(faces) {
-    const data=[];
-    for(const [a,b,c] of faces) {
-      const n=normal(cross(subtract(b,a),subtract(c,a)));
-      for(const v of [a,b,c])data.push(...v,...n);
-    }
-    return new Float32Array(data);
+  function modelPathFor(type, iconFor) {
+    const icon = typeof iconFor === "function" ? iconFor(type) : "";
+    const match = /^\/icons\/aws\/([a-z0-9-]+)\.svg$/.exec(icon || "");
+    return match ? "/models/aws/" + match[1] + ".glb" : "";
   }
-  function shapes() {
-    const top=[0,1.15,0],bottom=[0,-1.15,0];
-    const square=[[-.85,-.85,-.85],[.85,-.85,-.85],[.85,-.85,.85],[-.85,-.85,.85]];
-    const pyramid=mesh([...square.map((v,i)=>[v,square[(i+1)%4],top]),
-      [square[2],square[1],square[0]],[square[0],square[3],square[2]]]);
-    const corners=[];for(const y of [-.85,.85])for(const z of [-.85,.85])for(const x of [-.85,.85])corners.push([x,y,z]);
-    const cubeFaces=[];
-    for(const [a,b,c,d] of [[0,1,3,2],[4,6,7,5],[0,4,5,1],[2,3,7,6],[0,2,6,4],[1,5,7,3]])
-      cubeFaces.push([corners[a],corners[b],corners[c]],[corners[a],corners[c],corners[d]]);
-    const diamondFaces=[],ring=[[1,0,0],[0,0,1],[-1,0,0],[0,0,-1]];
-    for(let i=0;i<4;i++)diamondFaces.push([ring[i],ring[(i+1)%4],top],[ring[(i+1)%4],ring[i],bottom]);
-    const coneFaces=[],sphereFaces=[],segments=16,latitudes=10;
-    for(let i=0;i<segments;i++){
-      const angle=i*2*Math.PI/segments,next=(i+1)*2*Math.PI/segments;
-      const a=[Math.cos(angle),-.95,Math.sin(angle)],b=[Math.cos(next),-.95,Math.sin(next)];
-      coneFaces.push([a,b,top],[b,a,[0,-.95,0]]);
-    }
-    function spherePoint(lat,lon) {const a=lat*Math.PI/latitudes,b=lon*2*Math.PI/segments;
-      return [Math.sin(a)*Math.cos(b),Math.cos(a),Math.sin(a)*Math.sin(b)];}
-    for(let lat=0;lat<latitudes;lat++)for(let lon=0;lon<segments;lon++){
-      const a=spherePoint(lat,lon),b=spherePoint(lat+1,lon),c=spherePoint(lat+1,lon+1),d=spherePoint(lat,lon+1);
-      if(lat>0)sphereFaces.push([a,b,d]);
-      if(lat<latitudes-1)sphereFaces.push([b,c,d]);
-    }
-    return {pyramid,cube:mesh(cubeFaces),diamond:mesh(diamondFaces),cone:mesh(coneFaces),sphere:mesh(sphereFaces)};
+
+  function matchesArtifact(item, query) {
+    return !query || item.name.toLowerCase().includes(query) || item.type.toLowerCase().includes(query);
+  }
+
+  function visibleEdges(items, query) {
+    const visible = new Set(items.filter(item => matchesArtifact(item, query)).map(item => item.key));
+    return items.filter(item => visible.has(item.key) && visible.has(item.parent)).map(item => [item.parent,item.key]);
   }
 
   function createArtifactTopology({stage,canvas,tooltip,message,selectedLabel,list,search,count,fit,onSelect}) {
-    let items=[],byKey=new Map(),selectedKey="",active=false,gl=null,gpu=null,drawQueued=false;
-    let yaw=.55,pitch=.45,distance=30,target=[0,0,0],lastMatrix=null,pointer=null;
-    const geometry=shapes();
+    let items=[],byKey=new Map(),selectedKey="",active=false,drawQueued=false,pointer=null;
+    let yaw=.55,pitch=.45,distance=30,target=[0,0,0],contextLost=false,disposed=false;
+    let renderer=null,scene=null,camera=null,runtime=null,edges=null,halo=null,environment=null;
+    let raycaster=null,mouse=null,lastEdgeSignature="";
+    const nodes=new Map(),modelCache=new Map(),loadingModels=new Set(),failedModels=new Set();
+    const fallbackGeometry=new Map(),fallbackMaterials=new Map();
+    const listeners=[];
+    function listen(element,event,handler,options) {
+      element.addEventListener(event,handler,options);
+      listeners.push(()=>element.removeEventListener(event,handler,options));
+    }
     const resizeObserver=typeof ResizeObserver!=="undefined"?new ResizeObserver(()=>requestDraw()):null;
     resizeObserver?.observe(stage);
-    window.addEventListener("resize",()=>requestDraw());
-    document.addEventListener("visibilitychange",()=>{if(!document.hidden)requestDraw();});
-    new MutationObserver(()=>requestDraw()).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+    listen(window,"resize",()=>requestDraw());
+    listen(document,"visibilitychange",()=>{if(!document.hidden)requestDraw();});
+    const themeObserver=new MutationObserver(()=>requestDraw());
+    themeObserver.observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
 
     function setMessage(text) {message.textContent=text;message.hidden=!text;}
-    function shader(type,source) {
-      const object=gl.createShader(type);gl.shaderSource(object,source);gl.compileShader(object);
-      if(!gl.getShaderParameter(object,gl.COMPILE_STATUS)) {gl.deleteShader(object);throw Error("Shader unavailable");}
-      return object;
+    function updateMessage() {
+      if(!items.length)setMessage("Select the deployment target to view its artifacts.");
+      else if(contextLost)setMessage("3D view is temporarily unavailable. Select an artifact from the list below.");
+      else if(!renderer)setMessage("3D view is unavailable here. Select an artifact from the list below.");
+      else if(items.some(item=>loadingModels.has(modelPathFor(item.type,window.wizardAWSIconFor))))setMessage("Loading AWS glass models…");
+      else if(items.some(item=>failedModels.has(modelPathFor(item.type,window.wizardAWSIconFor))))setMessage("Some AWS models could not be loaded. Those artifacts use basic shapes.");
+      else setMessage("");
     }
     function initialize() {
-      if(gl)return true;
+      if(renderer)return true;
+      if(disposed||contextLost)return false;
       try {
-        gl=canvas.getContext("webgl",{antialias:true,alpha:false});
-        if(!gl)throw Error("WebGL unavailable");
-        const vertex=shader(gl.VERTEX_SHADER,`attribute vec3 position; attribute vec3 normal;
-          uniform mat4 viewProjection; uniform vec3 center; uniform float scale;
-          varying float light; void main() { gl_Position=viewProjection*vec4(position*scale+center,1.0);
-          light=.48+.52*max(dot(normalize(normal),normalize(vec3(.35,.9,.55))),0.0); }`);
-        const fragment=shader(gl.FRAGMENT_SHADER,`precision mediump float; uniform vec3 color;
-          varying float light; void main() { gl_FragColor=vec4(color*light,1.0); }`);
-        const program=gl.createProgram();gl.attachShader(program,vertex);gl.attachShader(program,fragment);gl.linkProgram(program);
-        gl.deleteShader(vertex);gl.deleteShader(fragment);
-        if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error("Shader program unavailable");
-        gl.useProgram(program);
-        gpu={program,position:gl.getAttribLocation(program,"position"),normal:gl.getAttribLocation(program,"normal"),
-          viewProjection:gl.getUniformLocation(program,"viewProjection"),center:gl.getUniformLocation(program,"center"),
-          scale:gl.getUniformLocation(program,"scale"),color:gl.getUniformLocation(program,"color"),buffers:{},edges:gl.createBuffer(),edgeVertices:0};
-        for(const [kind,vertices] of Object.entries(geometry)){
-          const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
-          gl.bufferData(gl.ARRAY_BUFFER,vertices,gl.STATIC_DRAW);gpu.buffers[kind]={buffer,count:vertices.length/6};
-        }
-        updateEdges();canvas.hidden=false;
-        setMessage(items.length?"":"Select the deployment target to view its artifacts.");
+        runtime=window.WizardTopologyThree;
+        if(!runtime?.THREE||!runtime.GLTFLoader||!runtime.RoomEnvironment)throw Error("3D runtime unavailable");
+        const T=runtime.THREE;
+        renderer=new T.WebGLRenderer({canvas,antialias:true,alpha:false});
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+        renderer.outputColorSpace=T.SRGBColorSpace;
+        renderer.toneMapping=T.ACESFilmicToneMapping;
+        renderer.toneMappingExposure=1.1;
+        scene=new T.Scene();camera=new T.PerspectiveCamera(45,1,.1,1000);
+        raycaster=new T.Raycaster();mouse=new T.Vector2();
+        const room=new runtime.RoomEnvironment(),generator=new T.PMREMGenerator(renderer);
+        try {environment=generator.fromScene(room,.04);scene.environment=environment.texture;}
+        finally {room.dispose?.();generator.dispose();}
+        scene.add(new T.AmbientLight(0xffffff,.5));
+        const light=new T.DirectionalLight(0xffffff,2);light.position.set(4,8,6);scene.add(light);
+        edges=new T.LineSegments(new T.BufferGeometry(),new T.LineBasicMaterial({color:0x61748c}));
+        scene.add(edges);
+        const haloBox=new T.BoxGeometry(1.95,1.95,1.95),haloEdges=new T.EdgesGeometry(haloBox);haloBox.dispose();
+        halo=new T.LineSegments(haloEdges,new T.LineBasicMaterial({color:0xa6c8ff,depthTest:false,transparent:true,opacity:.9}));
+        halo.renderOrder=10;halo.visible=false;scene.add(halo);
+        lastEdgeSignature="";syncArtifacts();canvas.hidden=false;updateMessage();
         return true;
       } catch {
-        gl=null;gpu=null;canvas.hidden=true;
-        setMessage(items.length?"3D view is unavailable here. Select an artifact from the list below.":"Select the deployment target to view its artifacts.");
-        return false;
+        releaseRenderer();canvas.hidden=true;updateMessage();return false;
       }
     }
-    function updateEdges() {
-      if(!gl||!gpu)return;
-      const vertices=[];
-      for(const item of items){const parent=byKey.get(item.parent);if(!parent)continue;
-        for(const p of [parent.position,item.position])vertices.push(...p,0,1,0);}
-      gl.bindBuffer(gl.ARRAY_BUFFER,gpu.edges);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.DYNAMIC_DRAW);
-      gpu.edgeVertices=vertices.length/6;
+    function releaseRenderer() {
+      nodes.clear();
+      for(const geometry of fallbackGeometry.values())geometry.dispose();fallbackGeometry.clear();
+      for(const material of fallbackMaterials.values())material.dispose();fallbackMaterials.clear();
+      edges?.geometry.dispose();edges?.material.dispose();halo?.geometry.dispose();halo?.material.dispose();
+      environment?.dispose();renderer?.dispose();
+      renderer=null;scene=null;camera=null;edges=null;halo=null;environment=null;raycaster=null;mouse=null;
     }
-    function bind(buffer) {
-      gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
-      gl.enableVertexAttribArray(gpu.position);gl.enableVertexAttribArray(gpu.normal);
-      gl.vertexAttribPointer(gpu.position,3,gl.FLOAT,false,24,0);
-      gl.vertexAttribPointer(gpu.normal,3,gl.FLOAT,false,24,12);
+    function fallbackFor(category) {
+      const T=runtime.THREE;
+      if(!fallbackGeometry.has(category)) {
+        const geometry=category==="compute"?new T.ConeGeometry(.95,1.8,4):
+          category==="network"?new T.SphereGeometry(.85,16,10):
+          category==="security"?new T.OctahedronGeometry(1):
+          category==="message"?new T.ConeGeometry(.85,1.8,16):new T.BoxGeometry(1.7,1.7,1.7);
+        fallbackGeometry.set(category,geometry);
+        fallbackMaterials.set(category,new T.MeshStandardMaterial({color:new T.Color(...categories[category].color),roughness:.5}));
+      }
+      return new T.Mesh(fallbackGeometry.get(category),fallbackMaterials.get(category));
+    }
+    function loadModel(path) {
+      if(!modelCache.has(path)) {
+        loadingModels.add(path);
+        const pending=new runtime.GLTFLoader().loadAsync(path).then(gltf=>{
+          const T=runtime.THREE,template=new T.Group(),centered=new T.Group();
+          const bounds=new T.Box3().setFromObject(gltf.scene),size=bounds.getSize(new T.Vector3());
+          const extent=Math.max(size.x,size.y,size.z);
+          if(!Number.isFinite(extent)||extent<=0)throw Error("Empty model");
+          centered.position.copy(bounds.getCenter(new T.Vector3())).multiplyScalar(-1);
+          centered.add(gltf.scene);template.add(centered);template.scale.setScalar(1.7/extent);
+          if(disposed){disposeTemplate(template);return null;}
+          return template;
+        }).catch(()=>{if(!disposed)failedModels.add(path);return null;}).finally(()=>{
+          loadingModels.delete(path);
+          if(!disposed){updateMessage();requestDraw();}
+        });
+        modelCache.set(path,pending);
+      }
+      return modelCache.get(path);
+    }
+    function syncArtifacts() {
+      if(!scene)return;
+      const T=runtime.THREE,keys=new Set(items.map(item=>item.key));
+      for(const [key,node] of nodes)if(!keys.has(key)){scene.remove(node.group);nodes.delete(key);}
+      for(const item of items) {
+        const path=modelPathFor(item.type,window.wizardAWSIconFor);
+        let node=nodes.get(item.key);
+        if(node&&(node.path!==path||node.category!==item.category)){
+          scene.remove(node.group);nodes.delete(item.key);node=null;
+        }
+        if(!node) {
+          const group=new T.Group();group.userData.artifactKey=item.key;
+          const visual=fallbackFor(item.category);group.add(visual);scene.add(group);
+          node={group,visual,path,category:item.category};nodes.set(item.key,node);
+          if(path) {
+            const current=node;
+            loadModel(path).then(template=>{
+              // A refreshed inventory or restored WebGL context may have replaced this node.
+              if(!template||disposed||nodes.get(item.key)!==current)return;
+              current.group.remove(current.visual);
+              current.visual=template.clone(true);current.group.add(current.visual);
+              requestDraw();
+            });
+          }
+        }
+        node.group.position.set(...item.position);
+      }
+      updateVisibility();
+    }
+    function updateVisibility() {
+      if(!scene)return;
+      const query=search.value.trim().toLowerCase();
+      for(const item of items){const node=nodes.get(item.key);if(node)node.group.visible=matchesArtifact(item,query);}
+      const connections=visibleEdges(items,query);
+      const signature=JSON.stringify(connections.map(([a,b])=>[a,b,byKey.get(a).position,byKey.get(b).position]));
+      if(signature!==lastEdgeSignature) {
+        lastEdgeSignature=signature;
+        const values=[];for(const [parent,child] of connections)values.push(...byKey.get(parent).position,...byKey.get(child).position);
+        const geometry=new runtime.THREE.BufferGeometry();
+        geometry.setAttribute("position",new runtime.THREE.Float32BufferAttribute(values,3));
+        edges.geometry.dispose();edges.geometry=geometry;
+      }
+      const selected=byKey.get(selectedKey);
+      halo.visible=!!selected&&matchesArtifact(selected,query);
+      if(selected)halo.position.set(...selected.position);
     }
     function fitView() {
-      if(!items.length){target=[0,0,0];distance=30;requestDraw();return;}
-      const extents=[0,1,2].map(i=>[Math.min(...items.map(a=>a.position[i])),Math.max(...items.map(a=>a.position[i]))]);
+      const query=search.value.trim().toLowerCase(),visible=items.filter(item=>matchesArtifact(item,query));
+      if(!visible.length){target=[0,0,0];distance=30;requestDraw();return;}
+      const extents=[0,1,2].map(i=>[Math.min(...visible.map(a=>a.position[i])),Math.max(...visible.map(a=>a.position[i]))]);
       target=extents.map(([min,max])=>(min+max)/2);
-      const radius=Math.max(...items.map(a=>Math.hypot(...subtract(a.position,target))))+2;
-      distance=Math.max(12,radius*2.7);
-      requestDraw();
+      const radius=Math.max(...visible.map(a=>Math.hypot(...subtract(a.position,target))))+2;
+      distance=Math.max(12,radius*2.7);requestDraw();
     }
     function draw() {
       drawQueued=false;
-      if(!active||document.hidden||!items.length||!initialize())return;
+      if(disposed||!active||document.hidden||!items.length||contextLost||!initialize())return;
       const bounds=stage.getBoundingClientRect();if(bounds.width<2||bounds.height<2)return;
-      const ratio=Math.min(window.devicePixelRatio||1,2),width=Math.round(bounds.width*ratio),height=Math.round(bounds.height*ratio);
-      if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
-      gl.viewport(0,0,width,height);
-      const background=getComputedStyle(stage).backgroundColor.match(/[\d.]+/g)?.slice(0,3).map(x=>Number(x)/255)||[.12,.12,.13];
-      gl.clearColor(...background,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.enable(gl.DEPTH_TEST);
-      const eye=[target[0]+distance*Math.sin(yaw)*Math.cos(pitch),target[1]+distance*Math.sin(pitch),
-        target[2]+distance*Math.cos(yaw)*Math.cos(pitch)];
-      lastMatrix=multiply(perspective(width/height),lookAt(eye,target));
-      gl.useProgram(gpu.program);gl.uniformMatrix4fv(gpu.viewProjection,false,lastMatrix);
-      if(gpu.edgeVertices){bind(gpu.edges);gl.uniform3f(gpu.center,0,0,0);gl.uniform1f(gpu.scale,1);
-        gl.uniform3f(gpu.color,...(document.documentElement.dataset.theme==="light"?[.55,.61,.7]:[.35,.43,.55]));
-        gl.drawArrays(gl.LINES,0,gpu.edgeVertices);}
-      const query=search.value.trim().toLowerCase();
-      for(const item of items){const info=categories[item.category],chosen=item.key===selectedKey;
-        const matching=!query||item.name.toLowerCase().includes(query)||item.type.toLowerCase().includes(query);
-        const shape=gpu.buffers[info.shape];bind(shape.buffer);
-        gl.uniform3fv(gpu.center,item.position);gl.uniform1f(gpu.scale,chosen?1.35:.82);
-        const color=matching?info.color:[.35,.36,.39];
-        gl.uniform3f(gpu.color,...(chosen?color.map(v=>Math.min(1,v*1.25)):color));
-        gl.drawArrays(gl.TRIANGLES,0,shape.count);
-      }
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+      renderer.setSize(bounds.width,bounds.height,false);
+      const color=getComputedStyle(stage).backgroundColor;
+      scene.background=new runtime.THREE.Color(color);
+      edges.material.color.set(document.documentElement.dataset.theme==="light"?0x8c9bb2:0x596e8c);
+      camera.aspect=bounds.width/bounds.height;camera.updateProjectionMatrix();
+      camera.position.set(target[0]+distance*Math.sin(yaw)*Math.cos(pitch),target[1]+distance*Math.sin(pitch),
+        target[2]+distance*Math.cos(yaw)*Math.cos(pitch));
+      camera.lookAt(...target);camera.updateMatrixWorld();
+      renderer.render(scene,camera);
     }
     function requestDraw() {
-      if(!active||drawQueued)return;
+      if(disposed||!active||drawQueued||contextLost)return;
       drawQueued=true;requestAnimationFrame(draw);
     }
     function updateSelection() {
-      const selected=byKey.get(selectedKey);
-      selectedLabel.hidden=!selected;
+      const selected=byKey.get(selectedKey);selectedLabel.hidden=!selected;
       if(selected)selectedLabel.textContent=`${selected.name} · ${categories[selected.category].label}`;
       for(const button of list.querySelectorAll("button"))button.setAttribute("aria-current",String(button.dataset.key===selectedKey));
-      requestDraw();
+      updateVisibility();requestDraw();
     }
     function renderList() {
       const query=search.value.trim().toLowerCase();list.replaceChildren();
-      const visible=items.filter(a=>!query||a.name.toLowerCase().includes(query)||a.type.toLowerCase().includes(query));
+      const visible=items.filter(item=>matchesArtifact(item,query));
       count.textContent=items.length?`${visible.length} of ${items.length}`:"0";
-      if(items.length && !visible.length){const empty=document.createElement("li");empty.textContent="No artifacts match this search.";empty.className="topology-empty";list.append(empty);}
+      if(items.length&&!visible.length){const empty=document.createElement("li");empty.textContent="No artifacts match this search.";empty.className="topology-empty";list.append(empty);}
       for(const item of visible){const li=document.createElement("li"),button=document.createElement("button");
         button.type="button";button.dataset.key=item.key;button.title=item.name;
         button.setAttribute("aria-label",`${item.name}, ${categories[item.category].label}, ${item.action}`);
         const marker=document.createElement("i");marker.className="topology-key "+item.category;marker.setAttribute("aria-hidden","true");
         const name=document.createElement("span");name.className="topology-list-text";name.textContent=item.name;
         const kind=document.createElement("span");kind.className="topology-list-kind";kind.textContent=categories[item.category].label;
-        button.append(marker,name,kind);button.onclick=()=>onSelect(item.key);
-        li.append(button);list.append(li);}
+        button.append(marker,name,kind);button.onclick=()=>onSelect(item.key);li.append(button);list.append(li);}
       updateSelection();
     }
     function setArtifacts(artifacts) {
       const previousStructure=items.map(a=>a.key+"\0"+a.parent).join("\n");
       items=layoutArtifacts(artifacts);byKey=new Map(items.map(a=>[a.key,a]));
       if(!byKey.has(selectedKey))selectedKey="";
-      canvas.hidden=!items.length || !gl;
-      updateEdges();renderList();
-      if(previousStructure!==items.map(a=>a.key+"\0"+a.parent).join("\n"))fitView();
-      else requestDraw();
-      if(!items.length)setMessage("Select the deployment target to view its artifacts.");
-      else if(gl)setMessage("");
+      canvas.hidden=!items.length||!renderer;syncArtifacts();renderList();
+      if(previousStructure!==items.map(a=>a.key+"\0"+a.parent).join("\n"))fitView();else requestDraw();
+      if(!items.length||renderer)updateMessage();
     }
     function setSelection(key) {selectedKey=key||"";updateSelection();}
-    function activate() {active=true;if(items.length)initialize();requestDraw();}
-    function deactivate() {active=false;tooltip.hidden=true;}
+    function activate() {if(disposed)return;active=true;if(items.length)initialize();requestDraw();}
+    function deactivate() {active=false;pointer=null;stage.classList.remove("dragging");tooltip.hidden=true;}
     function near(clientX,clientY) {
-      if(!active||!gl||!lastMatrix)return null;
-      const rect=stage.getBoundingClientRect(),x=clientX-rect.left,y=clientY-rect.top;
-      let closest=null,best=26*26;
-      for(const item of items){const point=project(item.position,lastMatrix,rect.width,rect.height);
-        if(!point?.visible)continue;
-        const distance=(point.x-x)**2+(point.y-y)**2;
-        if(distance<best){best=distance;closest=item;}}
-      return closest;
+      if(!active||!renderer||!camera||contextLost)return null;
+      const rect=stage.getBoundingClientRect();if(!rect.width||!rect.height)return null;
+      mouse.set((clientX-rect.left)/rect.width*2-1,-(clientY-rect.top)/rect.height*2+1);
+      raycaster.setFromCamera(mouse,camera);scene.updateMatrixWorld(true);
+      const visuals=[...nodes.values()].filter(node=>node.group.visible).map(node=>node.visual);
+      for(const hit of raycaster.intersectObjects(visuals,true)) {
+        for(let object=hit.object;object;object=object.parent)if(object.userData.artifactKey)return byKey.get(object.userData.artifactKey)||null;
+      }
+      return null;
     }
-    stage.addEventListener("pointerdown",event=>{if(event.button!==0)return;
-      pointer={id:event.pointerId,x:event.clientX,y:event.clientY,yaw,pitch,dragged:false};
-      stage.setPointerCapture?.(event.pointerId);tooltip.hidden=true;});
-    stage.addEventListener("pointermove",event=>{
+    listen(stage,"pointerdown",event=>{if(event.button!==0)return;
+      pointer={id:event.pointerId,x:event.clientX,y:event.clientY,yaw,pitch,dragged:false};stage.setPointerCapture?.(event.pointerId);tooltip.hidden=true;});
+    listen(stage,"pointermove",event=>{
       if(pointer?.id===event.pointerId){const dx=event.clientX-pointer.x,dy=event.clientY-pointer.y;
         if(Math.hypot(dx,dy)>4)pointer.dragged=true;
-        if(pointer.dragged){yaw=pointer.yaw+dx*.008;pitch=Math.max(-1.35,Math.min(1.35,pointer.pitch+dy*.008));
-          stage.classList.add("dragging");requestDraw();return;}}
+        if(pointer.dragged){yaw=pointer.yaw+dx*.008;pitch=Math.max(-1.35,Math.min(1.35,pointer.pitch+dy*.008));stage.classList.add("dragging");requestDraw();return;}}
       const item=near(event.clientX,event.clientY);tooltip.hidden=!item;
       if(item){tooltip.replaceChildren();const title=document.createElement("strong"),kind=document.createElement("small");
         title.textContent=item.name;kind.textContent=categories[item.category].label;tooltip.append(title,kind);
         const rect=stage.getBoundingClientRect();tooltip.style.left=Math.max(8,Math.min(event.clientX-rect.left+12,rect.width-270))+"px";
-        tooltip.style.top=Math.max(8,Math.min(event.clientY-rect.top+12,rect.height-65))+"px";}
-    });
-    stage.addEventListener("pointerup",event=>{if(pointer?.id!==event.pointerId)return;
-      const dragged=pointer.dragged;pointer=null;stage.classList.remove("dragging");
-      if(!dragged){const item=near(event.clientX,event.clientY);if(item)onSelect(item.key);}});
-    stage.addEventListener("pointercancel",()=>{pointer=null;stage.classList.remove("dragging");});
-    stage.addEventListener("pointerleave",()=>{if(!pointer)tooltip.hidden=true;});
-    stage.addEventListener("wheel",event=>{if(!active||!items.length)return;event.preventDefault();
+        tooltip.style.top=Math.max(8,Math.min(event.clientY-rect.top+12,rect.height-65))+"px";}});
+    listen(stage,"pointerup",event=>{if(pointer?.id!==event.pointerId)return;
+      const dragged=pointer.dragged;pointer=null;stage.classList.remove("dragging");if(!dragged){const item=near(event.clientX,event.clientY);if(item)onSelect(item.key);}});
+    listen(stage,"pointercancel",()=>{pointer=null;stage.classList.remove("dragging");});
+    listen(stage,"pointerleave",()=>{if(!pointer)tooltip.hidden=true;});
+    listen(stage,"wheel",event=>{if(!active||!items.length)return;event.preventDefault();
       distance=Math.max(5,Math.min(500,distance*Math.exp(event.deltaY*.001)));requestDraw();},{passive:false});
-    stage.addEventListener("keydown",event=>{let handled=true;
-      if(event.key==="ArrowLeft")yaw-=.13;
-      else if(event.key==="ArrowRight")yaw+=.13;
-      else if(event.key==="ArrowUp")pitch=Math.min(1.35,pitch+.13);
-      else if(event.key==="ArrowDown")pitch=Math.max(-1.35,pitch-.13);
-      else if(event.key==="+"||event.key==="=")distance=Math.max(5,distance*.85);
-      else if(event.key==="-")distance=Math.min(500,distance*1.15);
-      else handled=false;
+    listen(stage,"keydown",event=>{let handled=true;
+      if(event.key==="ArrowLeft")yaw-=.13;else if(event.key==="ArrowRight")yaw+=.13;
+      else if(event.key==="ArrowUp")pitch=Math.min(1.35,pitch+.13);else if(event.key==="ArrowDown")pitch=Math.max(-1.35,pitch-.13);
+      else if(event.key==="+"||event.key==="=")distance=Math.max(5,distance*.85);else if(event.key==="-")distance=Math.min(500,distance*1.15);else handled=false;
       if(handled){event.preventDefault();requestDraw();}});
-    canvas.addEventListener("webglcontextlost",event=>{event.preventDefault();gl=null;gpu=null;
-      canvas.hidden=true;
-      setMessage("3D view is temporarily unavailable. Select an artifact from the list below.");});
-    canvas.addEventListener("webglcontextrestored",()=>{gl=null;gpu=null;if(active)initialize();requestDraw();});
-    search.addEventListener("input",()=>{renderList();requestDraw();});
-    fit.addEventListener("click",fitView);
-    return {setArtifacts,setSelection,activate,deactivate,fitView};
+    listen(canvas,"webglcontextlost",event=>{event.preventDefault();contextLost=true;canvas.hidden=true;updateMessage();});
+    listen(canvas,"webglcontextrestored",()=>{contextLost=false;releaseRenderer();if(active)initialize();requestDraw();});
+    listen(search,"input",()=>{renderList();updateVisibility();requestDraw();});listen(fit,"click",fitView);
+    function disposeTemplate(template) {
+      const geometries=new Set(),materials=new Set(),textures=new Set();
+      template.traverse(object=>{if(object.geometry)geometries.add(object.geometry);
+        for(const material of Array.isArray(object.material)?object.material:[object.material])if(material){materials.add(material);
+          for(const value of Object.values(material))if(value?.isTexture)textures.add(value);}});
+      for(const resource of [...geometries,...materials,...textures])resource.dispose();
+    }
+    function dispose() {
+      if(disposed)return;disposed=true;active=false;
+      resizeObserver?.disconnect();themeObserver.disconnect();listeners.splice(0).forEach(remove=>remove());
+      releaseRenderer();for(const pending of modelCache.values())pending.then(template=>{if(template)disposeTemplate(template);});modelCache.clear();
+    }
+    listen(window,"pagehide",event=>{if(!event.persisted)dispose();});
+    return {setArtifacts,setSelection,activate,deactivate,fitView,dispose};
   }
 
   if(typeof window!=="undefined")window.createArtifactTopology=createArtifactTopology;
-  if(typeof module!=="undefined"&&module.exports)module.exports={categoryFor,layoutArtifacts,perspective,lookAt,multiply,project};
+  if(typeof module!=="undefined"&&module.exports)module.exports={categoryFor,layoutArtifacts,perspective,lookAt,multiply,project,modelPathFor,matchesArtifact,visibleEdges};
 })();
