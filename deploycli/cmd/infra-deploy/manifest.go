@@ -16,29 +16,30 @@ import (
 // A manifest declares one isolated Lambda/Pulumi target. It contains no
 // credentials, concrete AWS target settings or executable shell fragments.
 type manifest struct {
-	Version        int
-	Title          string
-	Description    string
-	Repository     string
-	Feature        string
-	DefaultProject string
-	PulumiProject  string
-	PulumiDir      string
-	StackPrefix    string
-	BucketPrefix   string
-	BuildPackage   string
-	BuildDir       string
-	Memory         int
-	StackIdentity  bool
-	Outputs        []string
-	InputsFile     string
-	Inputs         []inputSpec
-	Functions      map[string]functionSpec
-	ConfigDefaults map[string]string
-	GitHub         githubSpec
-	Discovery      *discoverySpec
-	DiscoveryStack *discoveryStackSpec
-	inputPlan      []plannedInput
+	Version              int
+	Title                string
+	Description          string
+	Repository           string
+	Feature              string
+	DefaultProject       string
+	PulumiProject        string
+	PulumiDir            string
+	StackPrefix          string
+	BucketPrefix         string
+	BuildPackage         string
+	BuildDir             string
+	Memory               int
+	StackIdentity        bool
+	Outputs              []string
+	InputsFile           string
+	Inputs               []inputSpec
+	Functions            map[string]functionSpec
+	ConfigDefaults       map[string]string
+	ArtifactDescriptions map[string]string
+	GitHub               githubSpec
+	Discovery            *discoverySpec
+	DiscoveryStack       *discoveryStackSpec
+	inputPlan            []plannedInput
 }
 
 type githubSpec struct {
@@ -173,6 +174,12 @@ func (m *manifest) validate() error {
 		if !pattern(`^[A-Za-z][A-Za-z0-9]*$`, k) || seenFlags[strings.ToLower(k)] ||
 			strings.Contains("|archive|memory|deploymentproject|deploymentenvironment|", "|"+strings.ToLower(k)+"|") {
 			return fmt.Errorf("invalid Pulumi configuration default %q", k)
+		}
+	}
+	for name, description := range m.ArtifactDescriptions {
+		if !pattern(`^[A-Za-z0-9_.-]{1,128}$`, name) || strings.TrimSpace(description) == "" ||
+			len(description) > 300 || strings.ContainsAny(description, "\r\n\t") {
+			return fmt.Errorf("invalid artifact description for %q", name)
 		}
 	}
 	if !pattern(`^[a-zA-Z0-9_-]+\.ya?ml$`, m.GitHub.Workflow) ||

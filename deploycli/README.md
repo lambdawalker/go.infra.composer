@@ -24,6 +24,7 @@ writing identity configuration.
 | `BuildPackage`, `BuildDir` | Go Lambda package and archive directory under `dist/` |
 | `Memory`, `StackIdentity` | Optional Lambda memory setting and opt-in ownership verification for programs with a compatible `deploymentIdentity` output |
 | `InputsFile`, `Inputs`, `Functions`, `ConfigDefaults` | Optional versioned nonsecret settings, validated input flags, composition functions, and defaults written only for missing Pulumi keys |
+| `ArtifactDescriptions` | Optional map from exact Pulumi logical resource names to short, nonsecret purpose descriptions. The wizard and exported reports show them for resources already in state and resources proposed by preview. |
 | `Outputs` | Allowlist of nonsecret string outputs for status and persisted output receipts |
 | `GitHub` | Workflow and environment prefix. A managed policy name enables reviewed role/policy setup. Without one, GitHub setup uses an existing protected environment, OIDC provider and explicitly supplied role. |
 | `DiscoveryStack` | Optional shared index program directory, Pulumi project and stack to remove after all saved environments. |
@@ -32,6 +33,13 @@ The manifest describes a single isolated stack per environment. It contains
 no cloud credentials, target account IDs or executable shell snippets.
 The tool checks the directory's `Pulumi.yaml` project name against the
 manifest before opening any deployment records.
+
+`ArtifactDescriptions` keys are the exact logical resource names after the
+last `::` in a Pulumi URN, not generated AWS physical names. For example,
+`"testhost.app-demo-domain": "Assigns the demo HTTPS hostname to API Gateway."`
+describes the resource named `testhost.app-demo-domain` in state and preview.
+Keep descriptions short and free of credentials; the wizard also includes them
+in exported artifact reports.
 
 Pin a reviewed module version or commit in both launchers. For example,
 from a consumer checkout where `infra-deploy` is already installed:

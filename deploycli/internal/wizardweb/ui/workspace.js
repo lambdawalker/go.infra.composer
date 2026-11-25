@@ -7,7 +7,21 @@
   const operation = value => (value || "unknown").toLowerCase();
   const badge = action => el("span", action === "same" ? "Unchanged" : action === "unknown" ? "Not planned" : action.replaceAll("-", " "), "badge " + (action.includes("delete") || action.includes("replace") ? "delete" : action.includes("create") ? "create" : action.includes("update") ? "update" : action === "unknown" ? "unknown" : "same"));
   const symbolFor = type => /route53|cloudflare|acm|domain|apiGateway/i.test(type) ? "globe" : /dynamodb|s3|storage/i.test(type) ? "database" : /iam|secret|cognito|kms|authorizer/i.test(type) ? "shield" : /ses|email/i.test(type) ? "mail" : /lambda|eventRule|eventTarget/i.test(type) ? "bolt" : "layers";
-  const purposeFor = type => ({Function:"Runs backend code", Table:"Stores application data", Key:"Signs or encrypts data", EmailIdentity:"Identifies the SES sender", Api:"Exposes the application API", UserPool:"Manages demo identities", Certificate:"Secures the public endpoint", DnsRecord:"Publishes DNS records", Role:"Grants service access", LogGroup:"Stores diagnostic logs"})[type.split(":").at(-1)] || "Managed deployment resource";
+  const purposeFor = type => ({
+    Function:"Runs backend code", Permission:"Allows a service to invoke the Lambda function",
+    Table:"Stores application data", Bucket:"Stores deployment files or state",
+    Key:"Signs or encrypts data", RandomBytes:"Generates cryptographic key material",
+    EmailIdentity:"Identifies the SES sender", Api:"Exposes the application API",
+    Stage:"Publishes an API deployment", Route:"Connects a request path to the API",
+    Integration:"Connects the API to its backend", ApiMapping:"Maps a custom domain to the API",
+    DomainName:"Gives the API a custom HTTPS hostname", DnsRecord:"Publishes a DNS record",
+    Certificate:"Secures the public endpoint", CertificateValidation:"Verifies ownership of the certificate domain",
+    UserPool:"Manages demo identities", UserPoolClient:"Allows the demo client to use the user pool",
+    Authorizer:"Checks authorization for API requests", Role:"Grants service access",
+    RolePolicy:"Defines the service's AWS permissions", Secret:"Stores a protected configuration value",
+    SecretVersion:"Sets the protected configuration value", LogGroup:"Stores diagnostic logs",
+    EventRule:"Schedules or responds to background events", EventTarget:"Routes a background event to its handler"
+  })[type.split(":").at(-1)] || "Deployment resource for this application";
   const state = { selected:null, expanded:new Set(), filterKey:null, detailOpen:true, progressOpen:true, deploymentView:"application", inventory:null, plan:[], nodes:[], roots:[], reportRun:null };
   const workspace = $("preview-workspace"), wizard = $("wizard"), slot = $("preview-interaction-slot"), panel = $("panel"), signIn = $("sign-in"), originalParent = panel.parentNode;
   const dialog = $("workspace-dialog"), dialogContent = $("dialog-content"), promptActions = $("prompt-actions"), countdown = $("countdown"), stop = $("stop"), lockPanel = document.querySelector("#vault-lock .lock-panel");
@@ -63,7 +77,7 @@
     for (const change of state.plan) if (!change.node) { // Some Pulumi plan entries are not managed artifacts in the report.
       const resource = change.resource, name = resource.split("::").at(-1);
       const type = resource.split("::").at(-2)?.split("$").at(-1) || "Resource";
-      const a = {key:resource, name, type, id:nodes.length, parent:"", children:[], parentNode:null, owner:inventory.repository, feature:"", presence:"unknown", action:operation(change.operation), symbol:symbolFor(type)};
+      const a = {key:resource, name, type, id:nodes.length, parent:"", children:[], parentNode:null, owner:inventory.repository, feature:"", description:purposeFor(type), presence:"unknown", action:operation(change.operation), symbol:symbolFor(type)};
       nodes.push(a); state.roots.push(a); resources.set(resource,a); change.node = a;
     }
     // Prefer the saved plan's operation when its event log was not available.
@@ -74,7 +88,7 @@
     const box = $("detail-content"); box.replaceChildren();
     const a = state.selected;
     if (!a) { box.append(el("p", "No artifacts loaded. Connect to a deployment stack to check.", "muted")); return; }
-    box.append(el("div", a.name || a.key, "detail-name"), el("div", a.type || "Resource", "kind"), el("p", purposeFor(a.type || ""), "artifact-description"));
+    box.append(el("div", a.name || a.key, "detail-name"), el("div", a.type || "Resource", "kind"), el("p", a.description || purposeFor(a.type || ""), "artifact-description"));
     const tags = el("div", "", "detail-actions"); tags.append(badge(a.action), el("span", a.feature || state.inventory?.repository?.split("/").at(-1) || "Project", "depth-label")); box.append(tags);
     const dl = el("dl", "", "data-grid");
     for (const [label, value] of [["Presence", ({present:"Live check: present",recorded:"Recorded in Pulumi state",absent:"Live check: absent",unknown:"Not checked"})[a.presence] || "Not checked"], ["Pulumi identity",a.key], ["Owner",a.owner || state.inventory?.repository || "Unknown"]]) {

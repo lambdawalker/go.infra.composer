@@ -188,7 +188,7 @@
 .preview-workspace .tools select {width:112px}
 .preview-workspace .tools input::placeholder {color:var(--muted)}
 .preview-workspace .list {flex:1;min-height:0;overflow:auto;padding:5px 7px 8px;scrollbar-gutter:stable}
-.preview-workspace .artifact-tree {--tree-step:28px;--tree-center:14px;--tree-root-gutter:18px;--tree-junction:17px;--tree-elbow:18px}
+.preview-workspace .artifact-tree {--tree-step:24px;--tree-center:12px;--tree-root-gutter:14px;--tree-junction:17px;--tree-elbow:14px}
 .preview-workspace .artifact-tree, .preview-workspace .artifact-tree ul {list-style:none;margin:0;padding:0}
 .preview-workspace .artifact-tree {position:relative;padding-left:var(--tree-root-gutter)}
 .preview-workspace .artifact-tree:before {position:absolute;left:calc(var(--tree-root-gutter) - var(--tree-center));top:var(--tree-junction);bottom:0;width:1px;background:var(--tree-line);pointer-events:none;content:""}
