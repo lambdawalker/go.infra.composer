@@ -34,6 +34,7 @@ func TestStartupSettingsShowSavedTargetAndManifestInputs(t *testing.T) {
 	cli := deployCLI{spec}
 	home, root := t.TempDir(), t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	project := projectRecord{Version: 1, Name: "demo", Root: root}
 	local := filepath.Join(root, ".deploy")
 	private := filepath.Join(home, ".infra-composer", project.Name)
