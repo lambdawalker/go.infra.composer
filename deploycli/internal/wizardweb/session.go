@@ -534,6 +534,7 @@ func (s *Session) setInventory(report reporting.Report, source string) {
 		(old.Environment != report.Scope.Environment || old.Stack != report.Scope.Stack ||
 			old.Account != report.Scope.Account || old.Region != report.Scope.Region || old.Backend != s.redact(report.Scope.Backend)) {
 		s.setDeploymentHistory(nil)
+		s.view.Drift = nil
 	}
 	items := make([]ArtifactView, 0, len(report.Artifacts))
 	for _, a := range report.Artifacts {

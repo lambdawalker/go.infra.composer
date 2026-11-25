@@ -595,7 +595,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	}
 	lock.Close()
 	defer os.Remove(lock.Name())
-	if cli.spec.Memory != 0 {
+	if cli.spec.Memory != 0 && *action != wizardweb.DriftAction {
 		var deploymentFlags struct{ Version, Memory int }
 		memoryExplicit := false
 		fs.Visit(func(f *flag.Flag) {
