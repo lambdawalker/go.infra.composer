@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/wizard.css">
   <link rel="stylesheet" href="/workspace.css">
   <link rel="stylesheet" href="/topology.css">
+  <script src="/environment-menu.js" defer></script>
   <script src="/wizard.js" defer></script>
   <script src="/aws-icons.js" defer></script>
   <script src="/vendor/topology-three.js" defer></script>
@@ -15,7 +16,18 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#ws-layers"></use></svg></span><span id="brand-title">Deployment wizard</span><span id="brand-operation" class="brand-operation"></span></div>
+    <div class="brand">
+      <div class="environment-menu" id="environment-menu" hidden>
+        <button class="main-menu-toggle" id="main-menu-toggle" type="button" aria-label="Main menu" title="Main menu" aria-expanded="false" aria-controls="main-menu-items"><span aria-hidden="true">☰</span></button>
+        <div class="main-menu-items" id="main-menu-items" hidden>
+          <button type="button" data-environment-mode="new"><span aria-hidden="true">+</span> New Environment…</button>
+          <button type="button" data-environment-mode="open"><span aria-hidden="true">↗</span> Open Environment…</button>
+        </div>
+      </div>
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#ws-layers"></use></svg></span>
+      <span id="brand-title">Deployment wizard</span><span id="brand-operation" class="brand-operation"></span>
+      <span id="active-environment" class="active-environment" aria-live="polite" hidden></span>
+    </div>
     <div class="topbar-controls">
       <div class="local"><span aria-hidden="true"></span>Local session</div>
       <label class="theme-control">Theme
@@ -92,6 +104,19 @@
       <nav class="tool-stripe right-stripe" aria-label="Artifact tools"><div class="stripe-zone"><button class="stripe-button active" id="stripe-details" type="button" aria-label="Collapse artifact details" aria-expanded="true" title="Artifact details"><svg class="icon"><use href="#ws-shield"></use></svg></button></div></nav>
     </div>
     <dialog id="workspace-dialog" aria-labelledby="panel-title"><div id="dialog-content"></div><div id="dialog-footer"><div id="dialog-countdown"></div><div id="dialog-actions"></div></div></dialog>
+    <dialog id="environment-dialog" aria-labelledby="environment-dialog-title">
+      <form id="environment-dialog-form">
+        <div class="panel-heading"><h2 id="environment-dialog-title"></h2></div>
+        <div class="environment-dialog-body">
+          <div id="environment-dialog-fields"></div>
+          <p class="problem" id="environment-dialog-error" role="alert" hidden></p>
+        </div>
+        <div class="environment-dialog-actions">
+          <button type="button" id="environment-cancel" class="button outline">Cancel</button>
+          <button type="submit" id="environment-submit" class="button primary"></button>
+        </div>
+      </form>
+    </dialog>
   </section>
   <main class="shell" id="wizard">
     <div class="overview">
@@ -113,7 +138,7 @@
       </aside>
       <div class="content">
         <section id="panel" class="panel" aria-labelledby="panel-title">
-          <div class="panel-heading">
+          <div class="panel-heading" id="wizard-panel-heading">
             <span class="status" id="status">Connecting</span>
             <h2 id="panel-title">Opening local session</h2>
           </div>

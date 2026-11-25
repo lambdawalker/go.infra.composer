@@ -372,6 +372,9 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 		}
 	}
 	if *server && ui.browser == nil {
+		if *env != "" && !cli.spec.validEnvironment(*env) {
+			return errors.New("invalid environment (production requires AllowProduction in deploy.json)")
+		}
 		root, err := os.Getwd()
 		if err != nil {
 			return err
@@ -387,9 +390,29 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 		}
 		return wizardweb.Serve(ctx, cli.spec.Title, !*noOpen, register, func(ctx context.Context, session *wizardweb.Session, showActions bool) error {
 			session.SetActionOptions(wizardActionOptions(), "preview")
-			cli.publishSavedInventory(session, root, *project, *env)
+			selected := session.Environment()
+			if !showActions {
+				selected = *env
+				if selected == "" {
+					report, _ := cli.savedInventory(root, *project, "")
+					selected = report.Scope.Environment
+				}
+			}
+			options, err := cli.browserEnvironments(root, *project)
+			if err != nil {
+				return fmt.Errorf("read saved environments: %w", err)
+			}
+			session.ConfigureEnvironments(selected, options, func(mode, name string) (wizardweb.EnvironmentTarget, error) {
+				return cli.resolveBrowserEnvironment(root, *project, mode, name)
+			})
+			cli.publishSavedInventory(session, root, *project, selected)
 			ctx = context.WithValue(ctx, wizardRegistrationKey{}, registration)
-			return cli.runWizard(context.WithValue(ctx, wizardKey{}, session), args, showActions)
+			ctx = context.WithValue(ctx, wizardKey{}, session)
+			if showActions {
+				return cli.runWizard(ctx, browserTargetArgs(*project, "", "", *skipGitHub), true)
+			}
+			ctx = context.WithValue(ctx, browserLaunchEnvironmentKey{}, selected)
+			return cli.runWizard(ctx, args, false)
 		})
 	}
 	if showActions {
@@ -477,7 +500,22 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	if *action == "destroy-all" {
 		return cli.destroyAll(ctx, *project, *indexBackend, *ci)
 	}
-	if !*ci && *env == "" && (*action == "destroy" || *action == "github-teardown") {
+	if ui.browser != nil && !*terminal && *exportPath == "" {
+		selected := ui.browser.Environment()
+		if selected == "" {
+			selected, e = ui.browser.Ask(ctx, wizardweb.Prompt{Kind: "environment", Label: "Choose an environment from the main menu"})
+			if e != nil {
+				return e
+			}
+		}
+		initial, _ := ctx.Value(browserLaunchEnvironmentKey{}).(string)
+		if selected != *env && (*env != "" || (initial != "" && initial != selected)) {
+			// Launch-time overrides stay with the initial environment.
+			return cli.runWizard(ctx, browserTargetArgs(*project, selected, *action, *skipGitHub), false)
+		}
+		*env = selected
+	}
+	if ui.browser == nil && !*ci && *env == "" && (*action == "destroy" || *action == "github-teardown") {
 		*env, e = ui.input("Environment to remove (dev, qa, or custom)", "", "")
 		if e != nil {
 			return e
@@ -1099,7 +1137,13 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 				return fmt.Errorf("discovery retirement failed: %w", err)
 			}
 		}
-		return command(ctx, dir, "pulumi", "destroy", "--stack", stack, "--yes")
+		if err := command(ctx, dir, "pulumi", "destroy", "--stack", stack, "--yes"); err != nil {
+			return err
+		}
+		if err := os.Remove(filepath.Join(private, "applied.json")); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("stack destroyed, but its deployment receipt could not be removed: %w", err)
+		}
+		return nil
 	}
 
 	if *action != "preview" && *action != "deploy" && *action != "setup" {
@@ -1231,11 +1275,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	if e = atomicWrite(filepath.Join(private, "outputs.json"), outputs); e != nil {
 		return e
 	}
-	success, _ := json.Marshal(struct {
-		Version                                                           int
-		Project, Environment, Account, Region, Backend, Stack, PlanSHA256 string
-		AppliedAt                                                         time.Time
-	}{1, projectName, *env, *account, *region, *backend, stack, canonicalHash(json.RawMessage(planBytes)), time.Now().UTC()})
+	success, _ := json.Marshal(deploymentReceipt{1, projectName, *env, *account, *region, *backend, stack, canonicalHash(json.RawMessage(planBytes)), time.Now().UTC()})
 	if e = atomicWrite(filepath.Join(private, "applied.json"), success); e != nil {
 		return e
 	}

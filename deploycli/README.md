@@ -110,7 +110,15 @@ to keep the existing token or enter a new value to replace it. Saved tokens
 are used for the corresponding tool in preference to its environment token.
 Noninteractive runs continue to use their externally supplied credentials. With no `--action`, the
 browser presents action cards that explain each operation and selects Preview.
-After choosing the project and environment, review and edit the applicable
+Use the main menu beside the project title to create a draft with **New
+Environment** or to select a recorded deployment or saved setup with **Open
+Environment**. The menu uses local records for this project. A recorded
+deployment means the wizard previously saved a successful apply receipt.
+The header shows the selected environment. Choose or switch environments at
+the action menu before starting work. **New Environment** selects a name
+without provisioning cloud resources. The terminal still asks for the
+environment when needed, and command-line runs still accept `--environment`.
+Review and edit the applicable
 settings in one form. Continue validates the full form and saves the accepted
 project inputs as defaults for that environment. Account, region, and state
 location for an existing deployment stay bound to its verified scope.

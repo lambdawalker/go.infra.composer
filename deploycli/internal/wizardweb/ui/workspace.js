@@ -236,8 +236,9 @@
   window.updatePreviewWorkspace = view => {
     if(!showWorkspace(view)) {state.reportRun=null;return;}
     const kind=view.prompt?.kind;
-    const target=kind==="actions"?$("actions-slot"):kind==="form"?$("inputs-slot"):slot;
-    const modal=kind && kind!=="actions" && kind!=="form" ? "prompt" :
+    const choosingTarget=kind==="actions" || kind==="environment";
+    const target=choosingTarget?$("actions-slot"):kind==="form"?$("inputs-slot"):slot;
+    const modal=kind && !choosingTarget && kind!=="form" ? "prompt" :
       view.signIn ? "signIn" : null;
     setDialog(modal);
     if(!modal && panel.parentNode!==target) target.prepend(panel);
@@ -248,7 +249,7 @@
     const nextRoute=view.run+":"+(view.prompt?.id||view.phase+":"+view.status);
     if(routeKey!==nextRoute) {
       routeKey=nextRoute;
-      if(kind==="actions") activate($("actions-tab"));
+      if(choosingTarget) activate($("actions-tab"));
       else if(kind==="form") activate($("inputs-tab"));
       else if(!modal && view.action) activate($("overview-tab"));
       if(modal) (modal==="signIn" ? signIn : dialog.querySelector("input:not([type=hidden])") || dialog.querySelector("button"))?.focus();
