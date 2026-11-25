@@ -166,9 +166,12 @@ The action cards apply to the selected environment. **Remove this environment**
 retires it from the discovery index before destroying its Pulumi stack.
 For projects with a shared discovery index, choose **Remove All Environments
 and Index** from the main menu while at the Actions screen. This verifies the
-declared shared index and its existing S3 state
-URL first, then requests typed confirmation for the project, each environment
-stack, and the index stack. It destroys the index after all saved environments
+declared shared index and its existing S3 state URL first. In the browser,
+both removal flows ask for intent, acknowledgment of effects, and an exact
+typed name. Enter the stack name for one environment or the project name for
+the full list of stacks and the shared index. Closing the review cancels the
+operation. The terminal still asks for the project and individual stack names
+for project-wide removal. Composer destroys the index after all saved environments
 succeed. If any teardown fails, the wizard stops for recovery and a retry.
 The shared index requires its own Pulumi passphrase.
 

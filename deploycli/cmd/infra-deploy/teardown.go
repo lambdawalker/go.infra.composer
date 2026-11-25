@@ -9,7 +9,17 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/lambdawalker/go.infra.composer/deploycli/internal/wizardweb"
 )
+
+type teardownBatchKey struct{}
+
+type teardownBatch struct {
+	project   string
+	workspace string
+	targets   map[string]Settings
+}
 
 // destroyAll works through the normal single-environment teardown path so each
 // entry is retired before its own stack is destroyed. The shared index is last.
@@ -35,9 +45,17 @@ func (cli deployCLI) destroyAll(ctx context.Context, project, indexBackend strin
 	if err != nil {
 		return err
 	}
-	name, _, central, err := cli.projectPaths(ctx, root, project, false)
+	name, local, central, err := cli.projectPaths(ctx, root, project, false)
 	if err != nil {
 		return err
+	}
+	batch := &teardownBatch{project: name, workspace: local, targets: make(map[string]Settings)}
+	if ui.browser != nil {
+		unlock, err := operationLock(filepath.Join(local, "workspace.lock"))
+		if err != nil {
+			return err
+		}
+		defer unlock()
 	}
 	dirs, err := os.ReadDir(filepath.Join(central, "environments"))
 	if err != nil {
@@ -54,10 +72,13 @@ func (cli deployCLI) destroyAll(ctx context.Context, project, indexBackend strin
 		}
 		var saved Settings
 		b, err := os.ReadFile(filepath.Join(central, "environments", dir.Name(), "settings.json"))
-		if err != nil || json.Unmarshal(b, &saved) != nil || saved.Version != 1 || saved.Environment != dir.Name() || !validBackend(saved.Backend) {
+		if err != nil || json.Unmarshal(b, &saved) != nil || saved.Version != 1 || saved.Environment != dir.Name() ||
+			!validBackend(saved.Backend) || (ui.browser != nil &&
+			(!pattern(`^\d{12}$`, saved.Account) || !validRegion(saved.Region) || saved.Profile == "")) {
 			return fmt.Errorf("saved target for %q is incomplete; resolve it before teardown", dir.Name())
 		}
 		environments = append(environments, dir.Name())
+		batch.targets[dir.Name()] = saved
 		if indexAccess.Account == "" {
 			indexAccess = saved
 		} else if indexAccess.Account != saved.Account || indexAccess.Region != saved.Region {
@@ -104,19 +125,50 @@ func (cli deployCLI) destroyAll(ctx context.Context, project, indexBackend strin
 	ui.note("Environments: " + strings.Join(environments, ", "))
 	ui.note("Shared discovery index: " + index.PulumiProject + "/" + index.Stack)
 	ui.note("Index state: " + indexBackend)
-	if err := ui.deliberate("Type the project name to approve all environments and index teardown", name); err != nil {
+	if ui.browser != nil {
+		targets := make([]string, 0, len(environments)+1)
+		for _, environment := range environments {
+			targets = append(targets, environment+" · "+cli.spec.stackName(name, environment))
+		}
+		targets = append(targets, "Shared index · "+index.PulumiProject+"/"+index.Stack)
+		if err := ui.browser.ConfirmTeardown(ctx, wizardweb.TeardownTarget{
+			Title: "Remove all environments and index", Name: name,
+			Targets: targets,
+			Effects: []string{
+				fmt.Sprintf("Pulumi will permanently delete resources managed by the listed stacks in AWS account %s, region %s.", indexAccess.Account, indexAccess.Region),
+				"Composer will retire each environment from discovery and remove the shared index after every environment succeeds.",
+				"If an environment cannot be removed, teardown stops before removing the index.",
+			},
+			Intent: "I want to remove all environments and the index", Final: "Remove all environments and index", Type: name,
+		}); err != nil {
+			return err
+		}
+		ctx = context.WithValue(ctx, teardownBatchKey{}, batch)
+	} else if err := ui.deliberate("Type the project name to approve all environments and index teardown", name); err != nil {
 		return err
 	}
 	for _, environment := range environments {
 		ui.note("Removing environment " + environment)
-		// The existing destroy action verifies the target and asks for the
-		// stack name before retiring discovery and destroying resources.
+		// The destroy action verifies each target again before retiring discovery.
 		if err := cli.runWizard(ctx, []string{"--action", "destroy", "--project", name, "--environment", environment, "--terminal"}, false); err != nil {
 			return fmt.Errorf("environment %s: %w", environment, err)
 		}
 	}
 	stack := index.Stack
-	if err := ui.deliberate("Type the shared discovery stack name to destroy its index", stack); err != nil {
+	if ui.browser == nil {
+		if err := ui.deliberate("Type the shared discovery stack name to destroy its index", stack); err != nil {
+			return err
+		}
+	}
+	// A nested destroy may have switched Pulumi to another backend.
+	if err := command(ctx, indexDir, "pulumi", "login", indexBackend, "--non-interactive"); err != nil {
+		return err
+	}
+	raw, err = outputIn(ctx, indexDir, "pulumi", "stack", "ls", "--json", "--non-interactive")
+	if err != nil {
+		return err
+	}
+	if err := requireDiscoveryStack(raw, *index); err != nil {
 		return err
 	}
 	ui.phase("apply", "Remove shared discovery index")

@@ -33,22 +33,18 @@
   }
 
   function showDialog(mode) {
-    if (!selectable(view) || (mode === "destroy-all" && removeAll.disabled)) return;
+    if (!selectable(view)) return;
     pauseCountdown();
     request = {mode, id: selectionID(view)};
     showMenu(false);
     error.hidden = true;
     fields.replaceChildren();
-    const projectTeardown = mode === "destroy-all";
     get("environment-dialog-title").textContent = {
-      new: "New Environment", open: "Open Environment", "destroy-all": "Remove All Environments and Index",
+      new: "New Environment", open: "Open Environment",
     }[mode];
-    submit.textContent = {new: "Create", open: "Open", "destroy-all": "Review teardown"}[mode];
-    submit.classList.toggle("project-teardown-submit", projectTeardown);
+    submit.textContent = mode === "new" ? "Create" : "Open";
     submit.disabled = false;
-    if (projectTeardown) {
-      fields.append(node("p", "Review removal of every saved environment in this project, followed by the shared index. The wizard will ask you to confirm the targets before removing anything."));
-    } else if (mode === "new") {
+    if (mode === "new") {
       const label = node("label", "Environment name");
       const input = node("input");
       input.name = "environment";
@@ -99,7 +95,8 @@
   });
   items.addEventListener("click", event => {
     const option = event.target.closest("[data-environment-mode]");
-    if (option) showDialog(option.dataset.environmentMode);
+    if (option === removeAll) startTeardown();
+    else if (option) showDialog(option.dataset.environmentMode);
   });
   document.addEventListener("pointerdown", event => {
     if (!menu.contains(event.target)) showMenu(false);
@@ -123,9 +120,7 @@
     error.hidden = true;
     submit.disabled = true;
     try {
-      const response = selection.mode === "destroy-all"
-        ? await post("/api/project-teardown", {id: selection.id})
-        : await post("/api/environment", {...selection, name});
+      const response = await post("/api/environment", {...selection, name});
       if (!response.ok) throw new Error((await response.text()).trim());
       if (request === selection && dialog.open) dialog.close();
       await refresh();
@@ -137,6 +132,19 @@
       if (request === selection) submit.disabled = false;
     }
   });
+
+  async function startTeardown() {
+    if (!atActionMenu(view) || removeAll.disabled) return;
+    pauseCountdown();
+    showMenu(false, true);
+    try {
+      const response = await post("/api/project-teardown", {id: selectionID(view)});
+      if (!response.ok && response.status !== 409) throw new Error((await response.text()).trim());
+      await refresh();
+    } catch (err) {
+      showConnection(err.message || "Couldn’t start teardown review.");
+    }
+  }
 
   function renderTabs(state, available) {
     const names = state?.openEnvironments || [];
