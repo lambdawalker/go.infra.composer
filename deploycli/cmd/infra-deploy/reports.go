@@ -62,10 +62,29 @@ func (cli deployCLI) newFeatureReport(ctx context.Context, root, dir, stack, pri
 	}
 	return r
 }
+func (m manifest) artifactFeature(key, name string) string {
+	if strings.HasPrefix(key, "bootstrap:") {
+		return m.Feature
+	}
+	if strings.HasPrefix(key, "urn:pulumi:") {
+		urn, _, _ := strings.Cut(key, "#previous-physical-id:")
+		if i := strings.LastIndex(urn, "::"); i >= 0 {
+			name = urn[i+2:]
+		}
+	}
+	feature, longest := m.Feature, 0
+	for prefix, label := range m.ArtifactFeaturePrefixes {
+		if len(prefix) > longest && strings.HasPrefix(name, prefix) {
+			feature, longest = label, len(prefix)
+		}
+	}
+	return feature
+}
+
 func (cli deployCLI) ownFeature(as []reporting.Artifact) []reporting.Artifact {
 	for i := range as {
 		as[i].Owner = cli.owner()
-		as[i].Feature = cli.spec.Feature
+		as[i].Feature = cli.spec.artifactFeature(as[i].Key, as[i].Name)
 		if description := cli.spec.ArtifactDescriptions[as[i].Name]; description != "" {
 			as[i].Description = description
 		}

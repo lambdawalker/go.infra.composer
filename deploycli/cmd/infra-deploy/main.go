@@ -1237,7 +1237,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	}
 	if ui.browser != nil {
 		activeFeatureReport.publish(ctx, true)
-		if err := ui.preview(planBytes); err != nil {
+		if err := ui.preview(planBytes, cli.spec); err != nil {
 			return err
 		}
 	}

@@ -46,6 +46,8 @@ type manifest struct {
 	Discovery            *discoverySpec
 	DiscoveryStack       *discoveryStackSpec
 	inputPlan            []plannedInput
+
+	ArtifactFeaturePrefixes map[string]string
 }
 
 type githubSpec struct {
@@ -194,6 +196,11 @@ func (m *manifest) validate() error {
 		if !pattern(`^[A-Za-z0-9_.-]{1,128}$`, name) || strings.TrimSpace(description) == "" ||
 			len(description) > 300 || strings.ContainsAny(description, "\r\n\t") {
 			return fmt.Errorf("invalid artifact description for %q", name)
+		}
+	}
+	for prefix, feature := range m.ArtifactFeaturePrefixes {
+		if !pattern(`^[A-Za-z0-9_.-]{1,128}$`, prefix) || !pattern(`^[a-z][a-z0-9-]{0,47}$`, feature) {
+			return fmt.Errorf("invalid artifact feature label for prefix %q", prefix)
 		}
 	}
 	if !pattern(`^[a-zA-Z0-9_-]+\.ya?ml$`, m.GitHub.Workflow) ||
