@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Infra Composer · Deployment wizard</title>
+  <title>{{.Title}}</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/wizard.css">
   <link rel="stylesheet" href="/workspace.css">
   <link rel="stylesheet" href="/topology.css">
@@ -31,7 +32,7 @@
       <nav id="environment-tabs" class="environment-tabs" aria-label="Open environments" hidden></nav>
     </div>
     <div class="topbar-controls">
-      <div class="local"><span aria-hidden="true"></span>Local session</div>
+      {{if .Repository}}<a class="repository-link" href="https://github.com/{{.Repository}}" target="_blank" rel="noopener noreferrer" title="Open /{{.Repository}} on GitHub">/{{.Repository}}</a>{{end}}
       <label class="theme-control">Theme
         <select id="theme">
           <option value="system">System</option>

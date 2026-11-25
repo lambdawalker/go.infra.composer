@@ -38,7 +38,7 @@ func TestWizardIndexTracksConcurrentProjectListeners(t *testing.T) {
 		var registration *wizardRegistration
 		go func() {
 			defer close(exited)
-			serveErr = wizardweb.Serve(ctx, cli.spec.Title, false, func(port int, instanceID string) (func() error, error) {
+			serveErr = wizardweb.Serve(ctx, cli.spec.Title, cli.spec.Repository, false, func(port int, instanceID string) (func() error, error) {
 				var err error
 				registration, err = registerWizard(root, cli.spec.Repository, "", port, instanceID)
 				if err != nil {

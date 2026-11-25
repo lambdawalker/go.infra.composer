@@ -95,7 +95,6 @@
     if (!show && panel.parentNode !== originalParent) originalParent.insertBefore(panel, signIn);
     wizard.hidden = show; workspace.hidden = !show;
     if(!show)topology.deactivate();
-    document.title = [view.title || "Deployment wizard", view.environment].filter(Boolean).join(" · ");
     return show;
   }
   function buildInventory(view) {

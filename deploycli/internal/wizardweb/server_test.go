@@ -174,6 +174,7 @@ func request(handler http.Handler, method, path, host, origin, token, body strin
 
 func TestLoopbackWizardProtectsStateAndReplies(t *testing.T) {
 	session := newSession("test wizard", func() {})
+	session.repository = "lambdawalker/go.apexfission.aws.email-verification"
 	session.view.Prompt = &Prompt{ID: 7, Kind: "secret", Label: "Vault passphrase"}
 	session.response = make(chan reply, 1)
 	replies := session.response
@@ -200,6 +201,24 @@ func TestLoopbackWizardProtectsStateAndReplies(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "topology-tab") {
 		t.Fatal("topology tab missing from local UI")
+	}
+	for _, markup := range []string{
+		`<title>Deploy: go.apexfission.aws.email-verification</title>`,
+		`href="https://github.com/lambdawalker/go.apexfission.aws.email-verification"`,
+		`>/lambdawalker/go.apexfission.aws.email-verification</a>`,
+		`<link rel="icon" type="image/svg+xml" href="/favicon.svg">`,
+	} {
+		if !strings.Contains(rec.Body.String(), markup) {
+			t.Errorf("wizard page is missing %s", markup)
+		}
+	}
+	if strings.Contains(rec.Body.String(), "Local session") {
+		t.Error("old session badge is still in the header")
+	}
+	favicon := request(handler, http.MethodGet, "/favicon.svg", testHost, "", "", "")
+	if favicon.Code != http.StatusOK || !strings.Contains(favicon.Header().Get("Content-Type"), "image/svg+xml") ||
+		!strings.HasPrefix(favicon.Body.String(), "<svg") {
+		t.Fatalf("deployment favicon was not served locally: %d %s", favicon.Code, favicon.Header().Get("Content-Type"))
 	}
 	if !strings.Contains(rec.Body.String(), `src="/aws-icons.js"`) {
 		t.Fatal("AWS icon mapper missing from local UI")

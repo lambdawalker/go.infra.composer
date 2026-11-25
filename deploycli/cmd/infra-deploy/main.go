@@ -389,7 +389,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 			}
 			return registration.remove, nil
 		}
-		return wizardweb.Serve(ctx, cli.spec.Title, !*noOpen, register, func(ctx context.Context, session *wizardweb.Session, showActions bool) error {
+		return wizardweb.Serve(ctx, cli.spec.Title, cli.spec.Repository, !*noOpen, register, func(ctx context.Context, session *wizardweb.Session, showActions bool) error {
 			session.SetActionOptions(wizardActionOptions(), "preview")
 			selected := session.Environment()
 			if !showActions {

@@ -1,6 +1,7 @@
 package wizardweb
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
@@ -9,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"io/fs"
 	"net"
@@ -21,6 +23,8 @@ import (
 
 //go:embed ui
 var assets embed.FS
+
+var indexPage = template.Must(template.ParseFS(assets, "ui/index.html"))
 
 var awsIconPaths = map[string]struct{}{
 	"/icons/aws/acm.svg": {}, "/icons/aws/api-gateway.svg": {},
@@ -40,7 +44,7 @@ var awsModelPaths = func() map[string]struct{} {
 	return paths
 }()
 
-func Serve(ctx context.Context, title string, open bool, register func(int, string) (func() error, error), run func(context.Context, *Session, bool) error) (result error) {
+func Serve(ctx context.Context, title, repository string, open bool, register func(int, string) (func() error, error), run func(context.Context, *Session, bool) error) (result error) {
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		return err
@@ -63,6 +67,7 @@ func Serve(ctx context.Context, title string, open bool, register func(int, stri
 	defer closePage()
 	session := newSession(title, closePage)
 	session.instanceID = instanceID
+	session.repository = repository
 	server := &http.Server{
 		Handler: session.handler(host, key), ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second,
@@ -140,6 +145,18 @@ func (s *Session) handler(host, key string) http.Handler {
 		panic(err)
 	}
 	files := http.FileServerFS(static)
+	page := struct {
+		Title      string
+		Repository string
+	}{Title: "Deployment wizard"}
+	if _, name, ok := strings.Cut(s.repository, "/"); ok {
+		page.Title = "Deploy: " + name
+		page.Repository = s.repository
+	}
+	var index bytes.Buffer
+	if err := indexPage.ExecuteTemplate(&index, "index.html", page); err != nil {
+		panic(err)
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
@@ -162,11 +179,15 @@ func (s *Session) handler(host, key string) http.Handler {
 			_, isAWSIcon := awsIconPaths[r.URL.Path]
 			_, isAWSModel := awsModelPaths[r.URL.Path]
 			if (r.Method == http.MethodGet || r.Method == http.MethodHead) &&
-				(r.URL.Path == "/" || r.URL.Path == "/wizard.css" || r.URL.Path == "/wizard.js" ||
+				(r.URL.Path == "/" || r.URL.Path == "/favicon.svg" || r.URL.Path == "/wizard.css" || r.URL.Path == "/wizard.js" ||
 					r.URL.Path == "/workspace.css" || r.URL.Path == "/workspace.js" ||
 					r.URL.Path == "/topology.css" || r.URL.Path == "/topology.js" ||
 					r.URL.Path == "/aws-icons.js" || r.URL.Path == "/environment-menu.js" || r.URL.Path == "/vendor/topology-three.js" ||
 					isAWSIcon || isAWSModel) {
+				if r.URL.Path == "/" {
+					http.ServeContent(w, r, "index.html", time.Time{}, bytes.NewReader(index.Bytes()))
+					return
+				}
 				if isAWSModel {
 					w.Header().Set("Content-Type", "model/gltf-binary")
 				}
