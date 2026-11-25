@@ -40,6 +40,20 @@ func TestNormalizeHierarchyAndReplacement(t *testing.T) {
 	}
 }
 
+func TestMergeRetainsPurposeForMatchingResourceType(t *testing.T) {
+	old := Report{Artifacts: []Artifact{{Key: "table", Type: "aws:dynamodb/table:Table", Description: "Stores demo verification attempts."}}}
+	current := Report{Artifacts: []Artifact{{Key: "table", Type: "aws:dynamodb/table:Table"}}}
+	got := Merge(current, old)
+	if len(got.Artifacts) != 1 || got.Artifacts[0].Description != old.Artifacts[0].Description {
+		t.Fatal(got.Artifacts)
+	}
+	current.Artifacts[0].Type = "aws:lambda/function:Function"
+	got = Merge(current, old)
+	if got.Artifacts[0].Description != "" {
+		t.Fatal("purpose carried across changed resource type")
+	}
+}
+
 func TestCacheAndEscaping(t *testing.T) {
 	r := Report{Scope: Scope{Application: "app"}, Artifacts: []Artifact{{Key: "x", Name: "<script>alert(1)</script> | [x](https://bad)", Observation: Observation{Status: Present, Source: "live", ObservedAt: time.Now().UTC()}}}}
 	path := filepath.Join(t.TempDir(), "cache.json")
@@ -82,13 +96,13 @@ func TestCacheAndEscaping(t *testing.T) {
 }
 
 func TestRenderIncludesContextAndReadableUnknownDates(t *testing.T) {
-	r := Report{Scope: Scope{Application: "app", Repository: "org/repo", Environment: "prod", Account: "123", Region: "us-west-2", Backend: "s3://state", Stack: "prod"}, Metadata: Metadata{Revision: "abcdef", Outcome: "failed"}, Artifacts: []Artifact{{Key: "a", Feature: "capture", Owner: "org/feature", Type: "aws:s3:Bucket", PlannedAction: "delete"}, {Key: "b", Parent: "a"}}}
+	r := Report{Scope: Scope{Application: "app", Repository: "org/repo", Environment: "prod", Account: "123", Region: "us-west-2", Backend: "s3://state", Stack: "prod"}, Metadata: Metadata{Revision: "abcdef", Outcome: "failed"}, Artifacts: []Artifact{{Key: "a", Feature: "capture", Owner: "org/feature", Type: "aws:s3:Bucket", Description: "Stores demo verification attempts.", PlannedAction: "delete"}, {Key: "b", Parent: "a"}}}
 	for _, render := range []func(io.Writer, Report) error{WriteHTML, WriteMarkdown} {
 		var b bytes.Buffer
 		if e := render(&b, r); e != nil {
 			t.Fatal(e)
 		}
-		for _, s := range []string{"org/repo", "us-west-2", "abcdef", "org/feature", "capture", "not checked", "delete"} {
+		for _, s := range []string{"org/repo", "us-west-2", "abcdef", "org/feature", "capture", "not checked", "delete", "Stores demo verification attempts."} {
 			if !strings.Contains(b.String(), s) {
 				t.Fatalf("missing %s in %s", s, b.String())
 			}

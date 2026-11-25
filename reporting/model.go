@@ -48,6 +48,7 @@ type Artifact struct {
 	Key           string         `json:"key"`
 	Name          string         `json:"name,omitempty"`
 	Type          string         `json:"type,omitempty"`
+	Description   string         `json:"description,omitempty"`
 	Provider      string         `json:"provider,omitempty"`
 	ProviderID    string         `json:"providerId,omitempty"`
 	Owner         string         `json:"owner,omitempty"`
@@ -134,6 +135,9 @@ func Merge(current, cached Report) Report {
 	}
 	for i, a := range current.Artifacts {
 		if b, ok := old[a.Key]; ok {
+			if a.Description == "" && a.Type == b.Type {
+				current.Artifacts[i].Description = b.Description
+			}
 			if a.ProviderID != "" && a.ProviderID == b.ProviderID && a.Provider == b.Provider && a.Observation.ObservedAt.IsZero() && a.Observation.Reason == Unchecked {
 				current.Artifacts[i].Observation = b.Observation
 			}
