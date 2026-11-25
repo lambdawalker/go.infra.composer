@@ -63,12 +63,27 @@
 .preview-workspace #progress-body, .preview-workspace .deployment-content, .preview-workspace .detail-content {min-height:0;flex:1;overflow:auto}
 .preview-workspace #progress-body {padding:8px 6px}
 .preview-workspace .steps {list-style:none;padding:0;margin:0}
-.preview-workspace .steps li {display:flex;align-items:center;gap:9px;min-height:30px;padding:5px 10px;border-radius:4px;color:var(--muted);font-size:12px}
-.preview-workspace .steps li:before {content:"";width:9px;height:9px;border-radius:50%;border:1px solid currentColor;flex:none}
-.preview-workspace .steps .done {color:var(--mint)}
-.preview-workspace .steps .done:before {background:var(--mint);border-color:var(--mint)}
-.preview-workspace .steps .active {background:var(--selected);color:var(--text);font-weight:600}
-.preview-workspace .steps .active:before {border:3px solid var(--blue)}
+.preview-workspace .steps > li {color:var(--muted);font-size:12px}
+.preview-workspace .steps .phase-row {display:flex;align-items:center;gap:9px;min-height:30px;padding:5px 10px;border-radius:4px}
+.preview-workspace .steps .phase-row:before {content:"";width:9px;height:9px;border-radius:50%;border:1px solid currentColor;flex:none}
+.preview-workspace .steps > li.has-substeps .phase-row {position:relative}
+.preview-workspace .steps > li.has-substeps .phase-row:after {position:absolute;left:14px;top:21px;bottom:0;width:1px;background:var(--line);content:""}
+.preview-workspace .steps > li.done {color:var(--mint)}
+.preview-workspace .steps > li.done .phase-row:before {background:var(--mint);border-color:var(--mint)}
+.preview-workspace .steps > li.active .phase-row {background:var(--selected);color:var(--text);font-weight:600}
+.preview-workspace .steps > li.active .phase-row:before {border:3px solid var(--blue)}
+.preview-workspace .substeps {list-style:none;margin:0 0 5px 14px;padding:0;border-left:1px solid var(--line)}
+.preview-workspace .substeps li {position:relative;display:flex;align-items:flex-start;gap:7px;min-width:0;padding:5px 4px 5px 17px;color:var(--muted);font-size:11px;line-height:1.35}
+.preview-workspace .substeps li:before {position:absolute;left:0;top:12px;width:12px;border-top:1px solid var(--line);content:""}
+.preview-workspace .substeps li:last-child:after {position:absolute;left:-1px;top:13px;bottom:0;width:1px;background:var(--surface);content:""}
+.preview-workspace .substep-marker {width:6px;height:6px;margin-top:4px;border:1px solid currentColor;border-radius:50%;flex:none}
+.preview-workspace .substep-title {min-width:0;overflow-wrap:anywhere}
+.preview-workspace .substeps .complete {color:var(--mint)}
+.preview-workspace .substeps .complete .substep-marker {background:var(--mint)}
+.preview-workspace .substeps .running, .preview-workspace .substeps .stopping {color:var(--blue)}
+.preview-workspace .substeps .running .substep-marker, .preview-workspace .substeps .stopping .substep-marker {background:var(--blue)}
+.preview-workspace .substeps .failed {color:var(--rose)}
+.preview-workspace .substeps .failed .substep-marker {background:var(--rose)}
 .preview-workspace .deployment-content {padding:13px 12px 16px}
 .preview-workspace .feature-table {width:100%;margin-top:0;border-collapse:collapse;table-layout:fixed;font-size:11px}
 .preview-workspace .feature-table th {padding:7px 5px;text-align:left;color:var(--muted);font-weight:600;border-bottom:1px solid var(--line)}
@@ -307,9 +322,8 @@ body:has(.preview-workspace:not([hidden])) .preview-workspace { height:calc(100d
 }
 .preview-workspace #preview-summary { display:flex; flex-direction:column; gap:14px; }
 .preview-workspace #changes[data-state="pending"]:empty:after { content:'The Pulumi plan is being prepared. Current artifacts remain available on the right.'; }
-.preview-workspace #preview-interaction-slot #sign-in { margin-top:7px; }
-.preview-workspace #preview-interaction-slot #sign-in .section-heading { padding:10px 12px; }
-.preview-workspace #preview-interaction-slot #sign-in pre { margin:0 12px 12px; }
+.preview-workspace #workspace-dialog[data-mode="signIn"] {width:min(720px,calc(100vw - 32px))}
+.preview-workspace #workspace-dialog[data-mode="signIn"] #sign-in pre {white-space:pre-wrap;overflow-wrap:anywhere;max-height:min(48dvh,420px);overflow:auto;padding:10px 12px;border:1px solid var(--line);border-radius:5px;background:var(--elevated);font-size:11px;line-height:1.5}
 .preview-workspace #application-view > .muted { padding:10px 3px; font-size:11px; }
 body:has(.preview-workspace:not([hidden])) .topbar,
 body:has(#vault-lock:not([hidden])) .topbar { background:#25272b; border-bottom:1px solid #36383c; color:#dfe1e5; }
@@ -356,7 +370,6 @@ body:has(#vault-lock:not([hidden])) .theme-control select { min-height:27px; bac
 /* Native modal dialogs keep the editor and artifact panes visible, but inert. */
 .preview-workspace #workspace-dialog {width:min(640px,calc(100vw - 32px));max-width:none;max-height:calc(100dvh - 48px);overflow:auto;padding:0;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:8px;box-shadow:0 20px 65px #0009}
 .preview-workspace #workspace-dialog::backdrop {background:rgba(7,10,17,.74)}
-.preview-workspace #workspace-dialog[data-mode="idle"] {width:min(520px,calc(100vw - 32px))}
 .preview-workspace #workspace-dialog .panel {border:0;border-radius:0;box-shadow:none;background:transparent}
 .preview-workspace #workspace-dialog .lock-panel {margin:0;max-width:none}
 .preview-workspace #workspace-dialog .panel-heading {padding:17px 20px 0}
@@ -373,4 +386,8 @@ body:has(#vault-lock:not([hidden])) .theme-control select { min-height:27px; bac
 .preview-workspace #dialog-actions {display:flex;align-items:center;gap:10px;margin-left:auto}
 .preview-workspace #dialog-countdown {font-size:11px;color:var(--muted)}
 .preview-workspace #dialog-countdown .countdown {gap:7px;font-size:11px}
-.preview-workspace #workspace-dialog[data-mode="idle"] .panel-body:empty {display:none}
+.preview-workspace #workspace-dialog[data-mode="signIn"] #sign-in .section-heading {padding:17px 20px 12px}
+.preview-workspace #workspace-dialog[data-mode="signIn"] #sign-in .section-heading h2 {margin:0 0 6px;font-size:18px}
+.preview-workspace #workspace-dialog[data-mode="signIn"] #sign-in .section-heading p {margin:0;color:var(--muted);font-size:12px}
+.preview-workspace #workspace-dialog[data-mode="signIn"] #sign-in pre {margin:0 20px 20px}
+.preview-workspace #workspace-dialog[data-mode="signIn"] #dialog-countdown {display:none}

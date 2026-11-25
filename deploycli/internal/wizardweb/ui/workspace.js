@@ -24,8 +24,8 @@
   })[type.split(":").at(-1)] || "Deployment resource for this application";
   const state = { selected:null, expanded:new Set(), filterKey:null, detailOpen:true, progressOpen:true, deploymentView:"application", inventory:null, plan:[], nodes:[], roots:[], reportRun:null };
   const workspace = $("preview-workspace"), wizard = $("wizard"), slot = $("preview-interaction-slot"), panel = $("panel"), signIn = $("sign-in"), originalParent = panel.parentNode;
-  const dialog = $("workspace-dialog"), dialogContent = $("dialog-content"), promptActions = $("prompt-actions"), countdown = $("countdown"), stop = $("stop"), lockPanel = document.querySelector("#vault-lock .lock-panel");
-  const actionHome = promptActions.parentNode, countdownHome = countdown.parentNode, stopHome = stop.parentNode, lockHome = $("vault-lock");
+  const dialog = $("workspace-dialog"), dialogContent = $("dialog-content"), promptActions = $("prompt-actions"), signInActions = $("sign-in-actions"), countdown = $("countdown"), stop = $("stop"), lockPanel = document.querySelector("#vault-lock .lock-panel");
+  const actionHome = promptActions.parentNode, signInActionHome = signInActions.parentNode, countdownHome = countdown.parentNode, stopHome = stop.parentNode, lockHome = $("vault-lock");
   let routeKey = null;
   dialog.addEventListener("cancel", event => event.preventDefault());
   function setDialog(mode) {
@@ -33,20 +33,26 @@
     if (dialog.open) dialog.close();
     lockHome.append(lockPanel);
     if (panel.parentNode === dialogContent) slot.prepend(panel);
+    if (signIn.parentNode === dialogContent) slot.append(signIn);
     countdownHome.prepend(countdown);
     stopHome.prepend(stop);
+    signInActionHome.append(signInActions);
     actionHome.append(promptActions);
     dialog.dataset.mode = mode || "";
     if (!mode) return;
-    dialog.setAttribute("aria-labelledby", mode === "vault" ? "vault-lock-title" : "panel-title");
+    dialog.setAttribute("aria-labelledby", mode === "vault" ? "vault-lock-title" : mode === "signIn" ? "sign-in-title" : "panel-title");
     if (mode === "vault") {
       dialogContent.append(lockPanel);
+    } else if (mode === "signIn") {
+      dialogContent.append(signIn);
+      $("dialog-actions").append(stop, signInActions);
     } else {
       dialogContent.append(panel);
       $("dialog-countdown").append(countdown);
       $("dialog-actions").append(stop, promptActions);
     }
     dialog.showModal();
+    if (mode === "signIn") {signIn.tabIndex = -1;signIn.focus();}
   }
   window.setWizardDialog = setDialog;
   function showWorkspace(view) {
@@ -197,9 +203,12 @@
     const kind=view.prompt?.kind;
     const target=kind==="actions"?$("actions-slot"):kind==="form"?$("inputs-slot"):slot;
     const modal=kind && kind!=="actions" && kind!=="form" ? "prompt" :
-      !kind && view.phase==="settings" && view.status==="running" && view.phaseTitle && !view.signIn ? "idle" : null;
+      view.signIn ? "signIn" : null;
     setDialog(modal);
     if(!modal && panel.parentNode!==target) target.prepend(panel);
+    // A running stage is already represented by its progress substep. Keep
+    // the center panel for forms, questions, outcomes, and diagnostics.
+    panel.hidden=!kind && Boolean(view.action) && ["running","stopping"].includes(view.status);
     $("actions-empty").hidden=kind==="actions";
     const nextRoute=view.run+":"+(view.prompt?.id||view.phase+":"+view.status);
     if(routeKey!==nextRoute) {
@@ -207,11 +216,31 @@
       if(kind==="actions") activate($("actions-tab"));
       else if(kind==="form") activate($("inputs-tab"));
       else if(!modal && view.action) activate($("overview-tab"));
-      if(modal) (dialog.querySelector("input:not([type=hidden])") || dialog.querySelector("button"))?.focus();
+      if(modal) (modal==="signIn" ? signIn : dialog.querySelector("input:not([type=hidden])") || dialog.querySelector("button"))?.focus();
     }
     const key=view.run+":"+JSON.stringify(view.inventory)+":"+JSON.stringify(view.changes);
     if(key!==state.reportRun) {state.reportRun=key;buildInventory(view);details();tree();changes();}
     context(view);
-    const source=[...$("phases").children];$("workspace-phases").replaceChildren(...source.filter(n=>!n.hidden).map(n=>{const li=el("li",n.textContent);li.className=n.className;if(n.getAttribute("aria-current"))li.setAttribute("aria-current","step");return li;}));
+    const source=[...$("phases").children];
+    $("workspace-phases").replaceChildren(...source.filter(n=>!n.hidden).map(n=>{
+      const li=el("li","",n.className),phase=n.dataset.phase;
+      li.append(el("div",n.textContent,"phase-row"));
+      const entries=(view.substeps||[]).filter(step=>step.phase===phase);
+      if(!entries.length && view.action && view.phase===phase && view.phaseTitle) {
+        entries.push({phase,title:view.phaseTitle,status:view.status});
+      }
+      if(entries.length) {
+        li.classList.add("has-substeps");
+        const steps=el("ol","","substeps");
+        for(const step of entries) {
+          const item=el("li","","substep "+(step.status||"running"));
+          item.append(el("span","","substep-marker"),el("span",step.title,"substep-title"));
+          if(step.status==="running" || step.status==="stopping")item.setAttribute("aria-current","step");
+          steps.append(item);
+        }
+        li.append(steps);
+      } else if(n.getAttribute("aria-current"))li.setAttribute("aria-current","step");
+      return li;
+    }));
   };
 })();

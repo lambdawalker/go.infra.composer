@@ -82,6 +82,14 @@ type InventoryView struct {
 	Artifacts   []ArtifactView `json:"artifacts"`
 }
 
+// Substep records a stage within a deployment phase for the progress tree.
+// Titles are short, redacted status text; process output stays in Activity.
+type Substep struct {
+	Phase  string `json:"phase"`
+	Title  string `json:"title"`
+	Status string `json:"status"`
+}
+
 type view struct {
 	Locked      bool           `json:"locked,omitempty"`
 	Run         uint64         `json:"run"`
@@ -91,6 +99,7 @@ type view struct {
 	Phase       string         `json:"phase"`
 	PhaseTitle  string         `json:"phaseTitle"`
 	Visited     []string       `json:"visited,omitempty"`
+	Substeps    []Substep      `json:"substeps,omitempty"`
 	Status      string         `json:"status"`
 	Error       string         `json:"error,omitempty"`
 	Diagnostics string         `json:"diagnostics,omitempty"`
@@ -292,8 +301,21 @@ func (s *Session) Note(text string) {
 func (s *Session) Phase(phase, title string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	title = s.redact(strings.TrimSpace(title))
+	if characters := []rune(title); len(characters) > 200 {
+		title = string(characters[:200]) + "…"
+	}
 	if !slices.Contains(s.view.Visited, phase) {
 		s.view.Visited = append(s.view.Visited, phase)
+	}
+	if title != "" {
+		last := len(s.view.Substeps) - 1
+		if last < 0 || s.view.Substeps[last].Phase != phase || s.view.Substeps[last].Title != title {
+			if last >= 0 && s.view.Substeps[last].Status == "running" {
+				s.view.Substeps[last].Status = "complete"
+			}
+			s.view.Substeps = append(s.view.Substeps, Substep{Phase: phase, Title: title, Status: s.view.Status})
+		}
 	}
 	s.view.Phase, s.view.PhaseTitle = phase, title
 	s.view.Revision++
@@ -384,6 +406,7 @@ func (s *Session) snapshot() view {
 	v := s.view
 	v.Activity = slices.Clone(v.Activity)
 	v.Visited = slices.Clone(v.Visited)
+	v.Substeps = slices.Clone(v.Substeps)
 	return v
 }
 
@@ -398,6 +421,9 @@ func (s *Session) finish(err error) <-chan struct{} {
 	case err != nil:
 		s.view.Status = "failed"
 		s.view.Error = s.sanitizeDiagnostic(err.Error())
+	}
+	if n := len(s.view.Substeps); n > 0 {
+		s.view.Substeps[n-1].Status = s.view.Status
 	}
 	if s.view.Status != "complete" {
 		s.view.Diagnostics = s.failureDiagnostics()
@@ -446,6 +472,9 @@ func (s *Session) stop(run uint64, closePage bool) bool {
 	switch s.view.Status {
 	case "running":
 		s.view.Status = "stopping"
+		if n := len(s.view.Substeps); n > 0 {
+			s.view.Substeps[n-1].Status = "stopping"
+		}
 		s.view.Prompt = nil
 		s.view.Revision++
 		if s.cancel != nil {
