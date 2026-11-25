@@ -81,6 +81,19 @@ without opening a browser. Build, cache cleanup, and settings export skip the
 interface question.
 
 The wizard binds to a random loopback port and uses a private session URL.
+Each running browser wizard writes a JSON entry under
+`~/.infra-composer/_wizards/` with its repository, port, process ID, start
+time and instance ID. The project name is included when its identity has
+been verified. A first-run entry gains the project name after project setup.
+Multiple checkouts can run wizards concurrently. Each start gets an available
+port, and normal shutdown removes that instance's entry.
+
+After a forced exit an entry can be stale. To verify an entry, send a local
+`HEAD` request to `http://127.0.0.1:<port>/` and compare the
+`X-Infra-Composer-Instance` header with `instanceId` from the record. Skip
+unreachable entries or mismatched IDs. The index contains no session token.
+Use the private URL printed in the launching terminal to open the wizard.
+
 Use **Theme** in the header to choose **System**, **Light**, or **Dark**.
 New wizard sessions follow your system appearance. A manual choice stays in
 the current browser tab when you reload.
