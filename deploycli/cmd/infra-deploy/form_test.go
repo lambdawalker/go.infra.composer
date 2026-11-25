@@ -59,6 +59,50 @@ func TestDeploymentFormKeepsVerifiedTargetReadOnly(t *testing.T) {
 	}
 }
 
+func TestAcceptedSettingsKeepSubmittedAndResolvedFields(t *testing.T) {
+	spec := composedFixture(t)
+	host := spec.Inputs[len(spec.Inputs)-1]
+	host.GitHubVariable = ""
+	host.Compose.DefaultInput = ""
+	prefix := "demo"
+	host.Compose.Parameters["Prefix"] = parameterBinding{Source: "literal", Value: &prefix}
+	spec.Inputs[len(spec.Inputs)-1] = host
+	if err := spec.validate(); err != nil {
+		t.Fatal(err)
+	}
+	f := deploymentForm{
+		project: "demo", target: Settings{Environment: "dev", Profile: "default", Region: "us-east-2"},
+		profiles:    []wizardweb.Option{{Value: "default", Label: "default"}},
+		inputs:      spec.inputFlags(flag.NewFlagSet("test", flag.ContinueOnError)),
+		defaults:    map[string]string{"Sender": "old", "Domain": "old.example.test"},
+		credentials: providerCredentials{Cloudflare: "stored-secret"},
+	}
+	values := map[string]string{
+		"profile": "default", "region": "us-east-2", "account": "auto", "backend": "s3://example/state",
+		"feature.Recipient": "test@example.test", "feature.Domain": "example.test", "feature.Sender": "verify",
+	}
+	accepted, issues := f.validate(values)
+	if len(issues) != 0 {
+		t.Fatalf("valid form rejected: %v", issues)
+	}
+	fields := accepted.acceptedFields(values)
+	field := func(name string) wizardweb.Field {
+		t.Helper()
+		for _, item := range fields {
+			if item.Name == name {
+				return item
+			}
+		}
+		t.Fatalf("missing %s", name)
+		return wizardweb.Field{}
+	}
+	if field("feature.Domain").Value != "example.test" || field("feature.Sender").Value != "verify" ||
+		field("feature.Host").Value != "demo.example.test" || field("account").Value != "auto" ||
+		field(cloudflareField).Value != "" || !field(cloudflareField).Saved {
+		t.Fatalf("accepted form lost submitted/resolved values: %+v", fields)
+	}
+}
+
 func TestComposedFormResolvesDraftWithoutChangingSavedValues(t *testing.T) {
 	spec := composedFixture(t)
 	host := spec.Inputs[len(spec.Inputs)-1]

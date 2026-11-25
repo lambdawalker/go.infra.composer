@@ -66,6 +66,7 @@ func (f *deploymentForm) collect(ctx context.Context, issues map[string]string, 
 				field, err := check(draft.target)
 				if err == nil {
 					*f = draft
+					ui.browser.SetSettingsFields(f.acceptedFields(replies))
 					return nil
 				}
 				if ctx.Err() != nil {
@@ -181,6 +182,29 @@ func (f deploymentForm) fields() []wizardweb.Field {
 		fields = append(fields, f.github.formFields(f.action == "github-setup", f.configureGitHub)...)
 	}
 	return append(fields, f.credentials.fields()...)
+}
+
+// acceptedFields keeps the submitted inputs visible after the form closes.
+// Read-only composed fields show their resolved value from the validated draft.
+func (f deploymentForm) acceptedFields(values map[string]string) []wizardweb.Field {
+	fields := f.fields()
+	resolved := make(map[string]string)
+	for _, input := range f.inputs {
+		if input.flag == nil {
+			resolved["feature."+input.spec.Name] = input.value
+		}
+	}
+	for i := range fields {
+		field := &fields[i]
+		if field.Kind == "password" {
+			field.Value = ""
+		} else if value, ok := resolved[field.Name]; ok {
+			field.Value = value
+		} else if value, ok := values[field.Name]; ok && !field.ReadOnly {
+			field.Value = value
+		}
+	}
+	return fields
 }
 
 func (f deploymentForm) validate(values map[string]string) (deploymentForm, map[string]string) {

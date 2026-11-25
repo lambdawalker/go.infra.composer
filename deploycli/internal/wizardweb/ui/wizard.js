@@ -455,6 +455,107 @@ function renderSettings(container, prompt) {
   if (hasErrors) form.querySelector('[aria-invalid="true"]')?.focus();
 }
 
+// Keep the same fields and action cards visible outside their active prompts.
+// These controls are deliberately disabled: only the current prompt may submit.
+let standbySettingsKey = "";
+let standbyActionsKey = "";
+function renderStandbyWorkspace(view) {
+  const settings = get("settings-standby");
+  const actions = get("actions-standby");
+  const editing = view.prompt?.kind === "form";
+  const choosing = view.prompt?.kind === "actions";
+  settings.hidden = editing;
+  actions.hidden = choosing;
+
+  if (!editing) {
+    const fields = view.settingsFields || [];
+    const key = JSON.stringify(fields);
+    if (key !== standbySettingsKey) {
+      standbySettingsKey = key;
+      settings.replaceChildren();
+      if (!fields.length) {
+        settings.append(node("p", "Loading deployment inputs…", "muted"));
+      } else {
+        const form = node("form", "", "wide-form settings-form standby-form");
+        const groups = new Map();
+        fields.forEach((field, index) => {
+          if (!groups.has(field.group)) {
+            const group = node("fieldset", "", "settings-group");
+            group.dataset.group = field.group;
+            group.append(node("legend", field.group));
+            groups.set(field.group, group);
+            form.append(group);
+          }
+          const row = node("div", "", "settings-field");
+          row.dataset.field = field.name;
+          const label = node("label", field.label);
+          const id = "standby-setting-" + index;
+          label.htmlFor = id;
+          let control;
+          if (field.kind === "select" || field.options?.length) {
+            control = node("select");
+            control.append(new Option("Choose an option", ""));
+            for (const option of field.options || []) {
+              control.append(new Option(option.label, option.value));
+            }
+            if (field.value && ![...control.options].some(option => option.value === field.value)) {
+              control.append(new Option(field.value, field.value));
+            }
+            control.value = field.value || "";
+          } else {
+            control = node("input");
+            control.type = field.kind === "password" ? "password" : "text";
+            control.value = field.kind === "password" ? "" : field.value || "";
+            if (field.kind === "password" && field.saved) control.placeholder = "*****";
+          }
+          control.id = id;
+          control.disabled = true;
+          row.append(label, control);
+          if (field.help) row.append(node("div", field.help, "field-help"));
+          if (field.action) {
+            const action = button(field.action.label, "outline small");
+            action.disabled = true;
+            row.append(action);
+          }
+          groups.get(field.group).append(row);
+        });
+        settings.append(node("p", "Settings are available when the wizard opens the form.", "standby-note"), form);
+      }
+    }
+  }
+
+  if (!choosing) {
+    const options = view.actionOptions || [];
+    const key = JSON.stringify([options, view.actionDefault, view.action]);
+    if (key !== standbyActionsKey) {
+      standbyActionsKey = key;
+      actions.replaceChildren();
+      if (!options.length) {
+        actions.append(node("p", "Loading deployment actions…", "muted"));
+      } else {
+        const grid = node("fieldset", "", "action-grid standby-action-grid");
+        grid.append(node("legend", "What would you like to run?", "sr-only"));
+        for (const option of options) {
+          const card = node("label", "", "action-card");
+          card.setAttribute("aria-disabled", "true");
+          const radio = node("input");
+          radio.type = "radio";
+          radio.name = "standby-action";
+          radio.value = option.value;
+          radio.disabled = true;
+          radio.checked = option.value === (view.action || view.actionDefault);
+          card.append(radio, node("span", option.label, "action-title"),
+            node("span", option.description, "action-description"));
+          grid.append(card);
+        }
+        actions.append(node("p", "Actions can be selected when the wizard opens the action menu.", "standby-note"), grid);
+      }
+    }
+  }
+}
+
+window.renderStandbyWorkspace = renderStandbyWorkspace;
+
 function addCopyDiagnostics(controls, content, diagnostics) {
   const copy = button("Copy diagnostics", "outline");
   const feedback = node("span", "", "muted");

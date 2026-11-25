@@ -42,6 +42,80 @@ func TestInventoryExposesSafeFieldsAndClearsBetweenRuns(t *testing.T) {
 	}
 }
 
+func TestSettingsAndActionsSnapshotsStaySafeAcrossRuns(t *testing.T) {
+	s := newSession("test wizard", func() {})
+	s.Protect("private-token")
+	fields := []Field{
+		{Name: "domain", Label: "Domain", Value: "private-token.example", Kind: "select",
+			Options: []Option{{Value: "private-token", Label: "private-token"}},
+			Action:  &Option{Value: "private-token", Label: "Refresh private-token"}},
+		{Name: "credential", Label: "API token", Kind: "password", Value: "private-token"},
+	}
+	s.SetSettingsFields(fields)
+	s.SetActionOptions([]Option{{Value: "preview", Label: "Preview changes"}}, "preview")
+	s.SetPasswordSaved(map[string]bool{"credential": true})
+	fields[0].Options[0].Value = "mutated outside session"
+	first := s.snapshot()
+	data, err := json.Marshal(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "private-token") || first.SettingsFields[0].Value != "[redacted].example" ||
+		first.SettingsFields[1].Value != "" || !first.SettingsFields[1].Saved ||
+		first.SettingsFields[0].Options[0].Value != "[redacted]" {
+		t.Fatalf("unsafe settings snapshot: %s", data)
+	}
+	first.SettingsFields[0].Options[0].Value = "mutated snapshot"
+	first.SettingsFields[0].Action.Label = "mutated snapshot"
+	first.ActionOptions[0].Label = "mutated snapshot"
+	if got := s.snapshot(); got.SettingsFields[0].Options[0].Value != "[redacted]" ||
+		got.SettingsFields[0].Action.Label != "Refresh [redacted]" || got.ActionOptions[0].Label != "Preview changes" {
+		t.Fatalf("snapshot fields alias state: %+v", got)
+	}
+	response := request(s.handler(testHost, "session-key"), http.MethodGet, "/api/state", testHost, "", "session-key", "")
+	if response.Code != http.StatusOK || strings.Contains(response.Body.String(), "private-token") ||
+		!strings.Contains(response.Body.String(), `"saved":true`) {
+		t.Fatalf("API exposed a stored token or omitted the saved marker: %d %s", response.Code, response.Body.String())
+	}
+
+	s.mu.Lock()
+	s.view.Prompt = &Prompt{ID: 99, Kind: "form", Fields: []Field{{Name: "domain"}, {Name: "credential", Kind: "password"}}}
+	s.response = make(chan reply, 1)
+	s.mu.Unlock()
+	if !s.answer(99, reply{Values: map[string]string{"domain": "changed.example", "credential": "new-token"}}) {
+		t.Fatal("form response rejected")
+	}
+	got := s.snapshot()
+	if got.SettingsFields[0].Value != "changed.example" || got.SettingsFields[1].Value != "" || !got.SettingsFields[1].Saved {
+		t.Fatalf("submitted values not reflected safely: %+v", got.SettingsFields)
+	}
+	s.finish(nil)
+	if !s.returnToActions(s.snapshot().Revision) {
+		t.Fatal("could not return to actions")
+	}
+	got = s.snapshot()
+	if len(got.SettingsFields) != 2 || got.SettingsFields[0].Value != "changed.example" ||
+		len(got.ActionOptions) != 1 || got.ActionDefault != "preview" || got.Prompt != nil {
+		t.Fatalf("settings and actions did not survive menu reset: %+v", got)
+	}
+	data, err = json.Marshal(got)
+	if err != nil || strings.Contains(string(data), "new-token") {
+		t.Fatalf("secret persisted across runs: %s, %v", data, err)
+	}
+}
+
+func TestLateCredentialUnlockRedactsInitialSettingsSnapshot(t *testing.T) {
+	s := newSession("test wizard", func() {})
+	s.SetSettingsFields([]Field{{Name: "feature.note", Kind: "text", Value: "late-secret.example"},
+		{Name: "credential", Kind: "password", Value: "late-secret"}})
+	s.Protect("late-secret")
+	response := request(s.handler(testHost, "session-key"), http.MethodGet, "/api/state", testHost, "", "session-key", "")
+	if response.Code != http.StatusOK || strings.Contains(response.Body.String(), "late-secret") ||
+		!strings.Contains(response.Body.String(), "[redacted].example") {
+		t.Fatalf("late credential remained in startup state: %d %s", response.Code, response.Body.String())
+	}
+}
+
 func TestSubstepHistorySurvivesSnapshotsAndResetsBetweenRuns(t *testing.T) {
 	s := newSession("test wizard", func() {})
 	s.Protect("private-token")
@@ -123,6 +197,16 @@ func TestLoopbackWizardProtectsStateAndReplies(t *testing.T) {
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "wizard.js") ||
 		!strings.Contains(rec.Header().Get("Content-Security-Policy"), "frame-ancestors 'none'") {
 		t.Fatal("local UI or content security policy missing")
+	}
+	if !strings.Contains(rec.Body.String(), "topology-tab") {
+		t.Fatal("topology tab missing from local UI")
+	}
+	for _, asset := range []string{"/topology.js", "/topology.css"} {
+		assetResponse := request(handler, http.MethodGet, asset, testHost, "", "", "")
+		if assetResponse.Code != http.StatusOK || assetResponse.Body.Len() == 0 ||
+			strings.Contains(assetResponse.Header().Get("Content-Security-Policy"), "unsafe-eval") {
+			t.Fatalf("topology asset %s or restrictive CSP missing: %d", asset, assetResponse.Code)
+		}
 	}
 	post := func(body string) int {
 		return request(handler, http.MethodPost, "/api/answer", testHost, "http://"+testHost, "known-token", body).Code

@@ -91,25 +91,28 @@ type Substep struct {
 }
 
 type view struct {
-	Locked      bool           `json:"locked,omitempty"`
-	Run         uint64         `json:"run"`
-	Revision    uint64         `json:"revision"`
-	Title       string         `json:"title"`
-	Action      string         `json:"action,omitempty"`
-	Phase       string         `json:"phase"`
-	PhaseTitle  string         `json:"phaseTitle"`
-	Visited     []string       `json:"visited,omitempty"`
-	Substeps    []Substep      `json:"substeps,omitempty"`
-	Status      string         `json:"status"`
-	Error       string         `json:"error,omitempty"`
-	Diagnostics string         `json:"diagnostics,omitempty"`
-	Prompt      *Prompt        `json:"prompt,omitempty"`
-	Activity    []string       `json:"activity"`
-	SignIn      string         `json:"signIn,omitempty"`
-	Changes     []Change       `json:"changes,omitempty"`
-	Total       int            `json:"total"`
-	Reviewed    bool           `json:"reviewed"`
-	Inventory   *InventoryView `json:"inventory,omitempty"`
+	Locked         bool           `json:"locked,omitempty"`
+	Run            uint64         `json:"run"`
+	Revision       uint64         `json:"revision"`
+	Title          string         `json:"title"`
+	Action         string         `json:"action,omitempty"`
+	Phase          string         `json:"phase"`
+	PhaseTitle     string         `json:"phaseTitle"`
+	Visited        []string       `json:"visited,omitempty"`
+	Substeps       []Substep      `json:"substeps,omitempty"`
+	Status         string         `json:"status"`
+	Error          string         `json:"error,omitempty"`
+	Diagnostics    string         `json:"diagnostics,omitempty"`
+	Prompt         *Prompt        `json:"prompt,omitempty"`
+	SettingsFields []Field        `json:"settingsFields,omitempty"`
+	ActionOptions  []Option       `json:"actionOptions,omitempty"`
+	ActionDefault  string         `json:"actionDefault,omitempty"`
+	Activity       []string       `json:"activity"`
+	SignIn         string         `json:"signIn,omitempty"`
+	Changes        []Change       `json:"changes,omitempty"`
+	Total          int            `json:"total"`
+	Reviewed       bool           `json:"reviewed"`
+	Inventory      *InventoryView `json:"inventory,omitempty"`
 }
 
 type reply struct {
@@ -156,6 +159,77 @@ func (s *Session) Ask(ctx context.Context, prompt Prompt) (string, error) {
 	return *answer.Value, err
 }
 
+func cloneFields(fields []Field) []Field {
+	copy := slices.Clone(fields)
+	for i := range copy {
+		copy[i].Options = slices.Clone(copy[i].Options)
+		if copy[i].Action != nil {
+			action := *copy[i].Action
+			copy[i].Action = &action
+		}
+	}
+	return copy
+}
+
+// SetSettingsFields publishes only a safe, editable-later snapshot. Password
+// contents never enter the persistent view or a browser response.
+func (s *Session) SetSettingsFields(fields []Field) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	copy := cloneFields(fields)
+	for i := range copy {
+		field := &copy[i]
+		if field.Kind == "password" {
+			field.Value = ""
+		} else {
+			field.Value = s.redact(field.Value)
+		}
+		field.Help = s.redact(field.Help)
+		field.Label = s.redact(field.Label)
+		field.Error = ""
+		for j := range field.Options {
+			field.Options[j].Value = s.redact(field.Options[j].Value)
+			field.Options[j].Label = s.redact(field.Options[j].Label)
+			field.Options[j].Description = s.redact(field.Options[j].Description)
+		}
+		if field.Action != nil {
+			field.Action.Value = s.redact(field.Action.Value)
+			field.Action.Label = s.redact(field.Action.Label)
+			field.Action.Description = s.redact(field.Action.Description)
+		}
+	}
+	s.view.SettingsFields = copy
+	s.view.Revision++
+}
+
+// SetPasswordSaved updates saved-credential markers after the vault opens.
+// The decrypted values themselves never enter the persistent browser view.
+func (s *Session) SetPasswordSaved(saved map[string]bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.view.SettingsFields {
+		field := &s.view.SettingsFields[i]
+		if field.Kind == "password" {
+			field.Value = ""
+			field.Saved = saved[field.Name]
+		}
+	}
+	s.view.Revision++
+}
+
+func (s *Session) SetActionOptions(options []Option, fallback string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.view.ActionOptions = slices.Clone(options)
+	for i := range s.view.ActionOptions {
+		s.view.ActionOptions[i].Value = s.redact(s.view.ActionOptions[i].Value)
+		s.view.ActionOptions[i].Label = s.redact(s.view.ActionOptions[i].Label)
+		s.view.ActionOptions[i].Description = s.redact(s.view.ActionOptions[i].Description)
+	}
+	s.view.ActionDefault = fallback
+	s.view.Revision++
+}
+
 func (s *Session) AskForm(ctx context.Context, prompt Prompt) (map[string]string, string, error) {
 	prompt.Kind = "form"
 	prompt.Fields = slices.Clone(prompt.Fields)
@@ -169,6 +243,7 @@ func (s *Session) AskForm(ctx context.Context, prompt Prompt) (map[string]string
 			})
 		}
 	}
+	s.SetSettingsFields(prompt.Fields)
 	answer, err := s.ask(ctx, prompt)
 	return answer.Values, answer.Action, err
 }
@@ -224,6 +299,20 @@ func (s *Session) answer(id uint64, answer reply) bool {
 				s.protect(answer.Values[field.Name])
 			}
 		}
+		for i := range s.view.SettingsFields {
+			field := &s.view.SettingsFields[i]
+			if field.ReadOnly {
+				continue
+			}
+			if value, ok := answer.Values[field.Name]; ok {
+				if field.Kind == "password" {
+					field.Value = ""
+					field.Saved = field.Saved || value != ""
+				} else {
+					field.Value = s.redact(value)
+				}
+			}
+		}
 	} else if answer.Value == nil || answer.Values != nil || answer.Action != "" {
 		return false
 	} else if prompt.Kind == "secret" {
@@ -270,6 +359,25 @@ func (s *Session) Protect(values ...string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.protect(values...)
+	// The initial settings snapshot can precede vault unlock. Once decrypted
+	// credentials are known, redact any matching text already in that snapshot.
+	for i := range s.view.SettingsFields {
+		field := &s.view.SettingsFields[i]
+		field.Value = s.redact(field.Value)
+		field.Label = s.redact(field.Label)
+		field.Help = s.redact(field.Help)
+		for j := range field.Options {
+			field.Options[j].Value = s.redact(field.Options[j].Value)
+			field.Options[j].Label = s.redact(field.Options[j].Label)
+			field.Options[j].Description = s.redact(field.Options[j].Description)
+		}
+		if field.Action != nil {
+			field.Action.Value = s.redact(field.Action.Value)
+			field.Action.Label = s.redact(field.Action.Label)
+			field.Action.Description = s.redact(field.Action.Description)
+		}
+	}
+	s.view.Revision++
 }
 
 // protect adds redactions while the caller holds the session mutex.
@@ -407,6 +515,8 @@ func (s *Session) snapshot() view {
 	v.Activity = slices.Clone(v.Activity)
 	v.Visited = slices.Clone(v.Visited)
 	v.Substeps = slices.Clone(v.Substeps)
+	v.SettingsFields = cloneFields(v.SettingsFields)
+	v.ActionOptions = slices.Clone(v.ActionOptions)
 	return v
 }
 
@@ -447,6 +557,7 @@ func (s *Session) returnToActions(revision uint64) bool {
 	s.view = view{
 		Run: s.view.Run + 1, Revision: revision + 1, Title: s.view.Title,
 		Phase: "settings", PhaseTitle: "Getting ready", Status: "running",
+		SettingsFields: s.view.SettingsFields, ActionOptions: s.view.ActionOptions, ActionDefault: s.view.ActionDefault,
 	}
 	close(s.home)
 	s.home = nil

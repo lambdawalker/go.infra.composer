@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"os"
 	"path/filepath"
 
@@ -82,4 +83,76 @@ func (cli deployCLI) publishSavedInventory(session *wizardweb.Session, root, pro
 	}
 	report, source := cli.savedInventory(root, project, env)
 	session.InventoryWithSource(report, source)
+	session.SetSettingsFields(cli.startupSettingsFields(root, project, env, report, source))
+}
+
+// startupSettingsFields is a read-only form schema for the workspace before an
+// action starts. It reads only nonsecret settings and manifest-ordered inputs;
+// the live form replaces this snapshot when the user can edit it.
+func (cli deployCLI) startupSettingsFields(root, requestedProject, requestedEnv string, report reporting.Report, source string) []wizardweb.Field {
+	project := cli.spec.DefaultProject
+	if project == "" {
+		project = cli.spec.PulumiProject
+	}
+	if validProjectName(requestedProject) {
+		project = requestedProject
+	}
+	environment := requestedEnv
+	if report.Scope.Environment != "" {
+		environment = report.Scope.Environment
+	}
+	if environment == "" {
+		environment = "dev"
+	}
+	form := deploymentForm{
+		project:         project,
+		target:          Settings{Version: 1, Environment: environment, Region: "us-east-2", Account: "auto", Backend: "new"},
+		canCreateBucket: true, hasMemory: cli.spec.Memory != 0, memory: cli.spec.Memory,
+		inputs: cli.spec.inputFlags(flag.NewFlagSet("workspace-inputs", flag.ContinueOnError)),
+	}
+	if source != "repository" {
+		// savedInventory verified that the local project belongs to this checkout
+		// and that its central registry matches. Reuse that identity, not a hint.
+		var record projectRecord
+		if data, err := os.ReadFile(filepath.Join(root, ".deploy", "project.json")); err == nil &&
+			json.Unmarshal(data, &record) == nil && record.Version == 1 && record.Root == root && validProjectName(record.Name) {
+			form.project = record.Name
+			if home, err := os.UserHomeDir(); err == nil && pattern(`^[a-z][a-z0-9-]{0,30}$`, environment) {
+				private := filepath.Join(home, ".infra-composer", record.Name, "environments", environment)
+				if defaults, err := form.inputs.defaults(cli.spec.InputsFile, private); err == nil {
+					form.defaults = defaults
+				}
+				if report.Scope.Account != "" {
+					var saved Settings
+					if data, err := os.ReadFile(filepath.Join(private, "settings.json")); err == nil &&
+						json.Unmarshal(data, &saved) == nil && saved.Version == 1 &&
+						saved.Environment == environment && saved.Account == report.Scope.Account &&
+						saved.Region == report.Scope.Region && saved.Backend == report.Scope.Backend {
+						form.saved = saved
+						form.target = saved
+						if saved.Profile != "" {
+							form.profiles = []wizardweb.Option{{Value: saved.Profile, Label: saved.Profile}}
+						}
+					}
+				}
+				if form.hasMemory {
+					var flags struct{ Version, Memory int }
+					if data, err := os.ReadFile(filepath.Join(private, "flags.json")); err == nil &&
+						json.Unmarshal(data, &flags) == nil && flags.Version == 1 &&
+						flags.Memory >= 128 && flags.Memory <= 10240 {
+						form.memory = flags.Memory
+					}
+				}
+			}
+		}
+	}
+	fields := form.fields()
+	values := make(map[string]string)
+	for _, field := range fields {
+		if field.Group == "Project inputs" && !field.ReadOnly {
+			values[field.Name] = field.Value
+		}
+	}
+	form.inputs, _ = resolveFeatureDraft(form.inputs, environment, values)
+	return form.acceptedFields(values)
 }
