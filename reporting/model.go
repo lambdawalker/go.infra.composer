@@ -2,6 +2,8 @@
 package reporting
 
 import (
+	"maps"
+	"slices"
 	"sort"
 	"time"
 )
@@ -36,6 +38,7 @@ const (
 	InvalidEvidence Reason = "invalid_evidence"
 	NotFound        Reason = "not_found"
 	IdentityChanged Reason = "identity_changed"
+	ExternalChange  Reason = "external_change"
 )
 
 type Observation struct {
@@ -54,6 +57,7 @@ type Artifact struct {
 	Owner         string         `json:"owner,omitempty"`
 	Feature       string         `json:"feature,omitempty"`
 	Parent        string         `json:"parent,omitempty"`
+	Dependencies  []string       `json:"dependencies,omitempty"`
 	Priority      int            `json:"priority,omitempty"`
 	PlannedAction string         `json:"plannedAction,omitempty"`
 	Observation   Observation    `json:"observation"`
@@ -99,7 +103,7 @@ func Normalize(r Report) Report {
 			a.Observation.Status = Unknown
 		}
 		switch a.Observation.Reason {
-		case "", Unchecked, CheckFailed, InvalidEvidence, NotFound, IdentityChanged:
+		case "", Unchecked, CheckFailed, InvalidEvidence, NotFound, IdentityChanged, ExternalChange:
 		default:
 			a.Observation.Reason = InvalidEvidence
 		}
@@ -107,6 +111,16 @@ func Normalize(r Report) Report {
 			a.Observation.Reason = Unchecked
 		}
 		out = append(out, a)
+	}
+	for i := range out {
+		a := &out[i]
+		dependencies := make(map[string]struct{}, len(a.Dependencies))
+		for _, key := range a.Dependencies {
+			if key != a.Key && seen[key] {
+				dependencies[key] = struct{}{}
+			}
+		}
+		a.Dependencies = slices.Sorted(maps.Keys(dependencies))
 	}
 	r.Artifacts = out
 	sort.Slice(r.Artifacts, func(i, j int) bool {
