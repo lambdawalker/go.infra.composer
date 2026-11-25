@@ -326,6 +326,8 @@ An application can opt into the same CLI without moving its backend module:
   "BuildDir": "dist/deploy",
   "StackPrefix": "{project}-",
   "AllowProduction": true,
+  "BindDeploymentInputs": true,
+  "RefreshBeforePreview": true,
   "PrepareBuild": {
     "Directory": "deploy",
     "Package": "./cmd/assets",
@@ -360,7 +362,9 @@ declared input; ambient environment variables are not a build configuration API.
 both cache receipts. It leaves generated files in place but they are verified or
 rebuilt before reuse.
 
-Preview approval checks the Lambda archive, current Go inputs, infrastructure
+Existing manifests retain their plan/archive approval checks and preview refresh
+policy. `RefreshBeforePreview` opts into `--refresh`. `BindDeploymentInputs` (or
+a declared `PrepareBuild`) additionally checks current Go inputs, infrastructure
 source/configuration and declared preparation inputs/outputs before apply.
 The build lock remains held through preview/approval/apply. A changed prepared
 website, config file or source requires a fresh preview. No frontend compiler

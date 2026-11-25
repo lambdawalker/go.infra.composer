@@ -180,6 +180,9 @@ func (cli deployCLI) prepareBuild(ctx context.Context, root, out string, force b
 	return atomicWrite(marker, data)
 }
 func (cli deployCLI) deploymentDigest(ctx context.Context, root string) (string, error) {
+	if !cli.spec.BindDeploymentInputs && cli.spec.PrepareBuild == nil {
+		return "", nil
+	}
 	lambda, err := buildFingerprint(ctx, cli.spec.buildRoot(root), cli.spec.BuildPackage)
 	if err != nil {
 		return "", err
@@ -201,4 +204,12 @@ func (cli deployCLI) deploymentDigest(ctx context.Context, root string) (string,
 		parts = append(parts, input, output)
 	}
 	return canonicalHash(parts), nil
+}
+
+func (cli deployCLI) previewArgs(stack, plan, events string) []string {
+	args := []string{"pulumi", "preview", "--stack", stack, "--save-plan", plan, "--event-log", events, "--non-interactive"}
+	if cli.spec.RefreshBeforePreview {
+		args = append(args, "--refresh")
+	}
+	return args
 }

@@ -1130,7 +1130,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	}
 	ui.phase("preview", "Preview changes with Pulumi")
 	ui.heading("Preview changes")
-	if e = command(ctx, dir, "pulumi", "preview", "--refresh", "--stack", stack, "--save-plan", plan, "--event-log", activeFeatureReport.previewLog, "--non-interactive"); e != nil {
+	if e = command(ctx, dir, cli.previewArgs(stack, plan, activeFeatureReport.previewLog)...); e != nil {
 		return e
 	}
 	if *action == "preview" && ui.browser == nil {

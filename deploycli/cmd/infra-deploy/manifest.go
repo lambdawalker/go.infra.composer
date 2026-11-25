@@ -31,6 +31,8 @@ type manifest struct {
 	BuildWorkingDir      string
 	PrepareBuild         *prepareBuildSpec
 	AllowProduction      bool
+	BindDeploymentInputs bool
+	RefreshBeforePreview bool
 	HealthCheck          *discoverySpec
 	Memory               int
 	StackIdentity        bool

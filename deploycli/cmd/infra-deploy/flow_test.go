@@ -54,6 +54,7 @@ func TestActionsNeverEscalateAndApplySavedPlan(t *testing.T) {
 				t.Setenv("MOCK_LIST_FAIL", "")
 				t.Setenv("MOCK_DESTRUCTIVE", "")
 				t.Setenv("MOCK_MUTATE_PATH", "")
+				cli.spec.BindDeploymentInputs = tc.tamper
 				if tc.tamper {
 					t.Setenv("MOCK_MUTATE_PATH", filepath.Join(root, "source.go"))
 				}

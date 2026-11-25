@@ -1,0 +1,22 @@
+{
+  "Version": 1,
+  "Title": "APEXFISSION / AWS CARD CAPTURE",
+  "Description": "Private card extraction console benchmark",
+  "Repository": "lambdawalker/go.appexfission.aws.card-capture",
+  "Feature": "card-capture",
+  "PulumiProject": "card-capture-ocr-bench",
+  "PulumiDir": "infrastructure/cmd/ocr-bench",
+  "StackPrefix": "ocr-",
+  "BucketPrefix": "ocr-bench-state",
+  "BuildPackage": "./cmd/ocr-bench-lambda",
+  "BuildDir": "dist/ocr-bench",
+  "Memory": 1024,
+  "StackIdentity": true,
+  "Outputs": ["bucket", "function", "model", "deploymentIdentity"],
+  "GitHub": {
+    "Workflow": "ocr-bench-deploy.yml",
+    "EnvironmentPrefix": "ocr-bench-",
+    "ManagedPolicy": "CardCaptureDeployment",
+    "Prompt": true
+  }
+}
