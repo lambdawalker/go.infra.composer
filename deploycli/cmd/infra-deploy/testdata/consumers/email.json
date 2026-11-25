@@ -1,0 +1,100 @@
+{
+  "Version": 1,
+  "Title": "APEXFISSION / EMAIL VERIFICATION",
+  "Description": "Isolated email verification test host",
+  "Repository": "lambdawalker/go.apexfission.aws.email-verification",
+  "Feature": "email-verification",
+  "DefaultProject": "test-host",
+  "PulumiProject": "email-verification-testhost",
+  "PulumiDir": "infrastructure/cmd/testhost",
+  "StackPrefix": "test-",
+  "BucketPrefix": "testhost-state",
+  "BuildPackage": "./cmd/testhost",
+  "BuildDir": "dist/testhost",
+  "Outputs": ["testHostFunction", "testHostFunctionArn", "testHostTable", "testHostLogs", "senderVerificationRequired", "testHostMobileURL", "testHostMobileUserPoolID", "testHostMobileClientID", "testHostMobileIssuer"],
+  "ArtifactDescriptions": {
+    "verification.backend": "Shared verification storage and signing resources consumed by the isolated test host.",
+    "verification.backend-transactions": "Persists verification transactions and their outcomes for replay protection and audit review.",
+    "verification.backend-signing": "Signs verification results with an asymmetric KMS key so the host can trust each outcome.",
+    "testhost.app": "Isolated demo host that starts, confirms, and inspects email verification transactions.",
+    "testhost.app-records": "Stores test host requests and their state while the demo verification flow runs.",
+    "testhost.app-hmac": "Generates the key used to hash verification codes without storing plaintext codes.",
+    "testhost.app-encryption": "Generates the key used to protect verification proofs while they await delivery.",
+    "testhost.app-secrets": "Keeps the test host HMAC and encryption keys in AWS Secrets Manager.",
+    "testhost.app-secret-values": "Stores the generated HMAC and encryption key values in the protected secret.",
+    "testhost.app-sender": "Registers the From address used to send verification codes through Amazon SES.",
+    "testhost.app-role": "Gives the test host Lambda a dedicated execution identity.",
+    "testhost.app-logs": "Collects test host Lambda logs with a seven-day retention period.",
+    "testhost.app-permissions": "Limits the Lambda to its tables, signing key, secret, logs, and the selected SES sender and recipient.",
+    "testhost-app-lambda": "Runs the demo API and scheduled verification worker in one test host Lambda.",
+    "testhost.app-worker": "Runs the periodic scan that sends mail, signs outcomes, delivers results, and clears expired proofs.",
+    "testhost-app-worker-permission": "Allows the scheduled EventBridge rule to invoke the test host Lambda.",
+    "testhost.app-worker-target": "Connects the periodic EventBridge rule to the test host Lambda with a tick event.",
+    "testhost.app-demo-users": "Holds isolated demo users for mobile API authentication.",
+    "testhost.app-demo-android": "Provides a public Cognito app client for the Android demo.",
+    "testhost.app-demo-api": "Exposes the email verification demo endpoints through an HTTP API.",
+    "testhost.app-demo-stage": "Publishes the HTTP API default stage with request throttling.",
+    "testhost.app-demo-auth": "Checks Cognito JWTs before allowing calls to the demo API.",
+    "testhost.app-demo-invoke": "Forwards approved HTTP API requests to the test host Lambda.",
+    "testhost.app-demo-start": "Routes requests to begin an email verification transaction.",
+    "testhost.app-demo-confirm": "Routes requests that confirm a verification link or code.",
+    "testhost.app-demo-status": "Routes requests that check a verification transaction's status.",
+    "testhost-app-demo-permission-start": "Allows the start route to invoke the test host Lambda.",
+    "testhost-app-demo-permission-confirm": "Allows the confirm route to invoke the test host Lambda.",
+    "testhost-app-demo-permission-status": "Allows the status route to invoke the test host Lambda.",
+    "testhost.app-demo-certificate": "Requests a TLS certificate for the environment-specific mobile API hostname.",
+    "testhost.app-demo-certificate-dns": "Publishes the DNS challenge used to validate the mobile API certificate.",
+    "testhost.app-demo-domain-validated": "Waits for DNS validation before the mobile API certificate is used.",
+    "testhost.app-demo-domain": "Assigns the environment-specific HTTPS hostname to API Gateway.",
+    "testhost.app-demo-mapping": "Maps the mobile hostname to the demo API's default stage.",
+    "testhost.app-demo-hostname": "Points the public mobile API hostname to its API Gateway endpoint."
+  },
+  "InputsFile": "testhost.json",
+  "DiscoveryStack": {
+    "PulumiDir": "infrastructure/cmd/discovery",
+    "PulumiProject": "email-verification-discovery",
+    "Stack": "shared"
+  },
+  "Functions": {
+    "defaultSenderAddress": {
+      "Parameters": {"Address": "text", "Environment": "domain", "Domain": "domain"},
+      "Result": "email",
+      "Template": "{{if contains .Address \"@\"}}{{.Address}}{{else}}{{.Address}}@{{.Environment}}.components.email-verification.{{lower .Domain}}{{end}}"
+    }
+  },
+  "Inputs": [
+    {"Name": "Domain", "Label": "Ownership domain", "Help": "Enter the base domain, such as apexfission.com. The wizard adds the environment and service labels.", "Kind": "domain", "GitHubVariable": "BENCH_DOMAIN"},
+    {
+      "Name": "Sender",
+      "Label": "SES From address",
+      "Help": "Use the suggested address, enter a local part, or enter a full address whose inbox you can access for SES verification.",
+      "Kind": "email",
+      "GitHubVariable": "BENCH_SENDER",
+      "Compose": {
+        "Function": "defaultSenderAddress",
+        "DefaultInput": "verify",
+        "UseLegacyValueAsInput": true,
+        "Parameters": {
+          "Address": {"Source": "userInput"},
+          "Environment": {"Source": "environment"},
+          "Domain": {"Source": "field", "Name": "Domain"}
+        }
+      }
+    },
+    {"Name": "Recipient", "Label": "Test recipient", "Help": "Enter the full address that receives the code. In the SES sandbox, verify this address in the deployment region.", "Kind": "email", "GitHubVariable": "BENCH_RECIPIENT"},
+    {"Name": "DNSProvider", "Label": "Public DNS provider", "Help": "Choose the provider serving the sender domain. The mobile API uses this provider by default.", "Kind": "dnsProvider", "GitHubVariable": "BENCH_DNS_PROVIDER"}
+  ],
+  "ConfigDefaults": {
+    "policyJSON": "{}"
+  },
+  "Discovery": {
+    "APIURL": "testHostMobileURL",
+    "CognitoIssuer": "testHostMobileIssuer",
+    "CognitoUserPoolID": "testHostMobileUserPoolID",
+    "CognitoClientID": "testHostMobileClientID",
+    "ProbeMethod": "POST",
+    "ProbePath": "/v1/verification/status",
+    "ProbeStatus": 401
+  },
+  "GitHub": {"Workflow": "testhost-deploy.yml", "EnvironmentPrefix": "testhost-"}
+}

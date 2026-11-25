@@ -21,11 +21,13 @@ func TestActionsNeverEscalateAndApplySavedPlan(t *testing.T) {
 		for _, tc := range []struct {
 			action                                                            string
 			approve, previewFail, listFail, destructive, wantApply, wantError bool
+			tamper                                                            bool
 		}{
 			{action: "build"}, {action: "status"}, {action: "setup"}, {action: "preview"}, {action: "report"},
 			{action: "deploy", wantError: true}, {action: "deploy", approve: true, wantApply: true},
 			{action: "deploy", approve: true, previewFail: true, wantError: true}, {action: "preview", listFail: true, wantError: true},
 			{action: "deploy", approve: true, destructive: true, wantError: true},
+			{action: "deploy", approve: true, tamper: true, wantError: true},
 		} {
 			t.Run(name+"/"+tc.action+strings.Repeat("-failure", boolInt(tc.wantError)), func(t *testing.T) {
 				root := t.TempDir()
@@ -38,9 +40,11 @@ func TestActionsNeverEscalateAndApplySavedPlan(t *testing.T) {
 						t.Fatal(e)
 					}
 				}
+				os.WriteFile(filepath.Join(root, "deploy.json"), []byte(`{"Version":1}`), 0600)
 				os.WriteFile(filepath.Join(root, "go.mod"), []byte("module test"), 0600)
 				os.WriteFile(filepath.Join(root, "source.go"), []byte("package main"), 0600)
 				os.MkdirAll(filepath.Join(root, cli.spec.PulumiDir), 0700)
+				os.WriteFile(filepath.Join(root, cli.spec.PulumiDir, "Pulumi.yaml"), []byte("name: fixture"), 0600)
 				log := filepath.Join(root, "commands.jsonl")
 				t.Setenv("MOCK_LOG", log)
 				t.Setenv("MOCK_STACK", cli.spec.StackPrefix+"dev")
@@ -49,6 +53,11 @@ func TestActionsNeverEscalateAndApplySavedPlan(t *testing.T) {
 				t.Setenv("MOCK_PREVIEW_FAIL", "")
 				t.Setenv("MOCK_LIST_FAIL", "")
 				t.Setenv("MOCK_DESTRUCTIVE", "")
+				t.Setenv("MOCK_MUTATE_PATH", "")
+				cli.spec.BindDeploymentInputs = tc.tamper
+				if tc.tamper {
+					t.Setenv("MOCK_MUTATE_PATH", filepath.Join(root, "source.go"))
+				}
 				if tc.previewFail {
 					t.Setenv("MOCK_PREVIEW_FAIL", "1")
 				}
