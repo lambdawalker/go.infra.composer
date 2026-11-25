@@ -63,18 +63,21 @@
 .preview-workspace #progress-body, .preview-workspace .deployment-content, .preview-workspace .detail-content {min-height:0;flex:1;overflow:auto}
 .preview-workspace #progress-body {padding:8px 6px}
 .preview-workspace .steps {list-style:none;padding:0;margin:0}
-.preview-workspace .steps > li {color:var(--muted);font-size:12px}
+.preview-workspace .steps > li {display:block;padding:0;border-radius:0;background:transparent;color:var(--muted);font-size:12px}
+.preview-workspace .steps > li + li {margin-top:1px}
+.preview-workspace .steps > li::before {content:none}
 .preview-workspace .steps .phase-row {display:flex;align-items:center;gap:9px;min-height:30px;padding:5px 10px;border-radius:4px}
 .preview-workspace .steps .phase-row:before {content:"";width:9px;height:9px;border-radius:50%;border:1px solid currentColor;flex:none}
 .preview-workspace .steps > li.has-substeps .phase-row {position:relative}
-.preview-workspace .steps > li.has-substeps .phase-row:after {position:absolute;left:14px;top:21px;bottom:0;width:1px;background:var(--line);content:""}
-.preview-workspace .steps > li.done {color:var(--mint)}
-.preview-workspace .steps > li.done .phase-row:before {background:var(--mint);border-color:var(--mint)}
+.preview-workspace .steps > li.has-substeps .phase-row:after {position:absolute;left:15px;top:21px;bottom:0;width:1px;background:var(--line);content:""}
+.preview-workspace .steps > li.passed {color:var(--mint)}
+.preview-workspace .steps > li.passed .phase-row:before {background:var(--mint);border-color:var(--mint)}
+.preview-workspace .steps > li.active {background:transparent}
 .preview-workspace .steps > li.active .phase-row {background:var(--selected);color:var(--text);font-weight:600}
 .preview-workspace .steps > li.active .phase-row:before {border:3px solid var(--blue)}
-.preview-workspace .substeps {list-style:none;margin:0 0 5px 14px;padding:0;border-left:1px solid var(--line)}
+.preview-workspace .substeps {list-style:none;margin:0 0 5px 15px;padding:0;border-left:1px solid var(--line)}
 .preview-workspace .substeps li {position:relative;display:flex;align-items:flex-start;gap:7px;min-width:0;padding:5px 4px 5px 17px;color:var(--muted);font-size:11px;line-height:1.35}
-.preview-workspace .substeps li:before {position:absolute;left:0;top:12px;width:12px;border-top:1px solid var(--line);content:""}
+.preview-workspace .substeps li:before {position:absolute;left:0;top:12px;width:12px;height:0;border:0;border-top:1px solid var(--line);border-radius:0;background:none;content:""}
 .preview-workspace .substeps li:last-child:after {position:absolute;left:-1px;top:13px;bottom:0;width:1px;background:var(--surface);content:""}
 .preview-workspace .substep-marker {width:6px;height:6px;margin-top:4px;border:1px solid currentColor;border-radius:50%;flex:none}
 .preview-workspace .substep-title {min-width:0;overflow-wrap:anywhere}
