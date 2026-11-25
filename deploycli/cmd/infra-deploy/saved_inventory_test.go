@@ -64,10 +64,15 @@ func TestStartupSettingsShowSavedTargetAndManifestInputs(t *testing.T) {
 		t.Fatalf("missing %s", name)
 		return wizardweb.Field{}
 	}
-	if source != "saved-target" || get("project").Value != "demo" || get("environment").Value != "dev" ||
+	if source != "saved-target" || get("project").Value != "demo" || report.Scope.Environment != "dev" ||
 		get("profile").Value != "attest" || get("region").Value != "us-west-2" ||
 		get("account").Value != saved.Account || get("backend").Value != saved.Backend {
 		t.Fatalf("saved target not reflected: %s %+v", source, fields[:6])
+	}
+	for _, field := range fields {
+		if field.Name == "environment" {
+			t.Fatal("environment selector still appears in Settings")
+		}
 	}
 	if get("feature.Sender").Value != "custom" || get("feature.Host").Value != "mobile" ||
 		get("feature.Recipient").Value != "test@example.test" || get("feature.Domain").Value != "example.test" {
@@ -109,8 +114,8 @@ func TestStartupSettingsShowSavedTargetAndManifestInputs(t *testing.T) {
 	}
 
 	fallback := cli.startupSettingsFields(root, "other", "qa", reporting.Report{}, "repository")
-	if fallback[0].Value != "other" || fallback[1].Value != "qa" {
-		t.Fatalf("new target not shown: %+v", fallback[:2])
+	if fallback[0].Value != "other" {
+		t.Fatalf("new project not shown: %+v", fallback[0])
 	}
 	for _, field := range fallback {
 		if field.Name == "feature.Sender" && field.Value != "verify" {

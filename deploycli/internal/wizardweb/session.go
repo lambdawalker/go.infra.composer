@@ -107,6 +107,8 @@ type view struct {
 	SettingsFields []Field        `json:"settingsFields,omitempty"`
 	ActionOptions  []Option       `json:"actionOptions,omitempty"`
 	ActionDefault  string         `json:"actionDefault,omitempty"`
+	Environment    string         `json:"environment,omitempty"`
+	Environments   []Environment  `json:"environments,omitempty"`
 	Activity       []string       `json:"activity"`
 	SignIn         string         `json:"signIn,omitempty"`
 	Changes        []Change       `json:"changes,omitempty"`
@@ -122,16 +124,17 @@ type reply struct {
 }
 
 type Session struct {
-	instanceID      string
-	vault           vaultSession
-	mu              sync.Mutex
-	view            view
-	response        chan reply
-	cancel          context.CancelFunc
-	close           context.CancelFunc
-	secrets         []string
-	commandFailures []string
-	home            chan struct{}
+	instanceID         string
+	vault              vaultSession
+	mu                 sync.Mutex
+	view               view
+	response           chan reply
+	cancel             context.CancelFunc
+	close              context.CancelFunc
+	secrets            []string
+	commandFailures    []string
+	home               chan struct{}
+	resolveEnvironment func(string, string) (EnvironmentTarget, error)
 }
 
 func newSession(title string, close context.CancelFunc) *Session {
@@ -177,6 +180,11 @@ func cloneFields(fields []Field) []Field {
 func (s *Session) SetSettingsFields(fields []Field) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.setSettingsFields(fields)
+	s.view.Revision++
+}
+
+func (s *Session) setSettingsFields(fields []Field) {
 	copy := cloneFields(fields)
 	for i := range copy {
 		field := &copy[i]
@@ -200,7 +208,6 @@ func (s *Session) SetSettingsFields(fields []Field) {
 		}
 	}
 	s.view.SettingsFields = copy
-	s.view.Revision++
 }
 
 // SetPasswordSaved updates saved-credential markers after the vault opens.
@@ -275,6 +282,10 @@ func (s *Session) answer(id uint64, answer reply) bool {
 	defer s.mu.Unlock()
 	prompt := s.view.Prompt
 	if s.vaultLocked() || prompt == nil || prompt.ID != id || s.view.Status != "running" {
+		return false
+	}
+	if prompt.Kind == "environment" || (prompt.Kind == "actions" && s.resolveEnvironment != nil &&
+		s.view.Environment == "" && (answer.Value == nil || *answer.Value != "destroy-all")) {
 		return false
 	}
 	if prompt.Kind == "form" {
@@ -457,6 +468,11 @@ func (s *Session) Inventory(report reporting.Report) {
 func (s *Session) InventoryWithSource(report reporting.Report, source string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.setInventory(report, source)
+	s.view.Revision++
+}
+
+func (s *Session) setInventory(report reporting.Report, source string) {
 	items := make([]ArtifactView, 0, len(report.Artifacts))
 	for _, a := range report.Artifacts {
 		items = append(items, ArtifactView{
@@ -473,7 +489,6 @@ func (s *Session) InventoryWithSource(report reporting.Report, source string) {
 		Project: report.Scope.Project, Backend: s.redact(report.Scope.Backend),
 		Stack: report.Scope.Stack, Revision: report.Metadata.Revision, Artifacts: items,
 	}
-	s.view.Revision++
 }
 
 func (s *Session) SignInWriter() *signInOutput { return &signInOutput{session: s} }
@@ -518,6 +533,7 @@ func (s *Session) snapshot() view {
 	v.Substeps = slices.Clone(v.Substeps)
 	v.SettingsFields = cloneFields(v.SettingsFields)
 	v.ActionOptions = slices.Clone(v.ActionOptions)
+	v.Environments = slices.Clone(v.Environments)
 	return v
 }
 
@@ -559,6 +575,7 @@ func (s *Session) returnToActions(revision uint64) bool {
 		Run: s.view.Run + 1, Revision: revision + 1, Title: s.view.Title,
 		Phase: "settings", PhaseTitle: "Getting ready", Status: "running",
 		SettingsFields: s.view.SettingsFields, ActionOptions: s.view.ActionOptions, ActionDefault: s.view.ActionDefault,
+		Environment: s.view.Environment, Environments: s.view.Environments,
 	}
 	close(s.home)
 	s.home = nil
@@ -573,7 +590,7 @@ func (s *Session) stop(run uint64, closePage bool) bool {
 		return false
 	}
 	if closePage {
-		atMenu := s.view.Prompt != nil && s.view.Prompt.Kind == "actions"
+		atMenu := s.view.Prompt != nil && (s.view.Prompt.Kind == "actions" || s.view.Prompt.Kind == "environment")
 		if s.home == nil && !atMenu {
 			return false
 		}

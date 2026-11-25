@@ -62,7 +62,7 @@ const statuses = {
   complete: "Complete", failed: "Failed",
 };
 const completed = (status) => ["complete", "failed", "cancelled"].includes(status);
-const canClose = (view) => completed(view.status) || view.prompt?.kind === "actions";
+const canClose = (view) => completed(view.status) || ["actions", "environment"].includes(view.prompt?.kind);
 const clean = (text) => text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
 const authHeaders = {Authorization: "Bearer " + token};
 
@@ -123,6 +123,7 @@ function renderVaultLock(locked) {
   get("vault-unlock-error").hidden = true;
   if (locked) {
     resetCountdown();
+    window.renderEnvironmentMenu?.(null);
     document.querySelectorAll('#wizard input[type="password"], #preview-workspace input[type="password"]').forEach(field => { field.value = ""; });
     window.setWizardDialog?.("vault");
     input.focus();
@@ -255,6 +256,7 @@ async function answer(prompt, value, action) {
   } finally {
     controls.forEach((control) => { control.disabled = false; });
     if (answeringPrompt === prompt.id) answeringPrompt = undefined;
+    updateActionTarget(current);
   }
 }
 
@@ -304,14 +306,28 @@ function renderActions(container, prompt) {
     card.append(radio, title, description);
     grid.append(card);
   });
-  form.append(grid);
+  const targetHint = node("p", "Use the main menu to create or open an environment first.", "standby-note");
+  targetHint.id = "action-target-hint";
+  form.append(targetHint, grid);
   addSubmit(form);
+  form.addEventListener("change", () => updateActionTarget(current));
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    answer(prompt, new FormData(form).get("action"));
+    const action = new FormData(form).get("action");
+    if (current.environment || action === "destroy-all") answer(prompt, action);
   });
   container.append(form);
   grid.querySelector(":checked")?.focus();
+}
+
+function updateActionTarget(view) {
+  if (view?.prompt?.kind !== "actions") return;
+  const submit = get("wizard-continue");
+  if (!submit) return;
+  const action = get("wizard-form")?.querySelector('input[name="action"]:checked')?.value;
+  const needsTarget = !view.environment && action !== "destroy-all";
+  submit.disabled = needsTarget || answeringPrompt === view.prompt.id;
+  get("action-target-hint").hidden = !needsTarget;
 }
 
 function renderSettings(container, prompt) {
@@ -592,6 +608,7 @@ function renderPrompt(view) {
   const content = get("interaction");
   content.replaceChildren();
   const title = get("panel-title");
+  get("wizard-panel-heading").hidden = prompt?.kind === "actions" || prompt?.kind === "environment";
   if (!prompt) {
     title.textContent = view.status === "complete" ? (actions[view.action] || "Wizard") + " complete" :
       view.status === "failed" ? "The wizard stopped" :
@@ -621,6 +638,8 @@ function renderPrompt(view) {
   if (prompt.message) content.append(node("p", prompt.message, prompt.kind === "form" ? "problem" : ""));
   if (prompt.kind === "actions") {
     renderActions(content, prompt);
+  } else if (prompt.kind === "environment") {
+    content.append(node("p", "Use the main menu to create or open an environment before continuing."));
   } else if (prompt.kind === "form") {
     renderSettings(content, prompt);
   } else if (prompt.kind === "confirm") {
@@ -809,6 +828,7 @@ function renderPlan(view) {
 
 function render(view) {
   current = view;
+  window.renderEnvironmentMenu?.(view);
   get("project").textContent = view.title;
   get("action").textContent = actions[view.action] || "Deployment wizard";
   footer.hidden = false;
@@ -833,6 +853,7 @@ function render(view) {
     else step.removeAttribute("aria-current");
   });
   renderPrompt(view);
+  updateActionTarget(view);
   renderSignIn(view.signIn || "");
   renderPlan(view);
 
@@ -854,6 +875,7 @@ async function refresh() {
   if (response.status === 401 || response.status === 403) {
     closed = true;
     resetCountdown();
+    window.renderEnvironmentMenu?.(null);
     footer.hidden = true;
     get("status").textContent = "Session unavailable";
     get("panel-title").textContent = "Open the URL from your terminal";
@@ -896,6 +918,7 @@ stopControl.addEventListener("click", async () => {
       closed = true;
       sessionStorage.removeItem(sessionKey);
       resetCountdown();
+      window.renderEnvironmentMenu?.(null);
       footer.hidden = true;
       showConnection("");
       get("interaction").replaceChildren(node("p", "Local session closed. You can close this tab."));

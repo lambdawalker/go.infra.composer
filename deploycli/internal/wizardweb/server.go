@@ -165,7 +165,7 @@ func (s *Session) handler(host, key string) http.Handler {
 				(r.URL.Path == "/" || r.URL.Path == "/wizard.css" || r.URL.Path == "/wizard.js" ||
 					r.URL.Path == "/workspace.css" || r.URL.Path == "/workspace.js" ||
 					r.URL.Path == "/topology.css" || r.URL.Path == "/topology.js" ||
-					r.URL.Path == "/aws-icons.js" || r.URL.Path == "/vendor/topology-three.js" ||
+					r.URL.Path == "/aws-icons.js" || r.URL.Path == "/environment-menu.js" || r.URL.Path == "/vendor/topology-three.js" ||
 					isAWSIcon || isAWSModel) {
 				if isAWSModel {
 					w.Header().Set("Content-Type", "model/gltf-binary")
@@ -222,6 +222,25 @@ func (s *Session) handler(host, key string) http.Handler {
 			}
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(values)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/environment":
+			var selection struct {
+				ID   uint64 `json:"id"`
+				Mode string `json:"mode"`
+				Name string `json:"name"`
+			}
+			if !decodeReply(w, r, &selection) {
+				http.Error(w, "Invalid environment selection", http.StatusBadRequest)
+				return
+			}
+			if err := s.selectEnvironment(selection.ID, selection.Mode, selection.Name); err != nil {
+				status := http.StatusUnprocessableEntity
+				if errors.Is(err, errEnvironmentUnavailable) {
+					status = http.StatusConflict
+				}
+				http.Error(w, err.Error(), status)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/answer":
 			var answer struct {
 				ID uint64 `json:"id"`

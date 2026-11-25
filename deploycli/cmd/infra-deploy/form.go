@@ -140,7 +140,6 @@ func (f deploymentForm) fields() []wizardweb.Field {
 	}
 	fields := []wizardweb.Field{
 		{Name: "project", Group: "Target", Label: "Project", Value: f.project, ReadOnly: true},
-		{Name: "environment", Group: "Target", Label: "Environment", Value: f.target.Environment, ReadOnly: true},
 		f.profileField(),
 		{Name: "region", Group: "AWS", Label: "AWS region", Value: f.target.Region, ReadOnly: bound},
 		{Name: "account", Group: "AWS", Label: "AWS account", Value: f.target.Account, ReadOnly: bound,

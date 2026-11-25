@@ -141,7 +141,7 @@ func wizardActionOptions() []wizardweb.Option {
 func (w interaction) selectAction(countdown bool) (string, error) {
 	options := wizardActionOptions()
 	prompt := wizardweb.Prompt{Kind: "actions", Label: "What would you like to run?", Default: "preview", Options: options}
-	if countdown {
+	if countdown && w.browser.Environment() != "" {
 		prompt.CountdownSeconds = defaultCountdownSeconds
 	}
 	for {
