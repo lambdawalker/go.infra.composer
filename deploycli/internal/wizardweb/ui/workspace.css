@@ -233,7 +233,7 @@
 .preview-workspace .tree-node {position:relative;min-width:0}
 .preview-workspace .artifact-tree>.tree-node:before,
 .preview-workspace .artifact-tree ul>.tree-node:before {position:absolute;left:calc(0px - var(--tree-center));top:var(--tree-junction);width:var(--tree-elbow);border-top:1px solid var(--tree-line);pointer-events:none;content:""}
-.preview-workspace .artifact-tree .tree-node.expanded:before {top:calc(var(--tree-junction) + 4px)}
+.preview-workspace .artifact-tree .tree-node.expanded:before {top:calc(var(--tree-junction) + 4px);width:calc(var(--tree-center) + var(--tree-branch-center))}
 .preview-workspace .artifact-tree .tree-node:has(> .tree-row > .branch-spacer):before {width:20px}
 .preview-workspace .artifact-tree>.tree-node:last-child:after,
 .preview-workspace .artifact-tree ul>.tree-node:last-child:after {position:absolute;left:calc(0px - var(--tree-center));top:calc(var(--tree-junction) + 1px);bottom:0;width:1px;background:var(--surface);pointer-events:none;content:""}
