@@ -42,6 +42,47 @@ func TestInventoryExposesSafeFieldsAndClearsBetweenRuns(t *testing.T) {
 	}
 }
 
+func TestSubstepHistorySurvivesSnapshotsAndResetsBetweenRuns(t *testing.T) {
+	s := newSession("test wizard", func() {})
+	s.Protect("private-token")
+	s.Action("deploy")
+	s.Phase("connect", "Verify private-token access")
+	s.Phase("connect", "Verify private-token access") // Duplicate update, not a new step.
+	s.Phase("prepare", "Prepare the Pulumi stack")
+	s.Phase("prepare", "Build Lambda")
+	s.Phase("prepare", "Prepare the Pulumi stack") // Revisiting a stage is visible.
+	v := s.snapshot()
+	if len(v.Substeps) != 4 || v.Substeps[0].Title != "Verify [redacted] access" ||
+		v.Substeps[0].Status != "complete" || v.Substeps[2].Status != "complete" ||
+		v.Substeps[3].Status != "running" {
+		t.Fatalf("incomplete substep history: %+v", v.Substeps)
+	}
+	v.Substeps[0].Title = "changed outside session"
+	if got := s.snapshot().Substeps[0].Title; got != "Verify [redacted] access" {
+		t.Fatalf("snapshot exposed session memory: %q", got)
+	}
+	s.finish(errors.New("preview failed"))
+	v = s.snapshot()
+	if v.Substeps[3].Status != "failed" {
+		t.Fatalf("failure not reflected in last substep: %+v", v.Substeps)
+	}
+	if !s.returnToActions(v.Revision) || len(s.snapshot().Substeps) != 0 {
+		t.Fatal("substeps were carried into the next run")
+	}
+}
+
+func TestSubstepTracksStoppingAndCancellation(t *testing.T) {
+	s := newSession("test wizard", func() {})
+	s.Phase("apply", "Apply the saved plan")
+	if !s.stop(s.snapshot().Run, false) || s.snapshot().Substeps[0].Status != "stopping" {
+		t.Fatal("current substep did not enter stopping state")
+	}
+	s.finish(context.Canceled)
+	if got := s.snapshot().Substeps[0].Status; got != "cancelled" {
+		t.Fatalf("current substep ended %q, want cancelled", got)
+	}
+}
+
 const testHost = "127.0.0.1:17774"
 
 func request(handler http.Handler, method, path, host, origin, token, body string) *httptest.ResponseRecorder {
@@ -295,7 +336,7 @@ func TestReturnToActionsAfterEachResult(t *testing.T) {
 		}
 		state := session.snapshot()
 		if state.Run != result.Run+1 || state.Status != "running" || state.Phase != "settings" ||
-			state.Action != "" || state.Error != "" || len(state.Activity) != 0 || len(state.Visited) != 0 {
+			state.Action != "" || state.Error != "" || len(state.Activity) != 0 || len(state.Visited) != 0 || len(state.Substeps) != 0 {
 			t.Fatalf("previous action state carried over: %+v", state)
 		}
 		if got := post(result.Revision, "known-token"); got != http.StatusConflict {
