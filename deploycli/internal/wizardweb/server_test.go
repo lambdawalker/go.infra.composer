@@ -208,6 +208,17 @@ func TestLoopbackWizardProtectsStateAndReplies(t *testing.T) {
 			t.Fatalf("topology asset %s or restrictive CSP missing: %d", asset, assetResponse.Code)
 		}
 	}
+	for asset := range awsIconPaths {
+		response := request(handler, http.MethodGet, asset, testHost, "", "", "")
+		if response.Code != http.StatusOK || !strings.Contains(response.Header().Get("Content-Type"), "image/svg+xml") ||
+			!strings.Contains(response.Header().Get("Content-Security-Policy"), "img-src 'self'") ||
+			!strings.Contains(response.Body.String(), "<svg") {
+			t.Fatalf("AWS service icon %s was not served locally: %d %s", asset, response.Code, response.Header().Get("Content-Type"))
+		}
+	}
+	if response := request(handler, http.MethodGet, "/icons/aws/unknown.svg", testHost, "", "", ""); response.Code != http.StatusNotFound {
+		t.Fatalf("unlisted icon was served: %d", response.Code)
+	}
 	post := func(body string) int {
 		return request(handler, http.MethodPost, "/api/answer", testHost, "http://"+testHost, "known-token", body).Code
 	}
