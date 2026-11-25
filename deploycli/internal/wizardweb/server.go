@@ -241,6 +241,19 @@ func (s *Session) handler(host, key string) http.Handler {
 				return
 			}
 			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/project-teardown":
+			var intent struct {
+				ID uint64 `json:"id"`
+			}
+			if !decodeReply(w, r, &intent) {
+				http.Error(w, "Invalid teardown request", http.StatusBadRequest)
+				return
+			}
+			if !s.requestProjectTeardown(intent.ID) {
+				http.Error(w, "Return to Actions before requesting project teardown.", http.StatusConflict)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/answer":
 			var answer struct {
 				ID uint64 `json:"id"`

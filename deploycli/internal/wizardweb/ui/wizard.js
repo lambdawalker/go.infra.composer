@@ -314,7 +314,7 @@ function renderActions(container, prompt) {
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const action = new FormData(form).get("action");
-    if (current.environment || action === "destroy-all") answer(prompt, action);
+    if (current.environment) answer(prompt, action);
   });
   container.append(form);
   grid.querySelector(":checked")?.focus();
@@ -324,8 +324,7 @@ function updateActionTarget(view) {
   if (view?.prompt?.kind !== "actions") return;
   const submit = get("wizard-continue");
   if (!submit) return;
-  const action = get("wizard-form")?.querySelector('input[name="action"]:checked')?.value;
-  const needsTarget = !view.environment && action !== "destroy-all";
+  const needsTarget = !view.environment;
   submit.disabled = needsTarget || answeringPrompt === view.prompt.id;
   get("action-target-hint").hidden = !needsTarget;
 }

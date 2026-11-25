@@ -132,8 +132,7 @@ func wizardActionOptions() []wizardweb.Option {
 		{Value: "status", Label: "Check deployment status", Description: "Read the published outputs from the selected Pulumi stack."},
 		{Value: "report", Label: "Generate an artifact report", Description: "Save a report of the deployment artifacts recorded for the selected stack."},
 		{Value: "github-setup", Label: "Configure GitHub deployment", Description: "Review and configure the GitHub environment and AWS role used by deployment workflows."},
-		{Value: "destroy", Label: "Remove an environment", Description: "Retire one environment from discovery and destroy its Pulumi stack. Requires its stack name to confirm."},
-		{Value: "destroy-all", Label: "Remove all environments and index", Description: "Destroy every saved environment, then the shared discovery index. Requires explicit confirmations."},
+		{Value: "destroy", Label: "Remove this environment", Description: "Retire the open environment from discovery and destroy its Pulumi stack. Requires its stack name to confirm."},
 		{Value: "github-teardown", Label: "Remove GitHub configuration", Description: "Remove the selected environment's GitHub deployment configuration and its dedicated IAM role when managed here."},
 	}
 }
@@ -148,6 +147,10 @@ func (w interaction) selectAction(countdown bool) (string, error) {
 		value, err := w.browser.Ask(w.ctx, prompt)
 		if err != nil {
 			return "", err
+		}
+		if value == wizardweb.ProjectTeardownAction {
+			w.browser.Action(value)
+			return value, nil
 		}
 		for _, option := range options {
 			if option.Value == value {

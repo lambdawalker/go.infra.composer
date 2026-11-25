@@ -86,6 +86,11 @@ func (cli deployCLI) resolveBrowserEnvironment(root, project, mode, name string)
 	if !cli.spec.validEnvironment(name) {
 		return wizardweb.EnvironmentTarget{}, errors.New("Use up to 31 lowercase letters, digits, or hyphens, starting with a letter. Production must be enabled by the project.")
 	}
+	if mode == "switch" {
+		// The session only allows switching to an already open tab. Drafts
+		// without saved settings can therefore be switched back into as well.
+		return cli.browserEnvironmentTarget(root, project, name), nil
+	}
 	options, err := cli.browserEnvironments(root, project)
 	if err != nil {
 		return wizardweb.EnvironmentTarget{}, fmt.Errorf("read saved environments: %w", err)
@@ -109,10 +114,14 @@ func (cli deployCLI) resolveBrowserEnvironment(root, project, mode, name string)
 	default:
 		return wizardweb.EnvironmentTarget{}, errors.New("Choose New Environment or Open Environment.")
 	}
+	return cli.browserEnvironmentTarget(root, project, name), nil
+}
+
+func (cli deployCLI) browserEnvironmentTarget(root, project, name string) wizardweb.EnvironmentTarget {
 	report, source := cli.savedInventory(root, project, name)
 	report.Scope.Environment = name
 	return wizardweb.EnvironmentTarget{
 		Inventory: report, Source: source,
 		Fields: cli.startupSettingsFields(root, project, name, report, source),
-	}, nil
+	}
 }

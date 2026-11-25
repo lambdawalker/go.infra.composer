@@ -10,14 +10,21 @@
   const menu = get("environment-menu");
   const toggle = get("main-menu-toggle");
   const items = get("main-menu-items");
-  const active = get("active-environment");
+  const tabs = get("environment-tabs");
+  const projectMenu = get("project-menu-section");
+  const removeAll = projectMenu.querySelector("button");
   const dialog = get("environment-dialog");
   const fields = get("environment-dialog-fields");
   const error = get("environment-dialog-error");
   const submit = get("environment-submit");
-  const selectable = state => state?.status === "running" && ["actions", "environment"].includes(state.prompt?.kind);
+  const atActionMenu = state => state?.status === "running" && state.prompt?.kind === "actions";
+  const selectable = state => atActionMenu(state) ||
+    (state?.status === "running" && state.prompt?.kind === "environment") ||
+    (state && ["complete", "failed", "cancelled"].includes(state.status));
+  const selectionID = state => state.prompt?.id ?? state.revision;
   let view;
   let request;
+  let tabsKey;
 
   function showMenu(show, focus = false) {
     items.hidden = !show;
@@ -26,17 +33,22 @@
   }
 
   function showDialog(mode) {
-    if (!selectable(view)) return;
+    if (!selectable(view) || (mode === "destroy-all" && removeAll.disabled)) return;
     pauseCountdown();
-    request = {mode, id: view.prompt.id};
+    request = {mode, id: selectionID(view)};
     showMenu(false);
     error.hidden = true;
     fields.replaceChildren();
-    const creating = mode === "new";
-    get("environment-dialog-title").textContent = creating ? "New Environment" : "Open Environment";
-    submit.textContent = creating ? "Create" : "Open";
+    const projectTeardown = mode === "destroy-all";
+    get("environment-dialog-title").textContent = {
+      new: "New Environment", open: "Open Environment", "destroy-all": "Remove All Environments and Index",
+    }[mode];
+    submit.textContent = {new: "Create", open: "Open", "destroy-all": "Review teardown"}[mode];
+    submit.classList.toggle("project-teardown-submit", projectTeardown);
     submit.disabled = false;
-    if (creating) {
+    if (projectTeardown) {
+      fields.append(node("p", "Review removal of every saved environment in this project, followed by the shared index. The wizard will ask you to confirm the targets before removing anything."));
+    } else if (mode === "new") {
       const label = node("label", "Environment name");
       const input = node("input");
       input.name = "environment";
@@ -111,7 +123,9 @@
     error.hidden = true;
     submit.disabled = true;
     try {
-      const response = await post("/api/environment", {...selection, name});
+      const response = selection.mode === "destroy-all"
+        ? await post("/api/project-teardown", {id: selection.id})
+        : await post("/api/environment", {...selection, name});
       if (!response.ok) throw new Error((await response.text()).trim());
       if (request === selection && dialog.open) dialog.close();
       await refresh();
@@ -124,18 +138,54 @@
     }
   });
 
+  function renderTabs(state, available) {
+    const names = state?.openEnvironments || [];
+    const key = JSON.stringify([names, state?.environment, available]);
+    if (key === tabsKey) return;
+    tabsKey = key;
+    const focused = tabs.contains(document.activeElement) ? document.activeElement.textContent : "";
+    tabs.hidden = names.length === 0;
+    tabs.replaceChildren(...names.map(name => {
+      const tab = node("button", name);
+      tab.type = "button";
+      tab.className = "environment-tab";
+      tab.title = name;
+      tab.disabled = !available;
+      if (name === state.environment) tab.setAttribute("aria-current", "true");
+      return tab;
+    }));
+    if (focused && available) {
+      [...tabs.children].find(tab => tab.textContent === focused)?.focus();
+    }
+  }
+
+  tabs.addEventListener("click", async event => {
+    const tab = event.target.closest(".environment-tab");
+    if (!tab || !selectable(view) || tab.textContent === view.environment) return;
+    pauseCountdown();
+    try {
+      const response = await post("/api/environment", {id: selectionID(view), mode: "switch", name: tab.textContent});
+      if (!response.ok && response.status !== 409) throw new Error((await response.text()).trim());
+      await refresh();
+    } catch (err) {
+      showConnection(err.message || "Couldn’t switch environments.");
+    }
+  });
+
   window.renderEnvironmentMenu = state => {
     view = state;
     menu.hidden = !state;
-    toggle.disabled = !selectable(state);
-    toggle.title = toggle.disabled ? "Return to Actions to change the environment" : "Main menu";
-    active.hidden = !state;
-    active.textContent = state?.environment || "No environment";
-    active.title = state?.environment ? "Environment: " + state.environment : "";
+    const available = Boolean(selectable(state));
+    toggle.disabled = !available;
+    toggle.title = available ? "Main menu" : "Finish or stop the operation to change the environment";
+    projectMenu.hidden = !state?.canRemoveAll;
+    removeAll.disabled = !atActionMenu(state);
+    removeAll.title = removeAll.disabled ? "Return to Actions to review project teardown" : "";
+    renderTabs(state, available);
     if (toggle.disabled) {
       showMenu(false);
       if (dialog.open) dialog.close();
-    } else if (dialog.open && request?.id !== state.prompt.id) {
+    } else if (dialog.open && request?.id !== selectionID(state)) {
       dialog.close();
     }
   };

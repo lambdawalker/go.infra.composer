@@ -110,12 +110,13 @@ to keep the existing token or enter a new value to replace it. Saved tokens
 are used for the corresponding tool in preference to its environment token.
 Noninteractive runs continue to use their externally supplied credentials. With no `--action`, the
 browser presents action cards that explain each operation and selects Preview.
-Use the main menu beside the project title to create a draft with **New
+Use the main menu in the header to create a draft with **New
 Environment** or to select a recorded deployment or saved setup with **Open
 Environment**. The menu uses local records for this project. A recorded
 deployment means the wizard previously saved a successful apply receipt.
-The header shows the selected environment. Choose or switch environments at
-the action menu before starting work. **New Environment** selects a name
+Each opened environment has a tab in the header. Switch tabs between
+operations to load that environment's settings and artifact inventory.
+**New Environment** selects a name
 without provisioning cloud resources. The terminal still asks for the
 environment when needed, and command-line runs still accept `--environment`.
 Review and edit the applicable
@@ -161,10 +162,11 @@ After any action finishes, fails, or is stopped, review the result and choose
 for the operation to exit and release its local locks before offering another
 action. The open web session reuses the vault passphrase across actions.
 
-The action cards include **Remove an environment**, **Remove all environments
-and index**, and **Remove GitHub configuration**. Removing one environment
-retires it from the discovery index before destroying its Pulumi stack. Removing
-all environments verifies the declared shared index and its existing S3 state
+The action cards apply to the selected environment. **Remove this environment**
+retires it from the discovery index before destroying its Pulumi stack.
+For projects with a shared discovery index, choose **Remove All Environments
+and Index** from the main menu while at the Actions screen. This verifies the
+declared shared index and its existing S3 state
 URL first, then requests typed confirmation for the project, each environment
 stack, and the index stack. It destroys the index after all saved environments
 succeed. If any teardown fails, the wizard stops for recovery and a retry.

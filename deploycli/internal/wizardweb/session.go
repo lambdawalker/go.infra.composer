@@ -91,30 +91,32 @@ type Substep struct {
 }
 
 type view struct {
-	Locked         bool           `json:"locked,omitempty"`
-	Run            uint64         `json:"run"`
-	Revision       uint64         `json:"revision"`
-	Title          string         `json:"title"`
-	Action         string         `json:"action,omitempty"`
-	Phase          string         `json:"phase"`
-	PhaseTitle     string         `json:"phaseTitle"`
-	Visited        []string       `json:"visited,omitempty"`
-	Substeps       []Substep      `json:"substeps,omitempty"`
-	Status         string         `json:"status"`
-	Error          string         `json:"error,omitempty"`
-	Diagnostics    string         `json:"diagnostics,omitempty"`
-	Prompt         *Prompt        `json:"prompt,omitempty"`
-	SettingsFields []Field        `json:"settingsFields,omitempty"`
-	ActionOptions  []Option       `json:"actionOptions,omitempty"`
-	ActionDefault  string         `json:"actionDefault,omitempty"`
-	Environment    string         `json:"environment,omitempty"`
-	Environments   []Environment  `json:"environments,omitempty"`
-	Activity       []string       `json:"activity"`
-	SignIn         string         `json:"signIn,omitempty"`
-	Changes        []Change       `json:"changes,omitempty"`
-	Total          int            `json:"total"`
-	Reviewed       bool           `json:"reviewed"`
-	Inventory      *InventoryView `json:"inventory,omitempty"`
+	Locked           bool           `json:"locked,omitempty"`
+	Run              uint64         `json:"run"`
+	Revision         uint64         `json:"revision"`
+	Title            string         `json:"title"`
+	Action           string         `json:"action,omitempty"`
+	Phase            string         `json:"phase"`
+	PhaseTitle       string         `json:"phaseTitle"`
+	Visited          []string       `json:"visited,omitempty"`
+	Substeps         []Substep      `json:"substeps,omitempty"`
+	Status           string         `json:"status"`
+	Error            string         `json:"error,omitempty"`
+	Diagnostics      string         `json:"diagnostics,omitempty"`
+	Prompt           *Prompt        `json:"prompt,omitempty"`
+	SettingsFields   []Field        `json:"settingsFields,omitempty"`
+	ActionOptions    []Option       `json:"actionOptions,omitempty"`
+	ActionDefault    string         `json:"actionDefault,omitempty"`
+	Environment      string         `json:"environment,omitempty"`
+	Environments     []Environment  `json:"environments,omitempty"`
+	OpenEnvironments []string       `json:"openEnvironments,omitempty"`
+	CanRemoveAll     bool           `json:"canRemoveAll,omitempty"`
+	Activity         []string       `json:"activity"`
+	SignIn           string         `json:"signIn,omitempty"`
+	Changes          []Change       `json:"changes,omitempty"`
+	Total            int            `json:"total"`
+	Reviewed         bool           `json:"reviewed"`
+	Inventory        *InventoryView `json:"inventory,omitempty"`
 }
 
 type reply struct {
@@ -284,9 +286,18 @@ func (s *Session) answer(id uint64, answer reply) bool {
 	if s.vaultLocked() || prompt == nil || prompt.ID != id || s.view.Status != "running" {
 		return false
 	}
-	if prompt.Kind == "environment" || (prompt.Kind == "actions" && s.resolveEnvironment != nil &&
-		s.view.Environment == "" && (answer.Value == nil || *answer.Value != "destroy-all")) {
+	if prompt.Kind == "environment" {
 		return false
+	}
+	if prompt.Kind == "actions" {
+		if s.resolveEnvironment != nil && s.view.Environment == "" {
+			return false
+		}
+		if answer.Value == nil || *answer.Value == ProjectTeardownAction || !slices.ContainsFunc(prompt.Options, func(option Option) bool {
+			return option.Value == *answer.Value
+		}) {
+			return false
+		}
 	}
 	if prompt.Kind == "form" {
 		count := 0
@@ -330,11 +341,16 @@ func (s *Session) answer(id uint64, answer reply) bool {
 	} else if prompt.Kind == "secret" {
 		s.protect(*answer.Value)
 	}
+	s.submitReply(answer)
+	return true
+}
+
+// submitReply advances the prompt while holding the session mutex.
+func (s *Session) submitReply(answer reply) {
 	s.response <- answer
 	s.response = nil
 	s.view.Prompt = nil
 	s.view.Revision++
-	return true
 }
 
 // preview evaluates an immutable draft without advancing the current prompt.
@@ -534,6 +550,7 @@ func (s *Session) snapshot() view {
 	v.SettingsFields = cloneFields(v.SettingsFields)
 	v.ActionOptions = slices.Clone(v.ActionOptions)
 	v.Environments = slices.Clone(v.Environments)
+	v.OpenEnvironments = slices.Clone(v.OpenEnvironments)
 	return v
 }
 
@@ -571,15 +588,21 @@ func (s *Session) returnToActions(revision uint64) bool {
 	if s.vaultLocked() || s.home == nil || s.view.Revision != revision {
 		return false
 	}
+	s.resetForActions()
+	return true
+}
+
+// resetForActions starts a fresh action screen. The caller holds the mutex.
+func (s *Session) resetForActions() {
 	s.view = view{
-		Run: s.view.Run + 1, Revision: revision + 1, Title: s.view.Title,
+		Run: s.view.Run + 1, Revision: s.view.Revision + 1, Title: s.view.Title,
 		Phase: "settings", PhaseTitle: "Getting ready", Status: "running",
 		SettingsFields: s.view.SettingsFields, ActionOptions: s.view.ActionOptions, ActionDefault: s.view.ActionDefault,
 		Environment: s.view.Environment, Environments: s.view.Environments,
+		OpenEnvironments: s.view.OpenEnvironments, CanRemoveAll: s.view.CanRemoveAll,
 	}
 	close(s.home)
 	s.home = nil
-	return true
 }
 
 // stop handles the intent and run the browser displayed when the button was clicked.
