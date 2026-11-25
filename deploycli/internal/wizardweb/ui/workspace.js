@@ -7,6 +7,26 @@
   const operation = value => (value || "unknown").toLowerCase();
   const badge = action => el("span", action === "same" ? "Unchanged" : action === "unknown" ? "Not planned" : action.replaceAll("-", " "), "badge " + (action.includes("delete") || action.includes("replace") ? "delete" : action.includes("create") ? "create" : action.includes("update") ? "update" : action === "unknown" ? "unknown" : "same"));
   const symbolFor = type => /route53|cloudflare|acm|domain|apiGateway/i.test(type) ? "globe" : /dynamodb|s3|storage/i.test(type) ? "database" : /iam|secret|cognito|kms|authorizer/i.test(type) ? "shield" : /ses|email/i.test(type) ? "mail" : /lambda|eventRule|eventTarget/i.test(type) ? "bolt" : "layers";
+  // Only known AWS resource families resolve to bundled icons. Other providers
+  // and custom components retain the local neutral symbol.
+  const awsIconFor = type => {
+    const match = /^aws:([a-z0-9]+)\/([^:]+):/.exec(type);
+    if (!match) return "";
+    const [, service, resource] = match;
+    const names = {acm:"acm",apigateway:"api-gateway",apigatewayv2:"api-gateway",cognito:"cognito",dynamodb:"dynamodb",iam:"iam",kms:"kms",lambda:"lambda",route53:"route53",s3:"s3",secretsmanager:"secretsmanager",ses:"ses"};
+    const name = service === "cloudwatch" ? (/^event(Rule|Target)$/.test(resource) ? "eventbridge" : "cloudwatch") : names[service];
+    return name ? "/icons/aws/" + name + ".svg" : "";
+  };
+  const artifactIcon = a => {
+    const source = awsIconFor(a.type || "");
+    if (!source) return icon(a.symbol || symbolFor(a.type || ""));
+    const img = document.createElement("img");
+    img.className = "service-icon";
+    img.src = source;
+    img.alt = "";
+    img.setAttribute("aria-hidden", "true");
+    return img;
+  };
   const typeLabelFor = type => {
     const [provider, resource = ""] = type.split(":");
     const service = resource.split("/")[0];
@@ -17,7 +37,7 @@
       provider === "cloudflare" ? "Cloudflare" : labels[provider === "aws" ? service : provider === "apexfission" ? service : provider];
     return family ? family + " · " + kind : kind;
   };
-  window.wizardArtifactVisuals = Object.freeze({symbolFor,typeLabelFor});
+  window.wizardArtifactVisuals = Object.freeze({symbolFor,typeLabelFor,awsIconFor});
   const purposeFor = type => ({
     Function:"Runs backend code", Permission:"Allows a service to invoke the Lambda function",
     Table:"Stores application data", Bucket:"Stores deployment files or state",
@@ -115,7 +135,7 @@
     const a = state.selected;
     if (!a) { box.append(el("p", "No artifacts loaded. Connect to a deployment stack to check.", "muted")); return; }
     const identity = el("div", "", "detail-identity"), glyph = el("span", "", "detail-symbol"), names = el("div", "", "detail-heading");
-    glyph.append(icon(a.symbol || symbolFor(a.type || "")));
+    glyph.append(artifactIcon(a));
     names.append(el("div", a.name || a.key, "detail-name"), el("span", typeLabelFor(a.type || ""), "resource-type"));
     identity.append(glyph, names);
     box.append(identity, el("div", a.type || "Resource", "kind"), el("p", a.description || purposeFor(a.type || ""), "artifact-description"));
@@ -152,14 +172,14 @@
         const chevron=el("span","","chevron");chevron.setAttribute("aria-hidden","true");toggle.append(chevron);
         toggle.onclick=()=>{expanded?state.expanded.delete(a.key):state.expanded.add(a.key);tree();$(toggle.id)?.focus();};row.append(toggle);
       } else row.append(el("span","","branch-spacer"));
-      const entry=el("button","","tree-entry");entry.type="button";entry.append(icon(a.symbol));const content=el("span","","tree-content");content.append(el("span",a.name || a.key,"artifact-name"));const meta=el("span","","tree-meta");meta.append(badge(a.action),el("span",a.feature || state.inventory?.repository?.split("/").at(-1) || "Project","tree-owner"));content.append(meta);entry.append(content);entry.setAttribute("aria-current",String(state.selected===a));entry.onclick=()=>select(a);row.append(entry);item.append(row);
+      const entry=el("button","","tree-entry");entry.type="button";entry.append(artifactIcon(a));const content=el("span","","tree-content");content.append(el("span",a.name || a.key,"artifact-name"));const meta=el("span","","tree-meta");meta.append(badge(a.action),el("span",a.feature || state.inventory?.repository?.split("/").at(-1) || "Project","tree-owner"));content.append(meta);entry.append(content);entry.setAttribute("aria-current",String(state.selected===a));entry.onclick=()=>select(a);row.append(entry);item.append(row);
       if(expanded) {const sub=el("ul");sub.id="artifact-children-"+a.id;for(const child of children)appendNode(sub,child);item.append(sub);}parent.append(item);
     }
     for(const a of state.roots)if(included.has(a))appendNode(list,a);box.append(list);
   }
   function changes() {
     const box=$("changes");box.replaceChildren();
-    for(const change of state.plan) {const a=change.node, card=el("button","","change-row");card.type="button";card.setAttribute("aria-current",String(a===state.selected));const top=el("span","","change-top");top.append(icon(a.symbol),el("strong",a.name || a.key));const meta=el("span","","change-meta");meta.append(el("small",a.type),badge(operation(change.operation)));card.append(top,meta);card.onclick=()=>select(a,true);box.append(card);}
+    for(const change of state.plan) {const a=change.node, card=el("button","","change-row");card.type="button";card.setAttribute("aria-current",String(a===state.selected));const top=el("span","","change-top");top.append(artifactIcon(a),el("strong",a.name || a.key));const meta=el("span","","change-meta");meta.append(el("small",a.type),badge(operation(change.operation)));card.append(top,meta);card.onclick=()=>select(a,true);box.append(card);}
   }
   function context(view) {
     const i=state.inventory || {};

@@ -159,6 +159,8 @@
 .preview-workspace .change-row small {font-size:10.5px;color:var(--muted)}
 .preview-workspace .artifact-symbol {width:23px;height:23px;flex:none;display:grid;place-items:center;color:var(--blue)}
 .preview-workspace .artifact-symbol .icon {width:17px;height:17px}
+.preview-workspace .service-icon {display:block;flex:none;object-fit:contain;border-radius:2px}
+.preview-workspace .change-top>.service-icon {width:18px;height:18px}
 .preview-workspace .depth-label {display:inline-flex;align-self:flex-start;padding:2px 5px;border:1px solid var(--line);border-radius:3px;background:var(--elevated);color:var(--muted);font-size:10px;white-space:nowrap}
 .preview-workspace .console-panel {display:flex;flex-direction:column;gap:12px;padding:16px 18px;overflow:hidden}
 .preview-workspace .console-intro {display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
@@ -179,6 +181,7 @@
 .preview-workspace .detail-identity {display:flex;align-items:flex-start;gap:9px;min-width:0}
 .preview-workspace .detail-symbol {width:28px;height:28px;flex:none;display:grid;place-items:center;border:1px solid var(--line);border-radius:5px;background:var(--elevated);color:var(--blue)}
 .preview-workspace .detail-symbol .icon {width:17px;height:17px}
+.preview-workspace .detail-symbol .service-icon {width:24px;height:24px}
 .preview-workspace .detail-heading {min-width:0}
 .preview-workspace .detail-name {font-size:14px;font-weight:650;line-height:1.3;overflow-wrap:anywhere}
 .preview-workspace .resource-type {display:inline-flex;margin-top:5px;padding:2px 5px;border:1px solid var(--line);border-radius:3px;background:var(--elevated);color:var(--muted);font-size:10px;font-weight:600;line-height:1.3}
@@ -244,6 +247,7 @@
 .preview-workspace .tree-entry:hover, .preview-workspace .tree-entry[aria-current="true"] {background:var(--selected)}
 .preview-workspace .tree-entry[aria-current="true"] {border-color:var(--focus)}
 .preview-workspace .tree-entry>.icon {width:15px;height:15px;margin-top:2px;color:var(--blue)}
+.preview-workspace .tree-entry>.service-icon {width:17px;height:17px;margin-top:1px}
 .preview-workspace .tree-content {min-width:0;flex:1}
 .preview-workspace .artifact-name {display:block;overflow-wrap:anywhere;font-size:11.5px;font-weight:600;line-height:1.3}
 .preview-workspace .tree-meta {display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px}

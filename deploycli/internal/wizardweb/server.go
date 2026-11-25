@@ -22,6 +22,16 @@ import (
 //go:embed ui
 var assets embed.FS
 
+var awsIconPaths = map[string]struct{}{
+	"/icons/aws/acm.svg": {}, "/icons/aws/api-gateway.svg": {},
+	"/icons/aws/cloudwatch.svg": {}, "/icons/aws/cognito.svg": {},
+	"/icons/aws/dynamodb.svg": {}, "/icons/aws/eventbridge.svg": {},
+	"/icons/aws/iam.svg": {}, "/icons/aws/kms.svg": {},
+	"/icons/aws/lambda.svg": {}, "/icons/aws/route53.svg": {},
+	"/icons/aws/s3.svg": {}, "/icons/aws/secretsmanager.svg": {},
+	"/icons/aws/ses.svg": {},
+}
+
 func Serve(ctx context.Context, title string, open bool, run func(context.Context, *Session, bool) error) error {
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
@@ -116,7 +126,7 @@ func (s *Session) handler(host, key string) http.Handler {
 	files := http.FileServerFS(static)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
-		w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		if r.Host != host || r.Header.Get("Sec-Fetch-Site") == "cross-site" {
@@ -129,10 +139,11 @@ func (s *Session) handler(host, key string) http.Handler {
 			return
 		}
 		if !strings.HasPrefix(r.URL.Path, "/api/") {
+			_, isAWSIcon := awsIconPaths[r.URL.Path]
 			if (r.Method == http.MethodGet || r.Method == http.MethodHead) &&
 				(r.URL.Path == "/" || r.URL.Path == "/wizard.css" || r.URL.Path == "/wizard.js" ||
 					r.URL.Path == "/workspace.css" || r.URL.Path == "/workspace.js" ||
-					r.URL.Path == "/topology.css" || r.URL.Path == "/topology.js") {
+					r.URL.Path == "/topology.css" || r.URL.Path == "/topology.js" || isAWSIcon) {
 				files.ServeHTTP(w, r)
 			} else {
 				http.NotFound(w, r)
