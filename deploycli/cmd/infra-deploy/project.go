@@ -20,6 +20,22 @@ var projectNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,47}$`)
 
 func validProjectName(name string) bool { return projectNamePattern.MatchString(name) }
 
+// registeredProject only accepts an identity that matches both saved records.
+func registeredProject(root, composerDir, requestedProject string) string {
+	var local, central projectRecord
+	if b, err := os.ReadFile(filepath.Join(root, ".deploy", "project.json")); err != nil ||
+		json.Unmarshal(b, &local) != nil || local.Version != 1 ||
+		local.Root != root || !validProjectName(local.Name) ||
+		(requestedProject != "" && requestedProject != local.Name) {
+		return ""
+	}
+	if b, err := os.ReadFile(filepath.Join(composerDir, local.Name, "project.json")); err != nil ||
+		json.Unmarshal(b, &central) != nil || central != local {
+		return ""
+	}
+	return local.Name
+}
+
 // projectPaths persists repository identity separately from the central nonsecret registry.
 func (cli deployCLI) projectPaths(ctx context.Context, root, name string, ci bool) (string, string, string, error) {
 	local := filepath.Join(root, ".deploy")
@@ -86,6 +102,11 @@ func (cli deployCLI) projectPaths(ctx context.Context, root, name string, ci boo
 	}
 	if e = atomicWrite(p, b); e != nil {
 		return "", "", "", e
+	}
+	if registration, ok := ctx.Value(wizardRegistrationKey{}).(*wizardRegistration); ok {
+		if e = registration.setProject(name); e != nil {
+			return "", "", "", e
+		}
 	}
 	return name, local, central, nil
 }

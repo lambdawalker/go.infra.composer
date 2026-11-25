@@ -18,23 +18,16 @@ func (cli deployCLI) savedInventory(root, requestedProject, requestedEnv string)
 		Repository: cli.owner(), Project: cli.spec.PulumiProject,
 	}}
 	local := filepath.Join(root, ".deploy")
-	var project projectRecord
-	if b, err := os.ReadFile(filepath.Join(local, "project.json")); err != nil ||
-		json.Unmarshal(b, &project) != nil || project.Version != 1 ||
-		project.Root != root || !validProjectName(project.Name) ||
-		(requestedProject != "" && requestedProject != project.Name) {
-		return report, "repository"
-	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return report, "repository"
 	}
-	central := filepath.Join(home, ".infra-composer", project.Name)
-	var registered projectRecord
-	if b, err := os.ReadFile(filepath.Join(central, "project.json")); err != nil ||
-		json.Unmarshal(b, &registered) != nil || registered != project {
+	composerDir := filepath.Join(home, ".infra-composer")
+	project := registeredProject(root, composerDir, requestedProject)
+	if project == "" {
 		return report, "repository"
 	}
+	central := filepath.Join(composerDir, project)
 	if requestedEnv == "" {
 		var flags struct {
 			Version     int
@@ -49,7 +42,7 @@ func (cli deployCLI) savedInventory(root, requestedProject, requestedEnv string)
 		return report, "repository"
 	}
 	report.Scope.Environment = requestedEnv
-	report.Scope.Stack = cli.spec.stackName(project.Name, requestedEnv)
+	report.Scope.Stack = cli.spec.stackName(project, requestedEnv)
 	private := filepath.Join(central, "environments", requestedEnv)
 	var settings Settings
 	if b, err := os.ReadFile(filepath.Join(private, "settings.json")); err != nil ||

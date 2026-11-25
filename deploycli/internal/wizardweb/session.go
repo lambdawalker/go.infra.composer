@@ -122,6 +122,7 @@ type reply struct {
 }
 
 type Session struct {
+	instanceID      string
 	vault           vaultSession
 	mu              sync.Mutex
 	view            view

@@ -372,11 +372,23 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 		}
 	}
 	if *server && ui.browser == nil {
-		return wizardweb.Serve(ctx, cli.spec.Title, !*noOpen, func(ctx context.Context, session *wizardweb.Session, showActions bool) error {
-			session.SetActionOptions(wizardActionOptions(), "preview")
-			if root, err := os.Getwd(); err == nil {
-				cli.publishSavedInventory(session, root, *project, *env)
+		root, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		var registration *wizardRegistration
+		register := func(port int, instanceID string) (func() error, error) {
+			var err error
+			registration, err = registerWizard(root, cli.spec.Repository, *project, port, instanceID)
+			if err != nil {
+				return nil, err
 			}
+			return registration.remove, nil
+		}
+		return wizardweb.Serve(ctx, cli.spec.Title, !*noOpen, register, func(ctx context.Context, session *wizardweb.Session, showActions bool) error {
+			session.SetActionOptions(wizardActionOptions(), "preview")
+			cli.publishSavedInventory(session, root, *project, *env)
+			ctx = context.WithValue(ctx, wizardRegistrationKey{}, registration)
 			return cli.runWizard(context.WithValue(ctx, wizardKey{}, session), args, showActions)
 		})
 	}

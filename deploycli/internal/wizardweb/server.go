@@ -40,12 +40,19 @@ var awsModelPaths = func() map[string]struct{} {
 	return paths
 }()
 
-func Serve(ctx context.Context, title string, open bool, run func(context.Context, *Session, bool) error) error {
+func Serve(ctx context.Context, title string, open bool, register func(int, string) (func() error, error), run func(context.Context, *Session, bool) error) (result error) {
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		return err
 	}
 	defer listener.Close()
+	instanceID := rand.Text()
+	unregister, err := register(listener.Addr().(*net.TCPAddr).Port, instanceID)
+	if err != nil {
+		return err
+	}
+	defer func() { result = errors.Join(result, unregister()) }()
+
 	token := make([]byte, 32)
 	if _, err := rand.Read(token); err != nil {
 		return err
@@ -55,6 +62,7 @@ func Serve(ctx context.Context, title string, open bool, run func(context.Contex
 	lifetime, closePage := context.WithCancel(ctx)
 	defer closePage()
 	session := newSession(title, closePage)
+	session.instanceID = instanceID
 	server := &http.Server{
 		Handler: session.handler(host, key), ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second,
@@ -145,6 +153,10 @@ func (s *Session) handler(host, key string) http.Handler {
 		if origin != "" && origin != "http://"+host {
 			http.Error(w, "Invalid origin", http.StatusForbidden)
 			return
+		}
+		if r.URL.Path == "/" && s.instanceID != "" {
+			// A local index reader can distinguish a stale port from this instance.
+			w.Header().Set("X-Infra-Composer-Instance", s.instanceID)
 		}
 		if !strings.HasPrefix(r.URL.Path, "/api/") {
 			_, isAWSIcon := awsIconPaths[r.URL.Path]
