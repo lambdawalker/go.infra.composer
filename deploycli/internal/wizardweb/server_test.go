@@ -204,7 +204,7 @@ func TestLoopbackWizardProtectsStateAndReplies(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), `src="/aws-icons.js"`) {
 		t.Fatal("AWS icon mapper missing from local UI")
 	}
-	for _, asset := range []string{"/topology.js", "/topology.css"} {
+	for _, asset := range []string{"/topology.js", "/topology.css", "/vendor/topology-three.js"} {
 		assetResponse := request(handler, http.MethodGet, asset, testHost, "", "", "")
 		if assetResponse.Code != http.StatusOK || assetResponse.Body.Len() == 0 ||
 			strings.Contains(assetResponse.Header().Get("Content-Security-Policy"), "unsafe-eval") {
@@ -225,6 +225,18 @@ func TestLoopbackWizardProtectsStateAndReplies(t *testing.T) {
 	}
 	if response := request(handler, http.MethodGet, "/icons/aws/unknown.svg", testHost, "", "", ""); response.Code != http.StatusNotFound {
 		t.Fatalf("unlisted icon was served: %d", response.Code)
+	}
+	for asset := range awsModelPaths {
+		response := request(handler, http.MethodGet, asset, testHost, "", "", "")
+		if response.Code != http.StatusOK || response.Header().Get("Content-Type") != "model/gltf-binary" ||
+			!strings.HasPrefix(response.Body.String(), "glTF") {
+			t.Fatalf("AWS glass model %s was not served as GLB: %d", asset, response.Code)
+		}
+	}
+	for _, asset := range []string{"/models/aws/unknown.glb", "/models/aws/README.md", "/vendor/three-LICENSE.txt"} {
+		if response := request(handler, http.MethodGet, asset, testHost, "", "", ""); response.Code != http.StatusNotFound {
+			t.Fatalf("unlisted model asset was served: %s: %d", asset, response.Code)
+		}
 	}
 	post := func(body string) int {
 		return request(handler, http.MethodPost, "/api/answer", testHost, "http://"+testHost, "known-token", body).Code
