@@ -92,10 +92,7 @@
     if (!show && panel.parentNode !== originalParent) originalParent.insertBefore(panel, signIn);
     wizard.hidden = show; workspace.hidden = !show;
     if(!show)topology.deactivate();
-    $("brand-title").textContent = view.title || "Deployment wizard";
-    $("brand-operation").textContent = view.phase === "preview" ? "Preview" : view.phase === "apply" ? "Apply" :
-      ({deploy:"Deploy",preview:"Preview",report:"Artifact report",setup:"Setup",status:"Status"})[view.action] || "Choose action";
-    document.title = (view.title || "Deployment wizard") + " · " + $("brand-operation").textContent;
+    document.title = [view.title || "Deployment wizard", view.environment].filter(Boolean).join(" · ");
     return show;
   }
   function buildInventory(view) {

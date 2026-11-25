@@ -402,7 +402,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 			if err != nil {
 				return fmt.Errorf("read saved environments: %w", err)
 			}
-			session.ConfigureEnvironments(selected, options, func(mode, name string) (wizardweb.EnvironmentTarget, error) {
+			session.ConfigureEnvironments(selected, options, cli.spec.DiscoveryStack != nil, func(mode, name string) (wizardweb.EnvironmentTarget, error) {
 				return cli.resolveBrowserEnvironment(root, *project, mode, name)
 			})
 			cli.publishSavedInventory(session, root, *project, selected)

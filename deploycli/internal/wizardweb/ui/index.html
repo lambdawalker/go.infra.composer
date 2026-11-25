@@ -22,11 +22,13 @@
         <div class="main-menu-items" id="main-menu-items" hidden>
           <button type="button" data-environment-mode="new"><span aria-hidden="true">+</span> New Environment…</button>
           <button type="button" data-environment-mode="open"><span aria-hidden="true">↗</span> Open Environment…</button>
+          <div class="project-menu-section" id="project-menu-section" hidden>
+            <button type="button" data-environment-mode="destroy-all"><span aria-hidden="true">−</span> Remove All Environments and Index…</button>
+          </div>
         </div>
       </div>
       <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#ws-layers"></use></svg></span>
-      <span id="brand-title">Deployment wizard</span><span id="brand-operation" class="brand-operation"></span>
-      <span id="active-environment" class="active-environment" aria-live="polite" hidden></span>
+      <nav id="environment-tabs" class="environment-tabs" aria-label="Open environments" hidden></nav>
     </div>
     <div class="topbar-controls">
       <div class="local"><span aria-hidden="true"></span>Local session</div>
