@@ -28,7 +28,7 @@ func vaultVerifier(passphrase string, salt [16]byte) ([]byte, error) {
 }
 
 // VaultPassphrase reuses the current unlock or asks for a passphrase once.
-func (s *Session) VaultPassphrase(ctx context.Context) (string, error) {
+func (s *Session) VaultPassphrase(ctx context.Context, create ...bool) (string, error) {
 	for {
 		s.mu.Lock()
 		s.expireVault()
@@ -46,13 +46,28 @@ func (s *Session) VaultPassphrase(ctx context.Context) (string, error) {
 		case <-unlocked:
 		}
 	}
-	passphrase, err := s.Ask(ctx, Prompt{Kind: "secret", Label: "Local vault passphrase"})
+	creating := len(create) > 0 && create[0]
+	label := "Unlock local vault"
+	if creating {
+		label = "Create local vault password"
+		s.Note("Choose a password to protect deployment credentials on this computer. This is separate from the Pulumi stack passphrase. Keep it for future runs.")
+	}
+	passphrase, err := s.Ask(ctx, Prompt{Kind: "secret", Label: label})
 	if err != nil {
 		return "", err
 	}
 	passphrase = strings.TrimSpace(passphrase)
 	if passphrase == "" {
 		return "", errors.New("vault passphrase required")
+	}
+	if creating {
+		confirmation, err := s.Ask(ctx, Prompt{Kind: "secret", Label: "Confirm new vault password"})
+		if err != nil {
+			return "", err
+		}
+		if strings.TrimSpace(confirmation) != passphrase {
+			return "", errors.New("vault passwords do not match; no vault was created; return to Actions and try again")
+		}
 	}
 	var salt [16]byte
 	if _, err := rand.Read(salt[:]); err != nil {

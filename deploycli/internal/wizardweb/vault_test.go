@@ -115,3 +115,66 @@ func TestVaultPassphraseIdleLock(t *testing.T) {
 		}
 	})
 }
+
+func TestCreateVaultPasswordInBrowser(t *testing.T) {
+	for _, scenario := range []string{"match", "mismatch", "cancel"} {
+		t.Run(scenario, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				session := newSession("Create vault", cancel)
+				defer session.ForgetVault()
+				type result struct {
+					pass string
+					err  error
+				}
+				done := make(chan result, 1)
+				go func() { pass, err := session.VaultPassphrase(ctx, true); done <- result{pass, err} }()
+				synctest.Wait()
+				first := session.view.Prompt
+				if first == nil || first.Kind != "secret" || first.Label != "Create local vault password" {
+					t.Fatal("missing create password prompt")
+				}
+				password := "new-test-password"
+				if !session.answer(first.ID, reply{Value: &password}) {
+					t.Fatal("password rejected")
+				}
+				synctest.Wait()
+				confirmation := session.view.Prompt
+				if confirmation == nil || confirmation.Kind != "secret" || confirmation.Label != "Confirm new vault password" {
+					t.Fatal("missing confirmation")
+				}
+				raw, _ := json.Marshal(session.view)
+				if strings.Contains(string(raw), password) {
+					t.Fatal("password leaked into view")
+				}
+				if session.vault.passphrase != "" {
+					t.Fatal("cached before confirmation")
+				}
+				if scenario == "cancel" {
+					cancel()
+				} else {
+					answer := password
+					if scenario == "mismatch" {
+						answer = "different"
+					}
+					session.answer(confirmation.ID, reply{Value: &answer})
+				}
+				got := <-done
+				if scenario != "match" {
+					if got.err == nil || session.vault.passphrase != "" {
+						t.Fatal("failed setup cached password")
+					}
+					return
+				}
+				if got.err != nil || got.pass != password {
+					t.Fatal(got.err)
+				}
+				// Subsequent actions reuse the confirmed password without another setup prompt.
+				if got, err := session.VaultPassphrase(ctx, true); err != nil || got != password {
+					t.Fatal("confirmed password not reused", err)
+				}
+			})
+		})
+	}
+}

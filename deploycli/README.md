@@ -51,9 +51,14 @@ infra-deploy --action preview --environment dev
 
 Run `--help` from that checkout to see its commands and input flags. Plain
 terminal use defaults to deploy. After the interface choice, the wizard asks
-for the local vault passphrase before collecting settings. The web wizard asks once
-for each unlock. On first use, enter the separate Pulumi passphrase for the stack.
-The terminal wizard also confirms a newly created vault passphrase.
+for the local vault passphrase before collecting settings. On a fresh checkout, the browser shows **Create local vault password** and
+**Confirm new vault password** before continuing. Both are hidden password
+fields with no timer. A mismatch or cancellation creates no vault and caches no
+password. Existing local or supported legacy vaults show **Unlock local vault**
+instead; they are never reset by first-run setup. The confirmed password is
+reused across actions until the session locks or ends. On first use, enter the
+separate Pulumi passphrase for the stack. The terminal wizard also confirms a
+newly created vault passphrase.
 
 The review screen displays nonsecret values before AWS or GitHub sign-in.
 Use Tab and Enter to open an editable field. Smaller terminals show a numbered
