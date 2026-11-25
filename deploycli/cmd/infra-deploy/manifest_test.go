@@ -5,6 +5,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -43,6 +44,28 @@ func TestRejectManifestWithDifferentPulumiProject(t *testing.T) {
 	}
 	if _, err = readManifest(root); err == nil {
 		t.Fatal("wrong Pulumi project accepted")
+	}
+}
+
+func TestArtifactDescriptionsMustBeSafeAndNamed(t *testing.T) {
+	for _, tc := range []struct{ name, description string }{
+		{"", "Describes a resource."},
+		{"testhost.app/secret", "Describes a resource."},
+		{"testhost.app", ""},
+		{"testhost.app", "  "},
+		{"testhost.app", "First line\nSecond line"},
+		{"testhost.app", strings.Repeat("x", 301)},
+	} {
+		m := fixture(t, "email").spec
+		m.ArtifactDescriptions = map[string]string{tc.name: tc.description}
+		if err := m.validate(); err == nil {
+			t.Errorf("accepted artifact description %q: %q", tc.name, tc.description)
+		}
+	}
+	m := fixture(t, "email").spec
+	m.ArtifactDescriptions = map[string]string{"testhost.app-demo-domain": "Maps the public demo hostname to the HTTP API."}
+	if err := m.validate(); err != nil {
+		t.Fatal(err)
 	}
 }
 

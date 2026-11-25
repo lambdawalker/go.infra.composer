@@ -58,14 +58,15 @@ type Change struct {
 // ArtifactView contains only the safe identity and relationship fields used by
 // the workspace. Provider configuration and credentials never enter the page.
 type ArtifactView struct {
-	Key      string `json:"key"`
-	Name     string `json:"name"`
-	Type     string `json:"type"`
-	Parent   string `json:"parent,omitempty"`
-	Owner    string `json:"owner,omitempty"`
-	Feature  string `json:"feature,omitempty"`
-	Action   string `json:"action,omitempty"`
-	Presence string `json:"presence"`
+	Key         string `json:"key"`
+	Name        string `json:"name"`
+	Type        string `json:"type"`
+	Description string `json:"description,omitempty"`
+	Parent      string `json:"parent,omitempty"`
+	Owner       string `json:"owner,omitempty"`
+	Feature     string `json:"feature,omitempty"`
+	Action      string `json:"action,omitempty"`
+	Presence    string `json:"presence"`
 }
 
 type InventoryView struct {
@@ -329,7 +330,8 @@ func (s *Session) InventoryWithSource(report reporting.Report, source string) {
 	for _, a := range report.Artifacts {
 		items = append(items, ArtifactView{
 			Key: s.redact(a.Key), Name: s.redact(a.Name), Type: a.Type,
-			Parent: s.redact(a.Parent), Owner: s.redact(a.Owner), Feature: s.redact(a.Feature),
+			Description: s.redact(a.Description),
+			Parent:      s.redact(a.Parent), Owner: s.redact(a.Owner), Feature: s.redact(a.Feature),
 			Action: a.PlannedAction, Presence: string(a.Observation.Status),
 		})
 	}

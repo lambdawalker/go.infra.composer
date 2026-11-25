@@ -46,12 +46,13 @@ func (cli deployCLI) newFeatureReport(ctx context.Context, root, dir, stack, pri
 	if previous, e := reporting.LoadCache(r.cache, r.report.Scope); e == nil {
 		r.report = reporting.Merge(r.report, previous)
 	}
+	r.report.Artifacts = cli.ownFeature(r.report.Artifacts)
 	r.readState(ctx)
 	if b, e := os.ReadFile(filepath.Join(private, "state-bucket.json")); e == nil {
 		var receipt bucketReceipt
 		u, _ := url.Parse(s.Backend)
 		if json.Unmarshal(b, &receipt) == nil && u != nil && receipt.Created && receipt.Name == u.Host && receipt.Account == s.Account && receipt.Region == s.Region {
-			a := reporting.Artifact{Key: "bootstrap:state-bucket:" + receipt.Name, Name: receipt.Name, Type: "aws:s3/stateBucket", Provider: "aws", ProviderID: receipt.Name, Owner: cli.owner(), Feature: cli.spec.Feature, Priority: 20, Observation: reporting.Observation{Status: reporting.Unknown, Reason: reporting.CheckFailed, Source: "aws-s3-head-bucket", ObservedAt: time.Now().UTC()}}
+			a := reporting.Artifact{Key: "bootstrap:state-bucket:" + receipt.Name, Name: receipt.Name, Type: "aws:s3/stateBucket", Description: "Stores Pulumi deployment state for this feature's environments.", Provider: "aws", ProviderID: receipt.Name, Owner: cli.owner(), Feature: cli.spec.Feature, Priority: 20, Observation: reporting.Observation{Status: reporting.Unknown, Reason: reporting.CheckFailed, Source: "aws-s3-head-bucket", ObservedAt: time.Now().UTC()}}
 			if _, e := r.run(ctx, root, "aws", "s3api", "head-bucket", "--bucket", receipt.Name, "--expected-bucket-owner", s.Account); e == nil {
 				a.Observation.Status = reporting.Present
 				a.Observation.Reason = ""
@@ -65,6 +66,9 @@ func (cli deployCLI) ownFeature(as []reporting.Artifact) []reporting.Artifact {
 	for i := range as {
 		as[i].Owner = cli.owner()
 		as[i].Feature = cli.spec.Feature
+		if description := cli.spec.ArtifactDescriptions[as[i].Name]; description != "" {
+			as[i].Description = description
+		}
 	}
 	return as
 }
