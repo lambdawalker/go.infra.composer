@@ -180,7 +180,8 @@ func (s *Session) handler(host, key string) http.Handler {
 			_, isAWSModel := awsModelPaths[r.URL.Path]
 			if (r.Method == http.MethodGet || r.Method == http.MethodHead) &&
 				(r.URL.Path == "/" || r.URL.Path == "/favicon.svg" || r.URL.Path == "/wizard.css" || r.URL.Path == "/wizard.js" ||
-					r.URL.Path == "/workspace.css" || r.URL.Path == "/workspace.js" ||
+					r.URL.Path == "/preview-review.js" || r.URL.Path == "/artifact-dependencies.js" ||
+					r.URL.Path == "/workspace.css" || r.URL.Path == "/workspace.js" || r.URL.Path == "/deployment-history.js" ||
 					r.URL.Path == "/topology.css" || r.URL.Path == "/topology.js" ||
 					r.URL.Path == "/aws-icons.js" || r.URL.Path == "/environment-menu.js" || r.URL.Path == "/vendor/topology-three.js" ||
 					isAWSIcon || isAWSModel) {
@@ -202,6 +203,8 @@ func (s *Session) handler(host, key string) http.Handler {
 			return
 		}
 		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/deployment-history/report":
+			s.downloadHistoryReport(w, r)
 		case r.Method == http.MethodGet && r.URL.Path == "/api/state":
 			current := s.snapshot()
 			after, _ := strconv.ParseUint(r.URL.Query().Get("after"), 10, 64)
@@ -272,6 +275,19 @@ func (s *Session) handler(host, key string) http.Handler {
 			}
 			if !s.requestProjectTeardown(intent.ID) {
 				http.Error(w, "Return to Actions before requesting project teardown.", http.StatusConflict)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/drift":
+			var request struct {
+				ID uint64 `json:"id"`
+			}
+			if !decodeReply(w, r, &request) {
+				http.Error(w, "Invalid request", http.StatusBadRequest)
+				return
+			}
+			if !s.requestDriftCheck(request.ID) {
+				http.Error(w, "The selected environment is unavailable for a drift check", http.StatusConflict)
 				return
 			}
 			w.WriteHeader(http.StatusNoContent)

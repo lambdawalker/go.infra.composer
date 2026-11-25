@@ -52,23 +52,32 @@ type FormPreview struct {
 }
 
 type Change struct {
-	Resource  string `json:"resource"`
-	Operation string `json:"operation"`
-	Feature   string `json:"feature,omitempty"`
+	Resource          string           `json:"resource"`
+	Operation         string           `json:"operation"`
+	Feature           string           `json:"feature,omitempty"`
+	Properties        []PropertyChange `json:"properties,omitempty"`
+	ReplacementFields []string         `json:"replacementFields,omitempty"`
+}
+
+type PropertyChange struct {
+	Name   string `json:"name"`
+	Before string `json:"before,omitempty"`
+	After  string `json:"after,omitempty"`
 }
 
 // ArtifactView contains only the safe identity and relationship fields used by
 // the workspace. Provider configuration and credentials never enter the page.
 type ArtifactView struct {
-	Key         string `json:"key"`
-	Name        string `json:"name"`
-	Type        string `json:"type"`
-	Description string `json:"description,omitempty"`
-	Parent      string `json:"parent,omitempty"`
-	Owner       string `json:"owner,omitempty"`
-	Feature     string `json:"feature,omitempty"`
-	Action      string `json:"action,omitempty"`
-	Presence    string `json:"presence"`
+	Key          string   `json:"key"`
+	Name         string   `json:"name"`
+	Type         string   `json:"type"`
+	Description  string   `json:"description,omitempty"`
+	Parent       string   `json:"parent,omitempty"`
+	Dependencies []string `json:"dependencies,omitempty"`
+	Owner        string   `json:"owner,omitempty"`
+	Feature      string   `json:"feature,omitempty"`
+	Action       string   `json:"action,omitempty"`
+	Presence     string   `json:"presence"`
 }
 
 type InventoryView struct {
@@ -93,32 +102,36 @@ type Substep struct {
 }
 
 type view struct {
-	Locked           bool           `json:"locked,omitempty"`
-	Run              uint64         `json:"run"`
-	Revision         uint64         `json:"revision"`
-	Title            string         `json:"title"`
-	Action           string         `json:"action,omitempty"`
-	Phase            string         `json:"phase"`
-	PhaseTitle       string         `json:"phaseTitle"`
-	Visited          []string       `json:"visited,omitempty"`
-	Substeps         []Substep      `json:"substeps,omitempty"`
-	Status           string         `json:"status"`
-	Error            string         `json:"error,omitempty"`
-	Diagnostics      string         `json:"diagnostics,omitempty"`
-	Prompt           *Prompt        `json:"prompt,omitempty"`
-	SettingsFields   []Field        `json:"settingsFields,omitempty"`
-	ActionOptions    []Option       `json:"actionOptions,omitempty"`
-	ActionDefault    string         `json:"actionDefault,omitempty"`
-	Environment      string         `json:"environment,omitempty"`
-	Environments     []Environment  `json:"environments,omitempty"`
-	OpenEnvironments []string       `json:"openEnvironments,omitempty"`
-	CanRemoveAll     bool           `json:"canRemoveAll,omitempty"`
-	Activity         []string       `json:"activity"`
-	SignIn           string         `json:"signIn,omitempty"`
-	Changes          []Change       `json:"changes,omitempty"`
-	Total            int            `json:"total"`
-	Reviewed         bool           `json:"reviewed"`
-	Inventory        *InventoryView `json:"inventory,omitempty"`
+	CanCheckDrift       bool                     `json:"canCheckDrift,omitempty"`
+	Drift               *DriftView               `json:"drift,omitempty"`
+	Locked              bool                     `json:"locked,omitempty"`
+	Run                 uint64                   `json:"run"`
+	Revision            uint64                   `json:"revision"`
+	Title               string                   `json:"title"`
+	Action              string                   `json:"action,omitempty"`
+	Phase               string                   `json:"phase"`
+	PhaseTitle          string                   `json:"phaseTitle"`
+	Visited             []string                 `json:"visited,omitempty"`
+	Substeps            []Substep                `json:"substeps,omitempty"`
+	Status              string                   `json:"status"`
+	Error               string                   `json:"error,omitempty"`
+	Diagnostics         string                   `json:"diagnostics,omitempty"`
+	Prompt              *Prompt                  `json:"prompt,omitempty"`
+	SettingsFields      []Field                  `json:"settingsFields,omitempty"`
+	ActionOptions       []Option                 `json:"actionOptions,omitempty"`
+	ActionDefault       string                   `json:"actionDefault,omitempty"`
+	Environment         string                   `json:"environment,omitempty"`
+	DeploymentHistory   []DeploymentHistoryEntry `json:"deploymentHistory,omitempty"`
+	Environments        []Environment            `json:"environments,omitempty"`
+	OpenEnvironments    []string                 `json:"openEnvironments,omitempty"`
+	CanRemoveAll        bool                     `json:"canRemoveAll,omitempty"`
+	Activity            []string                 `json:"activity"`
+	SignIn              string                   `json:"signIn,omitempty"`
+	Changes             []Change                 `json:"changes,omitempty"`
+	ChangeCountsByOwner map[string]int           `json:"changeCountsByOwner,omitempty"`
+	Total               int                      `json:"total"`
+	Reviewed            bool                     `json:"reviewed"`
+	Inventory           *InventoryView           `json:"inventory,omitempty"`
 }
 
 type reply struct {
@@ -128,6 +141,7 @@ type reply struct {
 }
 
 type Session struct {
+	pendingDriftRun    uint64
 	instanceID         string
 	repository         string
 	vault              vaultSession
@@ -140,6 +154,7 @@ type Session struct {
 	commandFailures    []string
 	home               chan struct{}
 	resolveEnvironment func(string, string) (EnvironmentTarget, error)
+	history            []DeploymentHistoryRecord
 }
 
 func newSession(title string, close context.CancelFunc) *Session {
@@ -266,6 +281,12 @@ func (s *Session) ask(ctx context.Context, prompt Prompt) (reply, error) {
 	if err := ctx.Err(); err != nil {
 		s.mu.Unlock()
 		return reply{}, err
+	}
+	if prompt.Kind == "actions" && s.pendingDriftRun == s.view.Run {
+		s.pendingDriftRun = 0
+		s.mu.Unlock()
+		action := DriftAction
+		return reply{Value: &action}, nil
 	}
 	s.view.Revision++
 	prompt.ID = s.view.Revision
@@ -471,15 +492,27 @@ func (s *Session) Action(action string) {
 	s.view.Revision++
 }
 
-func (s *Session) Preview(changes []Change, total int) {
+func (s *Session) Preview(changes []Change, total int, countsByOwner map[string]int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i := range changes {
 		changes[i].Resource = s.redact(changes[i].Resource)
 		changes[i].Operation = s.redact(changes[i].Operation)
 		changes[i].Feature = s.redact(changes[i].Feature)
+		for j, field := range changes[i].Properties {
+			changes[i].Properties[j] = PropertyChange{
+				Name: s.redact(field.Name), Before: s.redact(field.Before), After: s.redact(field.After),
+			}
+		}
+		for j, field := range changes[i].ReplacementFields {
+			changes[i].ReplacementFields[j] = s.redact(field)
+		}
 	}
 	s.view.Changes, s.view.Total, s.view.Reviewed = changes, total, true
+	s.view.ChangeCountsByOwner = make(map[string]int, len(countsByOwner))
+	for owner, count := range countsByOwner {
+		s.view.ChangeCountsByOwner[s.redact(owner)] += count
+	}
 	s.view.Revision++
 }
 
@@ -497,13 +530,23 @@ func (s *Session) InventoryWithSource(report reporting.Report, source string) {
 }
 
 func (s *Session) setInventory(report reporting.Report, source string) {
+	if old := s.view.Inventory; old != nil &&
+		(old.Environment != report.Scope.Environment || old.Stack != report.Scope.Stack ||
+			old.Account != report.Scope.Account || old.Region != report.Scope.Region || old.Backend != s.redact(report.Scope.Backend)) {
+		s.setDeploymentHistory(nil)
+	}
 	items := make([]ArtifactView, 0, len(report.Artifacts))
 	for _, a := range report.Artifacts {
+		dependencies := make([]string, 0, len(a.Dependencies))
+		for _, key := range a.Dependencies {
+			dependencies = append(dependencies, s.redact(key))
+		}
 		items = append(items, ArtifactView{
 			Key: s.redact(a.Key), Name: s.redact(a.Name), Type: a.Type,
 			Description: s.redact(a.Description),
 			Parent:      s.redact(a.Parent), Owner: s.redact(a.Owner), Feature: s.redact(a.Feature),
-			Action: a.PlannedAction, Presence: string(a.Observation.Status),
+			Dependencies: dependencies,
+			Action:       a.PlannedAction, Presence: string(a.Observation.Status),
 		})
 	}
 	s.view.Inventory = &InventoryView{
@@ -552,6 +595,7 @@ func (s *Session) snapshot() view {
 		return view{Revision: s.view.Revision, Locked: true}
 	}
 	v := s.view
+	v.CanCheckDrift = s.canCheckDrift()
 	v.Activity = slices.Clone(v.Activity)
 	v.Visited = slices.Clone(v.Visited)
 	v.Substeps = slices.Clone(v.Substeps)
@@ -602,6 +646,7 @@ func (s *Session) returnToActions(revision uint64) bool {
 
 // resetForActions starts a fresh action screen. The caller holds the mutex.
 func (s *Session) resetForActions() {
+	s.history = nil
 	s.view = view{
 		Run: s.view.Run + 1, Revision: s.view.Revision + 1, Title: s.view.Title,
 		Phase: "settings", PhaseTitle: "Getting ready", Status: "running",

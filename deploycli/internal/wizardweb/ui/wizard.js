@@ -54,7 +54,7 @@ get("teardown-close").addEventListener("click", () => stopControl.click());
 
 const actions = {
   setup: "Setup", build: "Build", preview: "Preview", deploy: "Deploy", status: "Status",
-  report: "Artifact report", "github-setup": "GitHub setup", destroy: "Remove environment",
+  report: "Artifact report", drift: "Drift check", "github-setup": "GitHub setup", destroy: "Remove environment",
   "destroy-all": "Remove all environments", "github-teardown": "Remove GitHub configuration",
   "clean-cache": "Clear build cache",
 };
@@ -264,6 +264,19 @@ async function answer(prompt, value, action) {
     updateActionTarget(current);
   }
 }
+
+window.requestDriftCheck = async function () {
+  if (!current?.canCheckDrift) return;
+  const id = current.prompt?.kind === "actions" ? current.prompt.id : current.revision;
+  resetCountdown();
+  try {
+    const response = await post("/api/drift", {id});
+    if (!response.ok) throw new Error("Couldn't start the drift check. Verify the target and try again.");
+    await refresh();
+  } catch (error) {
+    showConnection(error.message);
+  }
+};
 
 function renderSingleInput(container, prompt) {
   const form = node("form");
@@ -902,7 +915,7 @@ function render(view) {
     const selected = index === active;
     const visited = (view.visited || []).includes(step.dataset.phase);
     step.hidden = !visited && (
-      (step.dataset.phase === "preview" && view.action && !["deploy", "preview"].includes(view.action)) ||
+      (step.dataset.phase === "preview" && view.action && !["deploy", "preview", "drift"].includes(view.action)) ||
       (step.dataset.phase === "apply" && view.action && view.action !== "deploy")
     );
     step.classList.toggle("active", selected && view.status !== "complete");

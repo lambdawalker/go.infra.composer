@@ -78,6 +78,8 @@ func (cli deployCLI) publishSavedInventory(session *wizardweb.Session, root, pro
 	}
 	report, source := cli.savedInventory(root, project, env)
 	session.InventoryWithSource(report, source)
+	session.SetDrift(cli.savedDrift(root, project, report.Scope))
+	session.SetDeploymentHistory(deploymentHistory(filepath.Join(root, ".deploy"), report.Scope))
 	session.SetSettingsFields(cli.startupSettingsFields(root, project, env, report, source))
 }
 

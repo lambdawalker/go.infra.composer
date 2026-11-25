@@ -2,12 +2,14 @@ package main
 
 import (
 	"encoding/json"
-	"maps"
-	"slices"
-
 	"fmt"
-	"github.com/lambdawalker/go.infra.composer/deploycli/internal/wizardweb"
+	"maps"
+	"os"
+	"slices"
 	"strings"
+
+	"github.com/lambdawalker/go.infra.composer/deploycli/internal/wizardweb"
+	"github.com/lambdawalker/go.infra.composer/reporting/pulumicli"
 )
 
 type resourcePlan struct {
@@ -35,7 +37,7 @@ func destructivePlan(data []byte) (bool, error) {
 	}
 	for _, r := range resources {
 		for _, op := range r.Steps {
-			if strings.Contains(op, "delete") || strings.Contains(op, "replace") {
+			if destructiveOperation(op) {
 				return true, nil
 			}
 		}
@@ -43,24 +45,58 @@ func destructivePlan(data []byte) (bool, error) {
 	return false, nil
 }
 
-func (w interaction) preview(data []byte, spec manifest) error {
+func destructiveOperation(operation string) bool {
+	return strings.Contains(operation, "delete") || strings.Contains(operation, "replace")
+}
+
+func (w interaction) preview(data []byte, spec manifest, eventLog string) error {
 	resources, err := readPlan(data)
 	if err != nil {
 		return err
 	}
-	var changes []wizardweb.Change
+	var review map[string]pulumicli.PreviewReview
+	if events, err := os.Open(eventLog); err == nil {
+		review, _ = pulumicli.ReadPreviewReview(events)
+		events.Close()
+	}
+	changes, total, counts := previewChanges(resources, spec, review)
+	w.browser.Preview(changes, total, counts)
+	return nil
+}
+
+func previewChanges(resources map[string]resourcePlan, spec manifest, review map[string]pulumicli.PreviewReview) ([]wizardweb.Change, int, map[string]int) {
+	const limit = 100
+	var destructive, ordinary []wizardweb.Change
 	total := 0
+	counts := make(map[string]int)
 	for _, resource := range slices.Sorted(maps.Keys(resources)) {
+		feature := spec.artifactFeature(resource, "")
 		for _, step := range resources[resource].Steps {
 			if step == "same" {
 				continue
 			}
 			total++
-			if len(changes) < 100 {
-				changes = append(changes, wizardweb.Change{Resource: resource, Operation: step, Feature: spec.artifactFeature(resource, "")})
+			counts[feature]++
+			group := &ordinary
+			if destructiveOperation(step) {
+				group = &destructive
 			}
+			if len(*group) >= limit {
+				continue
+			}
+			detail := review[resource]
+			change := wizardweb.Change{
+				Resource: resource, Operation: step, Feature: feature,
+				ReplacementFields: slices.Clone(detail.ReplacementFields),
+			}
+			for _, field := range detail.Properties {
+				change.Properties = append(change.Properties, wizardweb.PropertyChange{
+					Name: field.Name, Before: field.Before, After: field.After,
+				})
+			}
+			*group = append(*group, change)
 		}
 	}
-	w.browser.Preview(changes, total)
-	return nil
+	remaining := min(limit-len(destructive), len(ordinary))
+	return append(destructive, ordinary[:remaining]...), total, counts
 }

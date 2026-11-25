@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/lambdawalker/go.infra.composer/reporting"
 	cli "github.com/lambdawalker/go.infra.composer/reporting/pulumicli"
@@ -19,30 +20,36 @@ func (cli deployCLI) owner() string { return "github.com/" + cli.spec.Repository
 
 type reportRunner func(context.Context, string, ...string) ([]byte, error)
 type featureReport struct {
-	cli                       deployCLI
-	bootstrap                 *reporting.Artifact
-	report                    reporting.Report
-	dir, stack, output, cache string
-	run                       reportRunner
-	previewLog                string
-	applied                   bool
+	cli                              deployCLI
+	bootstrap                        *reporting.Artifact
+	report                           reporting.Report
+	dir, stack, local, output, cache string
+	run                              reportRunner
+	previewLog                       string
+	applied                          bool
+	applyCompleted                   bool
 }
 
-func (cli deployCLI) newFeatureReport(ctx context.Context, root, dir, stack, private, local string, s Settings, project, operation string) *featureReport {
-	r := &featureReport{cli: cli, dir: dir, stack: stack, run: func(ctx context.Context, dir string, args ...string) ([]byte, error) {
+func (cli deployCLI) beginFeatureReport(ctx context.Context, root, dir, stack, local string, s Settings, operation string, startedAt time.Time) *featureReport {
+	r := &featureReport{cli: cli, dir: dir, stack: stack, local: local, run: func(ctx context.Context, dir string, args ...string) ([]byte, error) {
 		c := toolCommand(ctx, args...)
 		c.Dir = dir
 		return c.Output()
 	}}
-	r.report = reporting.Report{Scope: reporting.Scope{Repository: cli.owner(), Environment: s.Environment, Account: s.Account, Region: s.Region, Project: cli.spec.PulumiProject, Backend: s.Backend, Stack: stack}, Metadata: reporting.Metadata{Operation: operation, Outcome: "in_progress", StartedAt: time.Now().UTC()}}
-	r.output = filepath.Join(local, "reports", s.Environment, time.Now().UTC().Format("20060102T150405.000000000Z"))
-	r.cache = reporting.CachePath(filepath.Join(private, "reports"), r.report.Scope)
+	r.report = reporting.Report{Scope: reporting.Scope{Repository: cli.owner(), Environment: s.Environment, Account: s.Account, Region: s.Region, Project: cli.spec.PulumiProject, Backend: s.Backend, Stack: stack}, Metadata: reporting.Metadata{Operation: operation, Outcome: "in_progress", StartedAt: startedAt}}
+	r.output = filepath.Join(local, "reports", s.Environment, startedAt.UTC().Format(reportDirectoryTime))
 	if b, e := r.run(ctx, root, "git", "rev-parse", "HEAD"); e == nil {
 		r.report.Metadata.Revision = strings.TrimSpace(string(b))
 	}
 	if b, e := r.run(ctx, root, "git", "status", "--porcelain"); e == nil {
 		r.report.Metadata.Dirty = len(bytes.TrimSpace(b)) > 0
 	}
+	return r
+}
+
+func (cli deployCLI) newFeatureReport(ctx context.Context, root, dir, stack, private, local string, s Settings, project, operation string) *featureReport {
+	r := cli.beginFeatureReport(ctx, root, dir, stack, local, s, operation, time.Now().UTC())
+	r.cache = reporting.CachePath(filepath.Join(private, "reports"), r.report.Scope)
 	if previous, e := reporting.LoadCache(r.cache, r.report.Scope); e == nil {
 		r.report = reporting.Merge(r.report, previous)
 	}
@@ -93,7 +100,7 @@ func (cli deployCLI) ownFeature(as []reporting.Artifact) []reporting.Artifact {
 }
 func (r *featureReport) warn(code string) { r.report.Warnings = append(r.report.Warnings, code) }
 
-func (r *featureReport) publish(ctx context.Context, includePreview bool) {
+func (r *featureReport) publish(ctx context.Context, includePreview bool, plans ...[]byte) {
 	if wizard(ctx).browser == nil {
 		return
 	}
@@ -104,6 +111,11 @@ func (r *featureReport) publish(ctx context.Context, includePreview bool) {
 				report.Artifacts = r.cli.ownFeature(artifacts)
 			}
 			f.Close()
+		}
+	}
+	if len(plans) > 0 {
+		if artifacts, err := cli.ApplyPlanDependencies(report.Artifacts, bytes.NewReader(plans[0])); err == nil {
+			report.Artifacts = artifacts
 		}
 	}
 	if r.bootstrap != nil {
@@ -206,13 +218,15 @@ func (r *featureReport) finish(ctx context.Context, runErr error, refresh bool) 
 	}
 	r.report.Metadata.FinishedAt = time.Now().UTC()
 	r.report.Metadata.Outcome = "succeeded"
-	if runErr != nil {
+	if errors.Is(runErr, context.Canceled) && r.report.Metadata.Operation == "deploy" && !r.applied {
+		r.report.Metadata.Outcome = "cancelled"
+	} else if runErr != nil {
 		r.report.Metadata.Outcome = "failed"
 	} else if len(r.report.Warnings) > 0 {
 		r.report.Metadata.Outcome = "incomplete"
 	}
 	r.report = reporting.Normalize(r.report)
-	if e := writeFeatureBundle(r.output, r.report); e != nil {
+	if e := r.saveBundle(ctx); e != nil {
 		return e
 	}
 	if r.report.Metadata.Operation != "preview" {

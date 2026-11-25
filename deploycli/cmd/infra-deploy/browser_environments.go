@@ -122,6 +122,8 @@ func (cli deployCLI) browserEnvironmentTarget(root, project, name string) wizard
 	report.Scope.Environment = name
 	return wizardweb.EnvironmentTarget{
 		Inventory: report, Source: source,
+		Drift:  cli.savedDrift(root, project, report.Scope),
 		Fields: cli.startupSettingsFields(root, project, name, report, source),
+		History: deploymentHistory(filepath.Join(root, ".deploy"), report.Scope),
 	}
 }

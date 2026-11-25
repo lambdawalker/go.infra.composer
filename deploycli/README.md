@@ -47,6 +47,18 @@ imported component's name prefix to its feature label. For example,
 `"ArtifactFeaturePrefixes": {"verification.": "email-verification"}`
 labels the verifier's storage and signing resources separately from the host.
 
+In the browser, owner badges filter the artifact tree and proposed changes.
+The preview shows deletion and replacement steps first. Artifact details
+include before-and-after values for supported settings, replacement fields
+reported by Pulumi, and links to direct dependencies and dependents.
+
+Overview shows the latest successful deployment and failed attempt for the
+selected target, with downloads for their artifact reports. **Check drift**
+previews a refresh for a saved stack, records when it checked, and separates
+changed, missing, and unverified resources. The check does not apply changes
+to the stack. The same operation is available as
+`--action drift --environment <environment>`.
+
 Pin a reviewed module version or commit in both launchers. For example,
 from a consumer checkout where `infra-deploy` is already installed:
 

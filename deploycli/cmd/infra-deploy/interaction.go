@@ -148,7 +148,7 @@ func (w interaction) selectAction(countdown bool) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if value == wizardweb.ProjectTeardownAction {
+		if value == wizardweb.ProjectTeardownAction || value == wizardweb.DriftAction {
 			w.browser.Action(value)
 			return value, nil
 		}

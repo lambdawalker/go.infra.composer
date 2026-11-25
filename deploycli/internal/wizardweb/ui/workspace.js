@@ -45,6 +45,8 @@
     EventRule:"Schedules or responds to background events", EventTarget:"Routes a background event to its handler"
   })[type.split(":").at(-1)] || "Deployment resource for this application";
   const state = { selected:null, expanded:new Set(), filterKey:null, detailOpen:true, progressOpen:true, progressKey:null, progressTarget:null, deploymentView:"application", inventory:null, plan:[], nodes:[], roots:[], reportRun:null };
+  const ownerLabel = artifact => artifact.feature || artifact.owner?.split("/").at(-1) || state.inventory?.repository?.split("/").at(-1) || "Project";
+  let ownerFilter = "", ownerScope = "", ownerCounts = new Map(), driftRenderKey = "";
   const workspace = $("preview-workspace"), wizard = $("wizard"), slot = $("preview-interaction-slot"), panel = $("panel"), signIn = $("sign-in"), originalParent = panel.parentNode;
   const topology = window.createArtifactTopology({
     stage:$("topology-stage"),canvas:$("topology-canvas"),tooltip:$("topology-tooltip"),
@@ -99,6 +101,9 @@
   }
   function buildInventory(view) {
     const inventory = view.inventory || {artifacts:[]};
+    const scope = [inventory.repository, inventory.project, inventory.environment, inventory.account, inventory.region, inventory.backend, inventory.stack].join("\0");
+    if (scope !== ownerScope) ownerFilter = "";
+    ownerScope = scope;
     const resources = new Map();
     const nodes = (inventory.artifacts || []).map((raw, id) => ({...raw, id, children:[], parentNode:null, action:view.reviewed ? "same" : operation(raw.action), symbol:symbolFor(raw.type || "")}));
     for (const a of nodes) resources.set(a.key, a);
@@ -111,14 +116,71 @@
     for (const change of state.plan) if (!change.node) { // Some Pulumi plan entries are not managed artifacts in the report.
       const resource = change.resource, name = resource.split("::").at(-1);
       const type = resource.split("::").at(-2)?.split("$").at(-1) || "Resource";
-      const a = {key:resource, name, type, id:nodes.length, parent:"", children:[], parentNode:null, owner:inventory.repository, feature:change.feature, description:purposeFor(type), presence:"unknown", action:operation(change.operation), symbol:symbolFor(type)};
-      nodes.push(a); state.roots.push(a); resources.set(resource,a); change.node = a;
+      const a = resources.get(resource) || {key:resource, name, type, id:nodes.length, parent:"", children:[], parentNode:null, owner:inventory.repository, feature:change.feature, description:purposeFor(type), presence:"unknown", action:operation(change.operation), symbol:symbolFor(type)};
+      if (!resources.has(resource)) { nodes.push(a); state.roots.push(a); resources.set(resource,a); }
+      change.node = a;
     }
     // Prefer the saved plan's operation when its event log was not available.
     for (const change of state.plan) change.node.action = operation(change.operation);
+    ownerCounts = new Map();
+    for (const node of nodes) {
+      const label = ownerLabel(node);
+      if (!ownerCounts.has(label)) ownerCounts.set(label, {artifacts:0, changes:0});
+      ownerCounts.get(label).artifacts++;
+    }
+    if (view.changeCountsByOwner) {
+      for (const [owner, changes] of Object.entries(view.changeCountsByOwner)) {
+        if (!ownerCounts.has(owner)) ownerCounts.set(owner, {artifacts:0, changes:0});
+        ownerCounts.get(owner).changes = changes;
+      }
+    } else {
+      for (const change of state.plan) ownerCounts.get(ownerLabel(change.node)).changes++;
+    }
+    if (!ownerCounts.has(ownerFilter)) ownerFilter = "";
     state.selected = resources.get(state.selected?.key) || state.plan[0]?.node || nodes[0] || null;
     topology.setArtifacts(nodes);
     topology.setSelection(state.selected?.key);
+  }
+  function setOwnerFilter(owner) {
+    ownerFilter = owner;
+    renderOwnerFilters(ownerFilter);
+    details();
+    tree();
+    changes();
+  }
+  function ownerButton(owner, text, cls) {
+    const button = el("button", text, cls + " owner-filter-button");
+    button.type = "button";
+    button.setAttribute("aria-pressed", String(owner === ownerFilter));
+    button.onclick = () => setOwnerFilter(ownerFilter === owner ? "" : owner);
+    return button;
+  }
+  function renderOwnerFilters(focusOwner) {
+    const group = $("owner-filters");
+    const focused = group.contains(document.activeElement) ? document.activeElement.dataset.owner : undefined;
+    group.replaceChildren();
+    group.hidden = ownerCounts.size < 2;
+    if (group.hidden) return;
+    const total = ownerButton("", "All owners", "owner-filter-chip");
+    total.dataset.owner = "";
+    group.append(total);
+    for (const owner of [...ownerCounts.keys()].sort()) {
+      const {artifacts, changes} = ownerCounts.get(owner);
+      const button = ownerButton(owner, owner + " · " + artifacts + (changes ? " (" + changes + " changes)" : ""), "owner-filter-chip");
+      button.dataset.owner = owner;
+      button.setAttribute("aria-label", owner + ", " + artifacts + " artifacts, " + changes + " proposed changes");
+      group.append(button);
+    }
+    if (focusOwner !== undefined || focused !== undefined) {
+      ([...group.children].find(button => button.dataset.owner === (focusOwner ?? focused)) || total).focus();
+    }
+  }
+  function artifactOwnerBadge(artifact, cls) {
+    const owner = ownerLabel(artifact);
+    if (ownerCounts.size < 2) return el("span", owner, cls);
+    const button = ownerButton(owner, owner, cls);
+    button.setAttribute("aria-label", "Filter by owner " + owner);
+    return button;
   }
   function details() {
     const box = $("detail-content"); box.replaceChildren();
@@ -129,25 +191,39 @@
     names.append(el("div", a.name || a.key, "detail-name"), el("span", typeLabelFor(a.type || ""), "resource-type"));
     identity.append(glyph, names);
     box.append(identity, el("div", a.type || "Resource", "kind"), el("p", a.description || purposeFor(a.type || ""), "artifact-description"));
-    const tags = el("div", "", "detail-actions"); tags.append(badge(a.action), el("span", a.feature || state.inventory?.repository?.split("/").at(-1) || "Project", "depth-label")); box.append(tags);
+    const tags = el("div", "", "detail-actions"); tags.append(badge(a.action), artifactOwnerBadge(a, "depth-label")); box.append(tags);
     const dl = el("dl", "", "data-grid");
     for (const [label, value] of [["Presence", ({present:"Live check: present",recorded:"Recorded in Pulumi state",absent:"Live check: absent",unknown:"Not checked"})[a.presence] || "Not checked"], ["Pulumi identity",a.key], ["Repository",a.owner || state.inventory?.repository || "Unknown"]]) {
       dl.append(el("dt",label),el("dd",value));
     }
     box.append(dl);
+    window.renderWizardPreviewChange?.(box, state.plan.find(change => change.resource === a.key));
+    window.renderArtifactDependencies?.(box, a, state.nodes, navigateToArtifact);
     const count = a.children.reduce(function visit(n,c){return n + 1 + c.children.reduce(visit,0)},0);
     const heading = el("h3", "Subartifacts (" + count + ")"); heading.className="subartifact-heading"; box.append(heading);
     if (!a.children.length) box.append(el("p", "No subartifacts", "muted"));
     else { const list=el("ul","","detail-tree"); for (const child of a.children) { const item=el("li"); const button=el("button",child.name || child.key,"detail-tree-entry"); button.type="button"; button.onclick=()=>select(child); item.append(button);list.append(item); }box.append(list); }
   }
   function select(a, reveal=false) { state.selected=a; for(let p=a.parentNode;p;p=p.parentNode) state.expanded.add(p.key); if(reveal) toggleDetails(true); details(); tree(); changes(); topology.setSelection(a.key); }
-  function matches(a,q,filter) { return (a.name || a.key).toLowerCase().includes(q) && (filter==="all" || filter==="changed" && a.action!=="same" && a.action!=="unknown" || filter==="unchanged" && a.action==="same" || filter==="unknown" && a.presence==="unknown"); }
+  function navigateToArtifact(artifact) {
+    if (ownerFilter && ownerLabel(artifact) !== ownerFilter) {
+      ownerFilter = "";
+      renderOwnerFilters();
+    }
+    select(artifact, true);
+    const title = $("detail-content").querySelector(".detail-name");
+    if (title) {
+      title.tabIndex = -1;
+      title.focus();
+    }
+  }
+  function matches(a,q,filter) { return (!ownerFilter || ownerLabel(a) === ownerFilter) && (a.name || a.key).toLowerCase().includes(q) && (filter==="all" || filter==="changed" && a.action!=="same" && a.action!=="unknown" || filter==="unchanged" && a.action==="same" || filter==="unknown" && a.presence==="unknown"); }
   function tree() {
     const q=$("search").value.trim().toLowerCase(), filter=$("filter").value;
-    const filterKey=q+"\0"+filter, filterChanged=state.filterKey!==filterKey;
+    const filterKey=[q, filter, ownerFilter].join("\0"), filterChanged=state.filterKey!==filterKey;
     state.filterKey=filterKey;
     const matching=state.nodes.filter(a=>matches(a,q,filter)); $("count").textContent=matching.length+" of "+state.nodes.length;
-    const included=new Set(); for(const a of matching) for(let p=a;p;p=p.parentNode) {included.add(p);if(filterChanged&&(q||filter!=="all")) state.expanded.add(p.key);}
+    const included=new Set(); for(const a of matching) for(let p=a;p;p=p.parentNode) {included.add(p);if(filterChanged&&(q||filter!=="all"||ownerFilter)) state.expanded.add(p.key);}
     const box=$("list");box.replaceChildren(); if(!matching.length) {box.append(el("p",state.nodes.length ? "No artifacts match." : "No artifacts loaded. Connect to a deployment stack to check.","muted"));return;}
     const list=el("ul","","artifact-tree");
     function appendNode(parent,a) {
@@ -162,14 +238,93 @@
         const chevron=el("span","","chevron");chevron.setAttribute("aria-hidden","true");toggle.append(chevron);
         toggle.onclick=()=>{expanded?state.expanded.delete(a.key):state.expanded.add(a.key);tree();$(toggle.id)?.focus();};row.append(toggle);
       } else row.append(el("span","","branch-spacer"));
-      const entry=el("button","","tree-entry");entry.type="button";entry.append(artifactIcon(a));const content=el("span","","tree-content");content.append(el("span",a.name || a.key,"artifact-name"));const meta=el("span","","tree-meta");meta.append(badge(a.action),el("span",a.feature || state.inventory?.repository?.split("/").at(-1) || "Project","tree-owner"));content.append(meta);entry.append(content);entry.setAttribute("aria-current",String(state.selected===a));entry.onclick=()=>select(a);row.append(entry);item.append(row);
+      const card = el("div", "", "tree-card");
+      const entry = el("button", "", "tree-entry");
+      entry.type = "button";
+      entry.append(artifactIcon(a), el("span", a.name || a.key, "artifact-name"));
+      entry.setAttribute("aria-current", String(state.selected === a));
+      entry.onclick = () => select(a);
+      const meta = el("div", "", "tree-meta");
+      meta.append(badge(a.action), artifactOwnerBadge(a, "tree-owner"));
+      card.classList.toggle("tree-context", Boolean(ownerFilter) && ownerLabel(a) !== ownerFilter);
+      card.append(entry, meta);
+      row.append(card);
+      item.append(row);
       if(expanded) {const sub=el("ul");sub.id="artifact-children-"+a.id;for(const child of children)appendNode(sub,child);item.append(sub);}parent.append(item);
     }
     for(const a of state.roots)if(included.has(a))appendNode(list,a);box.append(list);
   }
   function changes() {
     const box=$("changes");box.replaceChildren();
-    for(const change of state.plan) {const a=change.node, card=el("button","","change-row");card.type="button";card.setAttribute("aria-current",String(a===state.selected));const top=el("span","","change-top");top.append(artifactIcon(a),el("strong",a.name || a.key));const meta=el("span","","change-meta");meta.append(el("small",a.type),badge(operation(change.operation)));card.append(top,meta);card.onclick=()=>select(a,true);box.append(card);}
+    const shown = state.plan.filter(change => !ownerFilter || ownerLabel(change.node) === ownerFilter);
+    if (ownerFilter && !shown.length && state.plan.length) {
+      const empty = ownerCounts.get(ownerFilter).changes ?
+        "This owner has changes beyond the display limit." : "No proposed changes for this owner.";
+      box.append(el("p", empty, "section-note"));
+    }
+    for (const change of shown) {
+      const a = change.node, row = el("div", "", "change-card"), card = el("button", "", "change-row");
+      card.type = "button";
+      card.setAttribute("aria-current", String(a === state.selected));
+      const top = el("span", "", "change-top");
+      top.append(artifactIcon(a), el("strong", a.name || a.key));
+      const meta = el("span", "", "change-meta");
+      meta.append(el("small", a.type), badge(operation(change.operation)));
+      card.append(top, meta);
+      card.onclick = () => select(a, true);
+      row.append(card, artifactOwnerBadge(a, "change-owner depth-label"));
+      box.append(row);
+    }
+  }
+  $("check-drift").onclick = () => window.requestDriftCheck?.();
+  function renderDrift(view) {
+    const button = $("check-drift");
+    button.disabled = !view.canCheckDrift;
+    const drift = view.drift;
+    const running = view.action === "drift" && ["running", "stopping"].includes(view.status);
+    const renderKey = ownerScope + state.reportRun + JSON.stringify(drift) + running;
+    if (renderKey === driftRenderKey) return;
+    driftRenderKey = renderKey;
+    const summary = $("drift-summary"), results = $("drift-results");
+    results.replaceChildren();
+    if (!drift) {
+      summary.textContent = running ? "Checking the selected stack…" : "No drift check recorded.";
+      return;
+    }
+    const timestamp = new Date(drift.checkedAt);
+    let message = Number.isNaN(timestamp.getTime()) ? "Drift check completed." : "Last checked " + timestamp.toLocaleString();
+    if (drift.incomplete) message += " · Incomplete";
+    if (running) message += " · Checking again…";
+    summary.textContent = message;
+    const counts = el("div", "", "drift-counts");
+    const groups = [
+      ["Changed outside Pulumi", drift.changed, "update"],
+      ["Missing", drift.missing, "delete"],
+      ["Couldn’t verify", drift.unverified, "unknown"],
+      ["Unchanged", drift.unchanged, "same"]
+    ];
+    for (const [label, artifacts, tone] of groups) {
+      const entries = artifacts || [];
+      counts.append(el("span", entries.length + " " + label.toLowerCase(), "badge " + tone));
+      if (!entries.length || tone === "same") continue;
+      const group = el("details", "", "drift-group");
+      group.append(el("summary", label + " (" + entries.length + ")"));
+      const list = el("ul", "", "detail-tree");
+      for (const artifact of entries) {
+        const item = el("li");
+        const node = state.nodes.find(candidate => candidate.key === artifact.key);
+        if (node) {
+          const link = el("button", artifact.name || artifact.key, "detail-tree-entry");
+          link.type = "button";
+          link.onclick = () => navigateToArtifact(state.nodes.find(candidate => candidate.key === artifact.key) || node);
+          item.append(link);
+        } else item.append(el("span", artifact.name || artifact.key));
+        list.append(item);
+      }
+      group.append(list);
+      results.append(group);
+    }
+    results.prepend(counts);
   }
   function context(view) {
     const i=state.inventory || {};
@@ -196,6 +351,11 @@
     $("changes").dataset.state = view.reviewed ? "ready" : "pending";
     $("preview-summary").hidden = false;
     $("proposed-changes").hidden = !["preview", "deploy", "report"].includes(view.action);
+    const planLimit = $("plan-limit");
+    planLimit.hidden = !view.reviewed || state.plan.length >= view.total;
+    planLimit.textContent = planLimit.hidden ? "" : "Showing " + state.plan.length + " of " + view.total + " changes. Owner counts include the full plan.";
+    renderDrift(view);
+    window.renderDeploymentHistory?.(view);
     $("inventory-source").textContent = ({
       repository:"Project manifest loaded. Choose a target to inspect its deployment.",
       "selected-target":"Target selected. Connect to check its recorded artifacts.",
@@ -253,8 +413,8 @@
       else if(!modal && view.action) activate($("overview-tab"));
       if(modal) (modal==="signIn" ? signIn : dialog.querySelector("input:not([type=hidden])") || dialog.querySelector("button"))?.focus();
     }
-    const key=view.run+":"+JSON.stringify(view.inventory)+":"+JSON.stringify(view.changes);
-    if(key!==state.reportRun) {state.reportRun=key;buildInventory(view);details();tree();changes();}
+    const key=view.run+":"+JSON.stringify(view.inventory)+":"+JSON.stringify(view.changes)+":"+JSON.stringify(view.changeCountsByOwner);
+    if(key!==state.reportRun) {state.reportRun=key;buildInventory(view);renderOwnerFilters();details();tree();changes();}
     context(view);
     const source=[...$("phases").children], progressBody=$("progress-body"), previousScroll=progressBody.scrollTop;
     const latest=(view.substeps||[]).at(-1), progressKey=[view.run,view.phase,view.phaseTitle,(view.substeps||[]).length,view.status].join(":");
