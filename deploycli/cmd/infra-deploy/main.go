@@ -448,7 +448,15 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 		}
 		if !*ci {
 			if ui.browser != nil {
-				vaultPassphrase, e = ui.browser.VaultPassphrase(ctx)
+				legacyHome, err := os.UserConfigDir()
+				if err != nil {
+					return err
+				}
+				create, err := newBrowserVault(root, filepath.Join(legacyHome, "attestra", cli.spec.PulumiProject))
+				if err != nil {
+					return err
+				}
+				vaultPassphrase, e = ui.browser.VaultPassphrase(ctx, create)
 			} else {
 				vaultPassphrase, e = ui.secret("Local vault passphrase")
 			}
