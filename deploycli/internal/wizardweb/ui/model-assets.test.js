@@ -5,28 +5,28 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-test("the bundled SES cube contains its geometry and preserves the catalog materials", () => {
-  const services = ["ses"];
-  for (const service of services) {
-    const bytes = fs.readFileSync(path.join(__dirname, "../../../awsicons/models/aws", service + ".glb"));
-    assert.equal(bytes.toString("ascii", 0, 4), "glTF", service);
-    assert.equal(bytes.readUInt32LE(4), 2, service);
-    assert.equal(bytes.readUInt32LE(8), bytes.length, service);
-    const jsonLength = bytes.readUInt32LE(12);
-    assert.equal(bytes.toString("ascii", 16, 20), "JSON", service);
-    const model = JSON.parse(bytes.toString("utf8", 20, 20 + jsonLength));
-    assert.equal(model.nodes.length, 7, service + " has a cube and six symbol faces");
-    assert.ok(model.buffers.every(buffer => !buffer.uri), service + " is self-contained");
-    assert.ok(!model.images?.length, service + " has geometric symbols, not image planes");
-    const glass = model.materials[0];
-    assert.equal(glass.extensions.KHR_materials_transmission.transmissionFactor, .873, service);
-    assert.equal(glass.extensions.KHR_materials_volume.thicknessFactor, 2, service);
-    assert.deepEqual(model.accessors[0].min, [-1,-1,-1], service);
-    assert.deepEqual(model.accessors[0].max, [1,1,1], service);
-    assert.ok(Math.abs(model.accessors[2].min[2] + .115) < 1e-6, service);
-    assert.ok(Math.abs(model.accessors[2].max[2] - .066) < 1e-6, service);
+function checkSenderCertificate(meshes, THREE) {
+  const plaque = meshes.find(mesh => mesh.userData.name === "Engraved glass plaque");
+  const top = name => {
+    const mesh = meshes.find(part => part.userData.name === name);
+    return new THREE.Box3().setFromObject(mesh, true).max.y;
+  };
+  assert.ok(Math.abs(top("Scalloped ribbon seal") - top("Envelope body")) < 1e-5,
+    "ribbon and envelope top edges align");
+  for (const mesh of meshes) {
+    assert.equal(mesh.material.transmission, 1, mesh.name);
+    assert.ok(mesh.material.thickness > 0 && Number.isFinite(mesh.material.attenuationDistance));
   }
-});
+  // Probe the heading and four inscription grooves on the front of the plaque.
+  const ray = new THREE.Raycaster();
+  function depth(y) {
+    ray.set(new THREE.Vector3(0, y, 1), new THREE.Vector3(0, 0, -1));
+    return ray.intersectObject(plaque)[0].distance;
+  }
+  for (const y of [2.60, 2.18, 1.965, 1.75, 1.535]) {
+    assert.ok(depth(y) - depth(y + .08) > .035, "inscription is recessed at " + y);
+  }
+}
 
 const gatewayPackets = ["Packet - entering", "Packet - stretching", "Packet - cube"];
 
@@ -111,6 +111,7 @@ const customLandmarks = {
   "aws/rds.glb": ["Left table", "Right table", "Table link"],
   "aws/route53.glb": ["Raised 53", "Hexagonal post", "Round foot", "Right collar", "Left collar", "Right socket", "Left socket", "Right arrow", "Left arrow", "Right front inlay", "Left front inlay"],
   "aws/secretsmanager.glb": ["Open ruby door", "Raised door panel", "Wheel hub", "Wheel spoke 3", "Secret cartridge", "Upper cartridge band"],
+  "aws/ses.glb": ["Engraved glass plaque", "Amber certificate frame", "Envelope flap", "Scalloped ribbon seal", "Ribbon tail left", "Ribbon tail right"],
   "aws/s3.glb": ["S3 bucket", "Stored object 1", "Stored object 2", "Stored object 3"]
 };
 
@@ -129,6 +130,7 @@ test("the shipped renderer loads every embedded service model without external r
     const meshes = [];
     gltf.scene.traverse(object => {if (object.isMesh) meshes.push(object);});
     if (customLandmarks[relativePath]) {
+      if (file === "ses.glb") checkSenderCertificate(meshes, THREE);
       if (file === "secretsmanager.glb") checkVaultDoor(meshes, THREE);
       if (file === "acm.glb") checkShieldProfile(meshes, THREE);
       if (file === "api-gateway.glb") checkGatewayPackets(meshes, THREE);

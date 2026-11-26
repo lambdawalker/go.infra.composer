@@ -4,6 +4,7 @@ The wizard embeds these service-specific models from the custom icon collection.
 
 | Local file | Design | SHA-256 |
 | --- | --- | --- |
+| `ses.glb` | Engraved glass sender certificate with an amber frame and matching plum envelope and ribbon | `910f654bba8e027abfc97501472831573c523904f9224c5e3e39b00486361ffe` |
 | `secretsmanager.glb` | Ruby glass vault with an exterior three-spoke handle and a frosted cyan secret cartridge | `f457ab02fbc3faa3a7b9b157cf7cd104f3a0a4e40734954055baa118efe502d3` |
 | `eventbridge.glb` | Raspberry-glass fork with two queued entry envelopes and an amber envelope midway along each of two exits | `d6d874fc7bee48c8427b17a41f5af5144b5c703d7ac41c324fc0212253540d43` |
 | `cognito.glb` | Classic Rotary user directory with 34 frosted cards, a raised ruby profile and curved glass supports | `147c3c9c0632780ca2863e17f1d22780a26784cec8a52e9e6b00c4b506784f2f` |
@@ -20,31 +21,7 @@ The wizard embeds these service-specific models from the custom icon collection.
 | `rds.glb` | Database with linked tables | `6662da48bc2a40a372087535155acf1612b8fad95efa61fba11b7dab23b66f82` |
 | `neptune.glb` | Database with a three-node graph | `42fa3a8c688f2098da712e736833f9f87db39b72aa84104e05eb330cc22220ae` |
 
-## Glass cube catalog
-
-The SES GLB is an unchanged copy from the published
-[AWS Glass Cubes catalog](https://aws-glass-cubes.lemony-amber-5141.chatgpt.site),
-version 3, source commit `64e50dcef5cef7eeb619d216c4d24f310acb84e6`.
-The source archive is `dist/aws-glass-cubes.zip`; its filename was shortened
-for the wizard's service mapping. No runtime request goes to the catalog.
-
-The catalog defaults are preserved: glass opacity **55%**, white stroke width
-**85%**, white extrusion **120%**, and white inward depth **11.5%**. In glTF this
-model uses transmission `0.873`, volume thickness `2`, attenuation distance `3.6`,
-and glyph depth from `-0.115` to `0.066` relative to each cube face. The model
-contains one rounded glass cube spanning `[-1, 1]` on every axis and the same
-extruded white service glyph on all six faces.
-
-The original AWS service artwork is owned by Amazon Web Services, Inc. The source
-artwork comes from [AWS Icons](https://aws-icons.com/), which credits the
-[AWS Architecture Icons](https://aws.amazon.com/architecture/icons/) package.
-Preserve the AWS artwork attribution when reusing these models.
-
 All meshes and materials are embedded in the GLBs. They require no textures,
 external buffers, decompression extensions, or network resources. A glTF renderer
 with `KHR_materials_transmission` and `KHR_materials_volume` support is needed to
 preserve the glass finish.
-
-| Local file | Archive entry | Bytes | SHA-256 |
-| --- | --- | ---: | --- |
-| `ses.glb` | `business-applications-simple-email-service-cube.glb` | 306104 | `24a6790452ffafe219b7940cf9c09b966e5ec8b1d1984ed961e34a0b840ddaa3` |
