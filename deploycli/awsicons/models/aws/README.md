@@ -6,7 +6,8 @@ The wizard embeds these service-specific models from the custom icon collection.
 | --- | --- | --- |
 | `acm.glb` | Transmissive ruby glass shield with a beveled opening for ivory TLS letters on its convex face | `6a00fe0b27967c7d10cef4a86be671ecbe4b4759370dea7b4b86714b052066b1` |
 | `api-gateway.glb` | Violet aperture with three compact cyan glass packets entering the iris | `931ad351625dc50cd70eb1ab8e668f9f6766b717184a0400d3e881dc26310bc9` |
-| `route53.glb` | Hexagonal violet glass signpost on a wide foot with two collar-mounted arrows and frosted ivory glass inlays | `615e7e136f38e16987eaa02389a27ecebd5d69c405dfeb2ccdc9e2ffaf740d9d` |
+| `route53.glb` | Violet glass signpost topped with a raised 53 plate | `88dd26ae9ff936196a7f18b14b89725eb5fa52a443e46269582d7e82a94eaefe` |
+| `../cloudflare/dns.glb` | Matching DNS signpost topped with an amber cloud | `adb79b5425b190a406a67fc42a68291de61b837575a7682a64ee80b08918b74c` |
 | `lambda.glb` | Split orange Lambda | `f09f6fff1490e49f2a32b220ab49d6235841ecf2797fc12ce64313be4aa5096d` |
 | `s3.glb` | Green bucket with stored objects | `1fdd247b9bdf49d9ae6142884247313411f3c84687b9018488632a33d745b650` |
 | `iam.glb` | Scalloped ruby permission seal with an ivory check mark and two notched ribbons | `a6c9f6731b90868eca92b39084af2f11c7135266c64a324e1b313a0aa7d412c5` |

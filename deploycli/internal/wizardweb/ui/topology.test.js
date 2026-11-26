@@ -59,8 +59,15 @@ test("chooses the same AWS service for the 3D model and artifact icon", () => {
   }
 });
 
+test("Cloudflare DNS records use the cloud signpost in details and topology", () => {
+  for (const type of ["cloudflare:index/dnsRecord:DnsRecord", "cloudflare:DnsRecord", "cloudflare:index/record:Record"]) {
+    assert.equal(awsIconFor(type), "/icons/cloudflare/dns.svg");
+    assert.equal(modelPathFor(type, awsIconFor), "/models/cloudflare/dns.glb");
+  }
+});
+
 test("uses basic shapes for unknown providers and never loads an external model", () => {
-  for(const type of ["", "cloudflare:index/dnsRecord:DnsRecord", "random:index/randomBytes:RandomBytes",
+  for(const type of ["", "cloudflare:index/zone:Zone", "random:index/randomBytes:RandomBytes",
     "apexfission:email-verification:TestHost", "aws:unknown/resource:Resource"]) {
     assert.equal(modelPathFor(type,awsIconFor),"",type);
   }

@@ -81,35 +81,38 @@ function checkShieldProfile(meshes, THREE) {
 }
 
 const customLandmarks = {
-  "acm.glb": ["Ruby shield", "Ivory T", "Ivory L", "Ivory S"],
-  "api-gateway.glb": ["Aperture rim", "Iris blade 03", "Chevron 08", ...gatewayPackets],
-  "dynamodb.glb": ["Key puzzle piece", "Value puzzle piece"],
-  "iam.glb": ["Scalloped ruby seal", "Inset ruby face", "Raised ivory check", "Left ribbon tail", "Right ribbon tail"],
-  "kms.glb": ["Center key", "Left key", "Right key", "Faceted collar"],
-  "lambda.glb": ["Main diagonal", "Left leg"],
-  "neptune.glb": ["Node 0", "Node 1", "Node 2"],
-  "rds.glb": ["Left table", "Right table", "Table link"],
-  "route53.glb": ["Hexagonal post", "Round foot", "Right collar", "Left collar", "Right socket", "Left socket", "Right arrow", "Left arrow", "Right front inlay", "Left front inlay"],
-  "s3.glb": ["S3 bucket", "Stored object 1", "Stored object 2", "Stored object 3"]
+  "cloudflare/dns.glb": ["Amber cloud", "Hexagonal post", "Left collar", "Right collar"],
+  "aws/acm.glb": ["Ruby shield", "Ivory T", "Ivory L", "Ivory S"],
+  "aws/api-gateway.glb": ["Aperture rim", "Iris blade 03", "Chevron 08", ...gatewayPackets],
+  "aws/dynamodb.glb": ["Key puzzle piece", "Value puzzle piece"],
+  "aws/iam.glb": ["Scalloped ruby seal", "Inset ruby face", "Raised ivory check", "Left ribbon tail", "Right ribbon tail"],
+  "aws/kms.glb": ["Center key", "Left key", "Right key", "Faceted collar"],
+  "aws/lambda.glb": ["Main diagonal", "Left leg"],
+  "aws/neptune.glb": ["Node 0", "Node 1", "Node 2"],
+  "aws/rds.glb": ["Left table", "Right table", "Table link"],
+  "aws/route53.glb": ["Raised 53", "Hexagonal post", "Round foot", "Right collar", "Left collar", "Right socket", "Left socket", "Right arrow", "Left arrow", "Right front inlay", "Left front inlay"],
+  "aws/s3.glb": ["S3 bucket", "Stored object 1", "Stored object 2", "Stored object 3"]
 };
 
 test("the shipped renderer loads every embedded service model without external resources", async () => {
   const context = {console, TextDecoder, TextEncoder, ArrayBuffer, AbortController};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "vendor/topology-three.js"), "utf8"), context);
   const {GLTFLoader, THREE} = context.WizardTopologyThree;
-  const directory = path.join(__dirname, "../../../awsicons/models/aws");
-  const files = fs.readdirSync(directory).filter(name => name.endsWith(".glb"));
+  const directory = path.join(__dirname, "../../../awsicons/models");
+  const files = fs.readdirSync(directory).flatMap(provider =>
+    fs.readdirSync(path.join(directory, provider)).filter(name => name.endsWith(".glb")).map(name => provider + "/" + name));
   for (const file of Object.keys(customLandmarks)) assert.ok(files.includes(file), file);
-  for (const file of files) {
-    const bytes = fs.readFileSync(path.join(directory, file));
+  for (const relativePath of files) {
+    const file = path.basename(relativePath);
+    const bytes = fs.readFileSync(path.join(directory, relativePath));
     const gltf = await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), "");
     const meshes = [];
     gltf.scene.traverse(object => {if (object.isMesh) meshes.push(object);});
-    if (customLandmarks[file]) {
+    if (customLandmarks[relativePath]) {
       if (file === "acm.glb") checkShieldProfile(meshes, THREE);
       if (file === "api-gateway.glb") checkGatewayPackets(meshes, THREE);
       const names = meshes.map(mesh => mesh.userData.name);
-      for (const landmark of customLandmarks[file]) assert.ok(names.includes(landmark), file + " missing " + landmark);
+      for (const landmark of customLandmarks[relativePath]) assert.ok(names.includes(landmark), file + " missing " + landmark);
     } else {
       assert.equal(meshes.length, 7, file);
       assert.ok(meshes.some(mesh => mesh.material.isMeshPhysicalMaterial && mesh.material.transmission === .873), file);
