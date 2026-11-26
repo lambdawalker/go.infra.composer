@@ -1,3 +1,4 @@
+export { DirectedConduits } from "./conduits.mjs";
 export { LayeredGlass } from "./layered-glass.mjs";
 import {
   WebGLRenderer, Scene, PerspectiveCamera, Group, Vector2, Vector3, Raycaster,

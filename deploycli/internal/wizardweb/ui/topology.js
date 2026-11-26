@@ -41,9 +41,25 @@
     if (!roots.length && items.length) roots = [items[0]];
     const columns = Math.ceil(Math.sqrt(roots.length || 1));
     let nextRoot = 0;
+    // Cousins can otherwise land in exactly the same place. Reserve enough
+    // space for full-size fallback models, their air gaps, and an arrowhead.
+    const levels=new Map();
+    function reserve(position) {
+      const [x,y,z]=position, level=levels.get(y)||[];
+      levels.set(y,level);
+      for (let ring=0;;ring++) {
+        for(let dx=-ring;dx<=ring;dx++) for(let dz=-ring;dz<=ring;dz++) {
+          if (Math.max(Math.abs(dx),Math.abs(dz))!==ring) continue;
+          const candidate=[x+dx*.75,y,z+dz*.75];
+          if (level.every(p=>Math.abs(candidate[0]-p[0])>=2.8 || Math.abs(candidate[2]-p[2])>=2.8)) {
+            level.push(candidate);return candidate;
+          }
+        }
+      }
+    }
     function place(root) {
       const row = Math.floor(nextRoot / columns), column = nextRoot % columns;
-      root.position = [(column-(columns-1)/2)*8.5,0,(row-(columns-1)/2)*8.5];
+      root.position = reserve([(column-(columns-1)/2)*8.5,0,(row-(columns-1)/2)*8.5]);
       nextRoot++;
       function childrenOf(parent, depth) {
         placed.add(parent.key);
@@ -52,8 +68,8 @@
           const count = parent.children.length;
           const angle = index*2*Math.PI/count - Math.PI/2 + depth*.25;
           const radius = count === 1 ? 1.3 : Math.max(1.7, Math.min(3.2, count*.42));
-          child.position = [parent.position[0]+radius*Math.cos(angle), depth*2.5,
-            parent.position[2]+radius*Math.sin(angle)];
+          child.position = reserve([parent.position[0]+radius*Math.cos(angle), depth*2.85,
+            parent.position[2]+radius*Math.sin(angle)]);
           childrenOf(child,depth+1);
         }
       }
@@ -165,7 +181,7 @@
     // Normalized size and center offset of the viewport inside the full perspective frame.
     let cropSize=1,cropX=0,cropY=0;
     let layeredGlass=null,renderer=null,scene=null,camera=null,runtime=null,edges=null,halo=null,environment=null;
-    let keyLight=null,floor=null,raycaster=null,mouse=null,lastEdgeSignature="";
+    let keyLight=null,floor=null,raycaster=null,mouse=null,edgesDirty=true;
     const nodes=new Map(),modelCache=new Map(),loadingModels=new Set(),failedModels=new Set();
     const fallbackGeometry=new Map(),fallbackMaterials=new Map();
     const listeners=[];
@@ -290,12 +306,12 @@
         rim.position.set(4,5,-6);
         floor=createFloor(T);
         scene.add(keyLight,rim,floor);
-        edges=new T.LineSegments(new T.BufferGeometry(),new T.LineBasicMaterial({color:0x61748c}));
-        scene.add(edges);
+        edges=new runtime.DirectedConduits();
+        scene.add(edges.group);
         const haloBox=new T.BoxGeometry(1.95,1.95,1.95),haloEdges=new T.EdgesGeometry(haloBox);haloBox.dispose();
         halo=new T.LineSegments(haloEdges,new T.LineBasicMaterial({color:0xa6c8ff,depthTest:false,transparent:true,opacity:.9}));
         halo.renderOrder=10;halo.visible=false;scene.add(halo);
-        lastEdgeSignature="";syncArtifacts();canvas.hidden=false;updateMessage();
+        edgesDirty=true;syncArtifacts();canvas.hidden=false;updateMessage();
         return true;
       } catch {
         releaseRenderer();canvas.hidden=true;updateMessage();return false;
@@ -305,7 +321,7 @@
       nodes.clear();
       for(const geometry of fallbackGeometry.values())geometry.dispose();fallbackGeometry.clear();
       for(const material of fallbackMaterials.values())material.dispose();fallbackMaterials.clear();
-      edges?.geometry.dispose();edges?.material.dispose();halo?.geometry.dispose();halo?.material.dispose();
+      edges?.dispose();halo?.geometry.dispose();halo?.material.dispose();
       floor?.geometry.dispose();floor?.material.dispose();floor=null;
       keyLight?.shadow.dispose();keyLight=null;
       layeredGlass?.dispose();layeredGlass=null;
@@ -355,7 +371,7 @@
     function syncArtifacts() {
       if(!scene)return;
       const T=runtime.THREE,keys=new Set(items.map(item=>item.key));
-      for(const [key,node] of nodes)if(!keys.has(key)){scene.remove(node.group);nodes.delete(key);}
+      for(const [key,node] of nodes)if(!keys.has(key)){scene.remove(node.group);nodes.delete(key);edgesDirty=true;}
       for(const item of items) {
         const path=pathFor(item);
         let node=nodes.get(item.key);
@@ -365,19 +381,22 @@
         if(!node) {
           const group=new T.Group();group.userData.artifactKey=item.key;
           const visual=fallbackFor(item.category);group.add(visual);scene.add(group);
-          node={group,visual,path,category:item.category};nodes.set(item.key,node);
+          edgesDirty=true;node={group,visual,path,category:item.category};nodes.set(item.key,node);
           if(path) {
             const current=node;
             loadModel(path).then(template=>{
               // A refreshed inventory or restored WebGL context may have replaced this node.
               if(!template||disposed||nodes.get(item.key)!==current)return;
               current.group.remove(current.visual);
-              current.visual=template.clone(true);current.group.add(current.visual);
+              current.visual=template.clone(true);current.group.add(current.visual); edgesDirty=true;
               renderer.shadowMap.needsUpdate=true;requestDraw();
             });
           }
         }
-        node.group.position.set(...item.position);
+        const p=node.group.position;
+        if (node.parent!==item.parent || p.x!==item.position[0] || p.y!==item.position[1] || p.z!==item.position[2]) {
+          p.set(...item.position);node.parent=item.parent;edgesDirty=true;
+        }
       }
       // The layout places roots at ground level and descendants above them.
       const extent=items.reduce((r,item)=>Math.max(r,Math.hypot(...item.position)),0)*1.5+3;
@@ -397,16 +416,7 @@
       const query=search.value.trim().toLowerCase();
       for(const item of items){
         const node=nodes.get(item.key),visible=matchesArtifact(item,query);
-        if(node && node.group.visible!==visible){node.group.visible=visible;renderer.shadowMap.needsUpdate=true;}
-      }
-      const connections=visibleEdges(items,query);
-      const signature=JSON.stringify(connections.map(([a,b])=>[a,b,byKey.get(a).position,byKey.get(b).position]));
-      if(signature!==lastEdgeSignature) {
-        lastEdgeSignature=signature;
-        const values=[];for(const [parent,child] of connections)values.push(...byKey.get(parent).position,...byKey.get(child).position);
-        const geometry=new runtime.THREE.BufferGeometry();
-        geometry.setAttribute("position",new runtime.THREE.Float32BufferAttribute(values,3));
-        edges.geometry.dispose();edges.geometry=geometry;
+        if(node && node.group.visible!==visible){node.group.visible=visible;edgesDirty=true;renderer.shadowMap.needsUpdate=true;}
       }
       const selected=byKey.get(selectedKey);
       halo.visible=!!selected&&matchesArtifact(selected,query);
@@ -442,7 +452,10 @@
       uniforms.backdrop.value.copy(scene.background);
       uniforms.surface.value.setHex(lightTheme?0xc2cfda:0x415061);
       uniforms.grid.value.setHex(lightTheme?0xa6b5c3:0x516174);
-      edges.material.color.set(lightTheme?0x576c87:0x98adc6);
+      if (edgesDirty) {
+        edges.update(nodes,visibleEdges(items,search.value.trim().toLowerCase()));
+        edgesDirty=false;
+      }
       camera.aspect=bounds.width/bounds.height;
       if(cropSize!==1||cropX!==0||cropY!==0){
         camera.setViewOffset(bounds.width,bounds.height,

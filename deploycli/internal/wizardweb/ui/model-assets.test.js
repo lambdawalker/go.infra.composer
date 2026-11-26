@@ -173,6 +173,10 @@ test("the shipped renderer loads every embedded service model without external r
       }
       if (file === "acm.glb") checkCertificate(meshes, THREE, "Raised TLS lettering");
       if (file === "secret-version.glb") {
+        const paper = meshes.find(mesh => mesh.material.name === "Frosted champagne glass").material;
+        const rim = meshes.find(mesh => mesh.material.name === "Translucent garnet glass edges").material;
+        assert.ok(paper.normalMap?.image.width && paper.roughnessMap?.image.width, "embedded hairline scratches");
+        assert.ok(rim.transmission > 0 && rim.opacity < 1 && rim.attenuationColor.r > rim.attenuationColor.g);
         const tie = meshes.find(mesh => mesh.userData.name === "Wide teal binding");
         assert.ok(tie.material.map?.image.width > 0 && tie.material.normalMap?.image.width > 0);
       }

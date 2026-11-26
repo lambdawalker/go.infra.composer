@@ -350,3 +350,65 @@ test("overlapping glass is captured behind the front icon and materials are rest
   for (const pass of compositor.targets) pass.addEventListener("dispose",()=>disposed++);
   compositor.dispose();assert.equal(disposed,2);h.topology.dispose();
 });
+
+test("directed conduits clear complete model bounds and detour around other artifacts", () => {
+  const h=topologyHarness(), {THREE:T,DirectedConduits}=h.context.WizardTopologyThree;
+  const edges=new DirectedConduits(), nodes=new Map();
+  function add(key,x,y,z) {
+    const group=new T.Group(), visual=new T.Group();
+    visual.add(new T.Mesh(new T.BoxGeometry(1,1,1)));
+    group.position.set(x,y,z); group.add(visual);nodes.set(key,{group,visual});
+    return visual;
+  }
+  const source=add("source",-3,0,0), ribbon=new T.Mesh(new T.BoxGeometry(.9,.18,.18));
+  ribbon.position.x=.9;source.add(ribbon);
+  add("child",3,0,0);add("blocker",0,0,0);
+  edges.update(nodes,[["source","child"]]);
+  assert.equal(edges.group.children.length,1);
+  const connection=edges.group.children[0], [shaft,head]=connection.children;
+  assert.equal(connection.userData.source,"source");assert.equal(connection.userData.destination,"child");
+  assert.equal(shaft.material,head.material);assert.ok(head.material.transmission>.85);
+  const path=shaft.geometry.parameters.path;
+  assert.ok(path.points[0].x> -3+1.35+.12,"leave clearance beyond the protruding ribbon");
+  assert.ok(path.points.some(p=>Math.max(Math.abs(p.y),Math.abs(p.z))>.65),"detour around the blocker");
+  const heading=new T.Vector3(0,1,0).applyQuaternion(head.quaternion);
+  assert.ok(path.getTangentAt(1).dot(heading)>.99999);
+  assert.ok(heading.x>.999 && head.position.x<2.5-.12);
+  edges.group.updateMatrixWorld(true);
+  const boxes=Array.from(nodes.values(),n=>new T.Box3().setFromObject(n.visual).expandByScalar(.12));
+  for(const mesh of [shaft,head]) {
+    const geometry=mesh.geometry, positions=geometry.attributes.position;
+    const count=geometry.index?.count??positions.count;
+    function vertex(i){return new T.Vector3().fromBufferAttribute(positions,geometry.index?.getX(i)??i).applyMatrix4(mesh.matrixWorld);}
+    for(let i=0;i<count;i+=3){
+      const triangle={a:vertex(i),b:vertex(i+1),c:vertex(i+2)};
+      assert.ok(boxes.every(box=>!box.intersectsTriangle(triangle)),"full tube and arrow triangles clear every padded box");
+    }
+  }
+  let disposed=0; shaft.geometry.addEventListener("dispose",()=>disposed++);
+  edges.update(nodes,[["child","source"]]);
+  assert.equal(disposed,1);
+  const reversed=edges.group.children[0].children[1];
+  assert.ok(new T.Vector3(0,1,0).applyQuaternion(reversed.quaternion).x<-.999);
+  edges.dispose();
+});
+
+test("connections follow loaded model bounds, inventory filtering and context restoration", async () => {
+  const h=topologyHarness();
+  const inventory=[{key:"source",name:"root",type:"custom"},{key:"child",parent:"source",type:"aws:s3/stateBucket"}];
+  h.topology.setArtifacts(inventory); h.topology.activate();h.flush();
+  const group=()=>h.renders.at(-1).scene.getObjectByName("Directed glass conduits");
+  const initial=group().children[0].children[1].position.clone();
+  const thin=h.model();thin.scene.scale.y=.15;
+  h.loads.get("/models/aws/s3.glb").resolve(thin);await settleModels();h.flush();
+  assert.equal(group().children.length,1);
+  const head=group().children[0].children[1];
+  assert.ok(initial.distanceTo(head.position)>.1);
+  h.topology.setArtifacts(inventory);h.flush();
+  assert.equal(group().children[0].children[1],head,"identical inventory reuses geometry");
+  h.elements.search.value="root";h.elements.search.emit("input");h.flush();assert.equal(group().children.length,0);
+  h.elements.search.value="";h.elements.search.emit("input");h.flush();assert.equal(group().children.length,1);
+  h.elements.canvas.emit("webglcontextlost");h.elements.canvas.emit("webglcontextrestored");await settleModels();h.flush();
+  assert.equal(group().children.length,1);
+  h.topology.dispose();
+});
