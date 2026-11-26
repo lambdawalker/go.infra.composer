@@ -158,9 +158,10 @@
     return floor;
   }
 
-  function createArtifactTopology({stage,canvas,tooltip,message,selectedLabel,list,search,count,fit,tlsModel,onSelect}) {
+  function createArtifactTopology({stage,canvas,tooltip,message,selectedLabel,list,search,count,fit,tlsModel,navigation,axes,box,onSelect}) {
     let items=[],byKey=new Map(),selectedKey="",active=false,drawQueued=false,pointer=null;
-    let yaw=-.46,pitch=.45,distance=30,target=[0,0,0],contextLost=false,disposed=false;
+    const openingYaw=-.46,openingPitch=.45,pitchLimit=Math.PI/2-.00001;
+    let mode="orbit",yaw=openingYaw,pitch=openingPitch,distance=30,target=[0,0,0],contextLost=false,disposed=false;
     let renderer=null,scene=null,camera=null,runtime=null,edges=null,halo=null,environment=null;
     let keyLight=null,floor=null,raycaster=null,mouse=null,lastEdgeSignature="";
     const nodes=new Map(),modelCache=new Map(),loadingModels=new Set(),failedModels=new Set();
@@ -179,6 +180,59 @@
     const themeObserver=new MutationObserver(()=>requestDraw());
     themeObserver.observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
 
+    const axisTips=[];
+    for(const [index,axis] of ["X","Y","Z"].entries()){
+      const arm=document.createElement("span");
+      arm.className="axis-arm axis-"+axis.toLowerCase();
+      axes.append(arm);
+      for(const sign of [1,-1]){
+        const tip=document.createElement("button"),label=(sign>0?"+":"−")+axis;
+        tip.type="button";tip.className="axis-tip axis-"+axis.toLowerCase()+(sign<0?" negative":"");
+        tip.textContent=sign>0?axis:"";tip.title="View from "+label;
+        tip.setAttribute("aria-label",tip.title);axes.append(tip);
+        axisTips.push({index,sign,tip,arm});
+        listen(tip,"click",()=>{
+          const direction=camera.matrixWorld.elements[8+index];
+          const side=sign*direction>.99999?-sign:sign;
+          yaw=index===0?side*Math.PI/2:index===2&&side<0?Math.PI:0;
+          pitch=index===1?side*pitchLimit:0;
+          requestDraw();
+        });
+      }
+    }
+    function orientAxes(){
+      const basis=camera.matrixWorld.elements;
+      for(const {index,sign,tip,arm} of axisTips){
+        const x=32*sign*basis[index],y=-32*sign*basis[4+index];
+        tip.style.left=(46+x)+"px";tip.style.top=(46+y)+"px";
+        tip.style.zIndex=String(12+Math.round(10*sign*basis[8+index]));
+        if(sign===1){
+          arm.style.width=Math.hypot(x,y)+"px";
+          arm.style.transform="rotate("+Math.atan2(y,x)+"rad)";
+        }
+      }
+    }
+    const navButtons=Array.from(navigation.querySelectorAll("button")).filter(button=>button.dataset.nav);
+    function startBoxZoom(){
+      cancelGesture();setMode("box");stage.focus({preventScroll:true});
+    }
+    function setMode(next){
+      mode=next;stage.dataset.mode=next;
+      for(const button of navButtons)if(["pan","box"].includes(button.dataset.nav))
+        button.setAttribute("aria-pressed",String(next===button.dataset.nav));
+      tooltip.hidden=true;
+    }
+    function zoom(factor){distance=Math.max(5,Math.min(500,distance*factor));requestDraw();}
+    function resetView(){
+      cancelGesture();yaw=openingYaw;pitch=openingPitch;frame(items);
+    }
+    for(const button of navButtons)listen(button,"click",()=>{
+      const action=button.dataset.nav;
+      if(action==="home")resetView();
+      else if(action==="in"||action==="out")zoom(action==="in"?.8:1.25);
+      else {cancelGesture(false);setMode(mode===action?"orbit":action);}
+      stage.focus({preventScroll:true});
+    });
     function pathFor(item) {
       const path=modelPathFor(item.type,window.wizardAWSIconFor);
       return path==="/models/aws/acm.glb" && tlsModel.value==="shield" ? "/models/aws/acm-shield.glb" : path;
@@ -187,6 +241,7 @@
 
     function setMessage(text) {message.textContent=text;message.hidden=!text;}
     function updateMessage() {
+      navigation.hidden=!items.length||!renderer||contextLost;
       if(!items.length)setMessage("Select the deployment target to view its artifacts.");
       else if(contextLost)setMessage("3D view is temporarily unavailable. Select an artifact from the list below.");
       else if(!renderer)setMessage("3D view is unavailable here. Select an artifact from the list below.");
@@ -340,7 +395,9 @@
       if(selected)halo.position.set(...selected.position);
     }
     function fitView() {
-      const query=search.value.trim().toLowerCase(),visible=items.filter(item=>matchesArtifact(item,query));
+      frame(items.filter(item=>matchesArtifact(item,search.value.trim().toLowerCase())));
+    }
+    function frame(visible){
       if(!visible.length){target=[0,0,0];distance=30;requestDraw();return;}
       const extents=[0,1,2].map(i=>[Math.min(...visible.map(a=>a.position[i])),Math.max(...visible.map(a=>a.position[i]))]);
       target=extents.map(([min,max])=>(min+max)/2);
@@ -371,7 +428,7 @@
       camera.position.set(target[0]+distance*Math.sin(yaw)*Math.cos(pitch),target[1]+distance*Math.sin(pitch),
         target[2]+distance*Math.cos(yaw)*Math.cos(pitch));
       camera.lookAt(...target);camera.updateMatrixWorld();
-      renderer.render(scene,camera);
+      orientAxes();renderer.render(scene,camera);
     }
     function requestDraw() {
       if(disposed||!active||drawQueued||contextLost)return;
@@ -408,7 +465,7 @@
     }
     function setSelection(key) {selectedKey=key||"";updateSelection();}
     function activate() {if(disposed)return;active=true;if(items.length)initialize();requestDraw();}
-    function deactivate() {active=false;pointer=null;stage.classList.remove("dragging");tooltip.hidden=true;}
+    function deactivate() {active=false;cancelGesture();tooltip.hidden=true;}
     function near(clientX,clientY) {
       if(!active||!renderer||!camera||contextLost)return null;
       const rect=stage.getBoundingClientRect();if(!rect.width||!rect.height)return null;
@@ -420,29 +477,93 @@
       }
       return null;
     }
-    listen(stage,"pointerdown",event=>{if(event.button!==0)return;
-      pointer={id:event.pointerId,x:event.clientX,y:event.clientY,yaw,pitch,dragged:false};stage.setPointerCapture?.(event.pointerId);tooltip.hidden=true;});
+    // Screen deltas are in CSS pixels. Use the plane through the orbit target.
+    function offsetTarget(origin,dx,dy){
+      const scale=2*distance*Math.tan(camera.fov*Math.PI/360)/canvas.getBoundingClientRect().height;
+      const basis=camera.matrixWorld.elements;
+      return origin.map((value,i)=>value+scale*(dx*basis[i]+dy*basis[4+i]));
+    }
+    function cancelGesture(clearMode=true){
+      const id=pointer?.id;pointer=null;
+      if(id!==undefined&&stage.hasPointerCapture?.(id))stage.releasePointerCapture(id);
+      stage.classList.remove("dragging");box.hidden=true;
+      if(clearMode)setMode("orbit");
+    }
+    function boxBounds(x,y){
+      const rect=canvas.getBoundingClientRect();
+      const clamp=(value,max)=>Math.max(0,Math.min(max,value));
+      const x0=clamp(pointer.x-rect.left,rect.width),x1=clamp(x-rect.left,rect.width);
+      const y0=clamp(pointer.y-rect.top,rect.height),y1=clamp(y-rect.top,rect.height);
+      return {left:Math.min(x0,x1),top:Math.min(y0,y1),width:Math.abs(x1-x0),height:Math.abs(y1-y0)};
+    }
+    function applyBox(bounds){
+      if(bounds.width<5||bounds.height<5)return;
+      const rect=canvas.getBoundingClientRect();
+      target=offsetTarget(target,bounds.left+bounds.width/2-rect.width/2,rect.height/2-bounds.top-bounds.height/2);
+      zoom(Math.max(bounds.width/rect.width,bounds.height/rect.height));
+    }
+    listen(stage,"pointerdown",event=>{
+      if(!active||navigation.hidden||pointer||navigation.contains(event.target)||![0,1].includes(event.button))return;
+      event.preventDefault();stage.focus({preventScroll:true});
+      pointer={id:event.pointerId,x:event.clientX,y:event.clientY,yaw,pitch,target,mode:event.button===1?"pan":mode,dragged:false};
+      stage.setPointerCapture?.(event.pointerId);tooltip.hidden=true;
+    });
     listen(stage,"pointermove",event=>{
-      if(pointer?.id===event.pointerId){const dx=event.clientX-pointer.x,dy=event.clientY-pointer.y;
+      if(pointer?.id===event.pointerId){
+        const dx=event.clientX-pointer.x,dy=event.clientY-pointer.y;
         if(Math.hypot(dx,dy)>4)pointer.dragged=true;
-        if(pointer.dragged){yaw=pointer.yaw+dx*.008;pitch=Math.max(-1.35,Math.min(1.35,pointer.pitch+dy*.008));stage.classList.add("dragging");requestDraw();return;}}
+        if(!pointer.dragged)return;
+        if(pointer.mode==="box"){
+          const bounds=boxBounds(event.clientX,event.clientY);
+          for(const [key,value] of Object.entries(bounds))box.style[key]=value+"px";
+          box.hidden=false;return;
+        }
+        stage.classList.add("dragging");
+        if(pointer.mode==="pan")target=offsetTarget(pointer.target,-dx,dy);
+        else {yaw=pointer.yaw+dx*.008;pitch=Math.max(-pitchLimit,Math.min(pitchLimit,pointer.pitch+dy*.008));}
+        requestDraw();return;
+      }
+      if(navigation.contains(event.target)||mode!=="orbit"){tooltip.hidden=true;return;}
       const item=near(event.clientX,event.clientY);tooltip.hidden=!item;
       if(item){tooltip.replaceChildren();const title=document.createElement("strong"),kind=document.createElement("small");
         title.textContent=item.name;kind.textContent=categories[item.category].label;tooltip.append(title,kind);
         const rect=stage.getBoundingClientRect();tooltip.style.left=Math.max(8,Math.min(event.clientX-rect.left+12,rect.width-270))+"px";
         tooltip.style.top=Math.max(8,Math.min(event.clientY-rect.top+12,rect.height-65))+"px";}});
-    listen(stage,"pointerup",event=>{if(pointer?.id!==event.pointerId)return;
-      const dragged=pointer.dragged;pointer=null;stage.classList.remove("dragging");if(!dragged){const item=near(event.clientX,event.clientY);if(item)onSelect(item.key);}});
-    listen(stage,"pointercancel",()=>{pointer=null;stage.classList.remove("dragging");});
+    listen(stage,"pointerup",event=>{
+      if(pointer?.id!==event.pointerId)return;
+      const gesture=pointer;
+      if(gesture.mode==="box")applyBox(boxBounds(event.clientX,event.clientY));
+      cancelGesture(gesture.mode==="box");
+      if(gesture.mode==="orbit"&&!gesture.dragged){
+        const item=near(event.clientX,event.clientY);if(item)onSelect(item.key);
+      }
+    });
+    for(const type of ["pointercancel","lostpointercapture"])
+      listen(stage,type,event=>{if(pointer?.id===event.pointerId)cancelGesture();});
+    listen(window,"blur",()=>cancelGesture());
     listen(stage,"pointerleave",()=>{if(!pointer)tooltip.hidden=true;});
-    listen(stage,"wheel",event=>{if(!active||!items.length)return;event.preventDefault();
-      distance=Math.max(5,Math.min(500,distance*Math.exp(event.deltaY*.001)));requestDraw();},{passive:false});
-    listen(stage,"keydown",event=>{let handled=true;
-      if(event.key==="ArrowLeft")yaw-=.13;else if(event.key==="ArrowRight")yaw+=.13;
-      else if(event.key==="ArrowUp")pitch=Math.min(1.35,pitch+.13);else if(event.key==="ArrowDown")pitch=Math.max(-1.35,pitch-.13);
-      else if(event.key==="+"||event.key==="=")distance=Math.max(5,distance*.85);else if(event.key==="-")distance=Math.min(500,distance*1.15);else handled=false;
-      if(handled){event.preventDefault();requestDraw();}});
-    listen(canvas,"webglcontextlost",event=>{event.preventDefault();contextLost=true;canvas.hidden=true;updateMessage();});
+    listen(stage,"wheel",event=>{
+      if(!active||navigation.hidden)return;event.preventDefault();
+      if(!pointer)zoom(Math.exp(event.deltaY*.001));
+    },{passive:false});
+    listen(stage,"keydown",event=>{
+      if(!active||navigation.hidden)return;
+      if(event.key==="Escape")cancelGesture();
+      else if(event.ctrlKey&&event.key.toLowerCase()==="b")startBoxZoom();
+      else if(event.key==="Home")resetView();
+      else if(pointer)return;
+      else if(event.key==="ArrowLeft")yaw-=.13;else if(event.key==="ArrowRight")yaw+=.13;
+      else if(event.key==="ArrowUp")pitch=Math.min(pitchLimit,pitch+.13);else if(event.key==="ArrowDown")pitch=Math.max(-pitchLimit,pitch-.13);
+      else if(event.key==="+"||event.key==="=")zoom(.85);else if(event.key==="-")zoom(1.15);else return;
+      event.preventDefault();requestDraw();
+    });
+    // A pointer over the viewport can start box zoom immediately after opening the tab.
+    listen(window,"keydown",event=>{
+      if(!active||navigation.hidden||event.defaultPrevented||!event.ctrlKey||event.key.toLowerCase()!=="b")return;
+      if(!stage.matches(":hover")||event.target.closest?.("input,textarea,select,[contenteditable=true]"))return;
+      event.preventDefault();startBoxZoom();
+    });
+    listen(canvas,"webglcontextlost",event=>{event.preventDefault();cancelGesture();contextLost=true;canvas.hidden=true;updateMessage();});
     listen(canvas,"webglcontextrestored",()=>{contextLost=false;releaseRenderer();if(active)initialize();requestDraw();});
     listen(search,"input",()=>{renderList();updateVisibility();requestDraw();});listen(fit,"click",fitView);
     function disposeTemplate(template) {

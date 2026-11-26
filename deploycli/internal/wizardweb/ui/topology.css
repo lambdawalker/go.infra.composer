@@ -43,3 +43,19 @@
   .preview-workspace .topology-stage {height:340px}
   .preview-workspace .topology-list {grid-template-columns:1fr}
 }
+.preview-workspace .topology-navigation {position:absolute;z-index:3;right:8px;top:8px;display:grid;justify-items:end;gap:4px;cursor:default}
+.preview-workspace .topology-navigation[hidden],.preview-workspace .topology-box[hidden] {display:none}
+.preview-workspace .topology-axes {position:relative;width:92px;height:92px;isolation:isolate}
+.preview-workspace .axis-arm {position:absolute;left:50%;top:50%;height:2px;transform-origin:0 50%;background:var(--axis-color);pointer-events:none}
+.preview-workspace .axis-tip {position:absolute;width:22px;height:22px;padding:0;border:2px solid var(--axis-color);border-radius:50%;transform:translate(-50%,-50%);background:var(--axis-color);color:#101820;font:bold 11px/1 system-ui;cursor:pointer}
+.preview-workspace .axis-tip.negative {background:var(--editor);color:var(--axis-color)}
+.preview-workspace .axis-x {--axis-color:#ff647b}
+.preview-workspace .axis-y {--axis-color:#92c94d}
+.preview-workspace .axis-z {--axis-color:#59aaff}
+.preview-workspace .topology-nav-tools {display:grid;gap:4px}
+.preview-workspace .topology-nav-tools button {display:grid;place-items:center;width:28px;height:28px;padding:5px;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:50%;cursor:pointer}
+.preview-workspace .topology-nav-tools svg {width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.preview-workspace .topology-nav-tools button:is(:hover,[aria-pressed=true]) {color:var(--blue);border-color:currentColor}
+.preview-workspace .topology-navigation button:focus-visible {outline:2px solid var(--focus);outline-offset:2px}
+.preview-workspace .topology-stage[data-mode=box] {cursor:crosshair}
+.preview-workspace .topology-box {position:absolute;z-index:2;border:1px dashed var(--blue);background:color-mix(in srgb,var(--blue) 15%,transparent);pointer-events:none}
