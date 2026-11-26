@@ -7,7 +7,7 @@ const vm = require("node:vm");
 
 test("bundled AWS cubes contain their geometry and preserve the catalog materials", () => {
   const services = ["cloudwatch", "cognito", "eventbridge",
-    "route53", "secretsmanager", "ses"];
+    "secretsmanager", "ses"];
   for (const service of services) {
     const bytes = fs.readFileSync(path.join(__dirname, "../../../awsicons/models/aws", service + ".glb"));
     assert.equal(bytes.toString("ascii", 0, 4), "glTF", service);
@@ -43,7 +43,8 @@ function checkGatewayPackets(meshes, THREE) {
     const center = box.getCenter(new THREE.Vector3());
     assert.ok(Math.abs(center.y) < 1e-5 && Math.abs(center.z) < 1e-5, "packets share the aperture axis");
   }
-  assert.ok(Math.abs(lead.min.x + lead.max.x) < 1e-5, "lead packet is halfway through the iris");
+  assert.ok(lead.min.x < 0 && lead.max.x > 0 && -lead.min.x > lead.max.x, "lead packet is past halfway through the iris");
+  assert.ok(sizes[0].x < 1 && sizes[1].x < .4 && cube.max.x < 1.2, "packet train stays compact");
   assert.ok(lead.max.x < middle.min.x && middle.max.x < cube.min.x, "packets have visible gaps");
   assert.ok(sizes[0].x > sizes[1].x && sizes[1].x > sizes[2].x);
   assert.ok(Math.abs(sizes[2].x - sizes[2].y) < 1e-5 && Math.abs(sizes[2].x - sizes[2].z) < 1e-5);
@@ -88,6 +89,7 @@ const customLandmarks = {
   "lambda.glb": ["Main diagonal", "Left leg"],
   "neptune.glb": ["Node 0", "Node 1", "Node 2"],
   "rds.glb": ["Left table", "Right table", "Table link"],
+  "route53.glb": ["Hexagonal post", "Round foot", "Right collar", "Left collar", "Right socket", "Left socket", "Right arrow", "Left arrow", "Right front inlay", "Left front inlay"],
   "s3.glb": ["S3 bucket", "Stored object 1", "Stored object 2", "Stored object 3"]
 };
 
