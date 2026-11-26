@@ -42,6 +42,7 @@ type manifest struct {
 	Functions            map[string]functionSpec
 	ConfigDefaults       map[string]string
 	ArtifactDescriptions map[string]string
+	ArtifactIconVariants map[string]string
 	GitHub               githubSpec
 	Discovery            *discoverySpec
 	DiscoveryStack       *discoveryStackSpec
@@ -196,6 +197,11 @@ func (m *manifest) validate() error {
 		if !pattern(`^[A-Za-z0-9_.-]{1,128}$`, name) || strings.TrimSpace(description) == "" ||
 			len(description) > 300 || strings.ContainsAny(description, "\r\n\t") {
 			return fmt.Errorf("invalid artifact description for %q", name)
+		}
+	}
+	for name, variant := range m.ArtifactIconVariants {
+		if !pattern(`^[A-Za-z0-9_.-]{1,128}$`, name) || variant != "jwt" {
+			return fmt.Errorf("invalid artifact icon variant for %q", name)
 		}
 	}
 	for prefix, feature := range m.ArtifactFeaturePrefixes {

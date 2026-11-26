@@ -68,6 +68,7 @@ type PropertyChange struct {
 // ArtifactView contains only the safe identity and relationship fields used by
 // the workspace. Provider configuration and credentials never enter the page.
 type ArtifactView struct {
+	IconVariant  string   `json:"iconVariant,omitempty"`
 	Key          string   `json:"key"`
 	Name         string   `json:"name"`
 	Type         string   `json:"type"`
@@ -141,20 +142,21 @@ type reply struct {
 }
 
 type Session struct {
-	pendingDriftRun    uint64
-	instanceID         string
-	repository         string
-	vault              vaultSession
-	mu                 sync.Mutex
-	view               view
-	response           chan reply
-	cancel             context.CancelFunc
-	close              context.CancelFunc
-	secrets            []string
-	commandFailures    []string
-	home               chan struct{}
-	resolveEnvironment func(string, string) (EnvironmentTarget, error)
-	history            []DeploymentHistoryRecord
+	artifactIconVariants map[string]string
+	pendingDriftRun      uint64
+	instanceID           string
+	repository           string
+	vault                vaultSession
+	mu                   sync.Mutex
+	view                 view
+	response             chan reply
+	cancel               context.CancelFunc
+	close                context.CancelFunc
+	secrets              []string
+	commandFailures      []string
+	home                 chan struct{}
+	resolveEnvironment   func(string, string) (EnvironmentTarget, error)
+	history              []DeploymentHistoryRecord
 }
 
 func newSession(title string, close context.CancelFunc) *Session {
@@ -243,6 +245,13 @@ func (s *Session) SetPasswordSaved(saved map[string]bool) {
 		}
 	}
 	s.view.Revision++
+}
+
+// SetArtifactIconVariants selects resource-specific artwork for this manifest.
+func (s *Session) SetArtifactIconVariants(variants map[string]string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.artifactIconVariants = variants
 }
 
 func (s *Session) SetActionOptions(options []Option, fallback string) {
@@ -545,6 +554,7 @@ func (s *Session) setInventory(report reporting.Report, source string) {
 		items = append(items, ArtifactView{
 			Key: s.redact(a.Key), Name: s.redact(a.Name), Type: a.Type,
 			Description: s.redact(a.Description),
+			IconVariant: s.artifactIconVariants[a.Name],
 			Parent:      s.redact(a.Parent), Owner: s.redact(a.Owner), Feature: s.redact(a.Feature),
 			Dependencies: dependencies,
 			Action:       a.PlannedAction, Presence: string(a.Observation.Status),

@@ -2,6 +2,7 @@
 
 The Route 53 signpost is custom artwork shared with the Cloudflare DNS visual.
 The Lambda Permission certificate is custom artwork for invocation permissions.
+The IAM role, ACM validation, and JWT authorizer plaques are custom certificate artwork.
 The sextant is custom artwork for API Gateway v2 routes.
 The other fourteen SVGs are AWS service icons downloaded from
 [AWS Icons](https://aws-icons.com/), which identifies the

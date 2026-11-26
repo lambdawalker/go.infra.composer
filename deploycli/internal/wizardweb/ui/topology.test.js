@@ -53,10 +53,11 @@ test("chooses the same AWS service for the 3D model and artifact icon", () => {
     "aws:cloudwatch/eventRule:EventRule":"eventbridge", "aws:cloudwatch:EventTarget":"eventbridge",
     "aws:cloudwatch/eventTarget:EventTarget":"eventbridge",
     "aws:cognito/userPool:UserPool":"cognito", "aws:cognito/userPoolClient:UserPoolClient":"cognito",
-    "aws:iam/role:Role":"iam", "aws:kms/key:Key":"kms",
+    "aws:iam/role:Role":"iam-role", "aws:acm/certificateValidation:CertificateValidation":"acm-validation", "aws:kms/key:Key":"kms",
     "aws:route53/record:Record":"route53", "aws:secretsmanager/secret:Secret":"secretsmanager",
     "aws:ses/emailIdentity:EmailIdentity":"ses"
   };
+  assert.equal(modelPathFor("aws:apigatewayv2/authorizer:Authorizer",awsIconFor,"jwt"), "/models/aws/api-gateway-jwt.glb");
   for(const [type,service] of Object.entries(cases)) {
     assert.equal(modelPathFor(type,awsIconFor),`/models/aws/${service}.glb`,type);
   }
