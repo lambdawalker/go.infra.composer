@@ -13,6 +13,7 @@ test("maps the email verification and discovery AWS resource families", () => {
     "aws:iam/rolePolicy:RolePolicy": "iam",
     "aws:kms/key:Key": "kms",
     "aws:lambda/function:Function": "lambda",
+    "aws:lambda/permission:Permission": "lambda-permission",
     "aws:route53/record:Record": "route53",
     "aws:secretsmanager/secretVersion:SecretVersion": "secretsmanager",
     "aws:ses/emailIdentity:EmailIdentity": "ses",
@@ -32,6 +33,7 @@ test("maps recorded state buckets and legacy abbreviated AWS types", () => {
   }
   assert.equal(awsIconFor("aws:cloudwatch:EventRule"), "/icons/aws/eventbridge.svg");
   const shortened = {
+    "aws:lambda:Permission": "lambda-permission",
     "aws:acm:Certificate": "acm", "aws:apigatewayv2:Api": "api-gateway",
     "aws:cognito:UserPool": "cognito", "aws:dynamodb:Table": "dynamodb",
     "aws:iam:Role": "iam", "aws:kms:Key": "kms", "aws:lambda:Function": "lambda",
