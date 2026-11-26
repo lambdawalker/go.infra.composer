@@ -4,6 +4,7 @@ The wizard embeds these service-specific models from the custom icon collection.
 
 | Local file | Design | SHA-256 |
 | --- | --- | --- |
+| `acm.glb` | Transmissive ruby glass shield with a beveled opening for ivory TLS letters on its convex face | `6a00fe0b27967c7d10cef4a86be671ecbe4b4759370dea7b4b86714b052066b1` |
 | `api-gateway.glb` | Violet aperture with eight chevrons and three aligned cyan glass packets | `5612c6961d31d95f6bebc0d53051b27d1f085f5b824fd87611ade29b6b4baff5` |
 | `lambda.glb` | Split orange Lambda | `f09f6fff1490e49f2a32b220ab49d6235841ecf2797fc12ce64313be4aa5096d` |
 | `s3.glb` | Green bucket with stored objects | `1fdd247b9bdf49d9ae6142884247313411f3c84687b9018488632a33d745b650` |
@@ -15,7 +16,7 @@ The wizard embeds these service-specific models from the custom icon collection.
 
 ## Glass cube catalog
 
-These seven GLB files are unchanged copies from the published
+These six GLB files are unchanged copies from the published
 [AWS Glass Cubes catalog](https://aws-glass-cubes.lemony-amber-5141.chatgpt.site),
 version 3, source commit `64e50dcef5cef7eeb619d216c4d24f310acb84e6`.
 The source archive is `dist/aws-glass-cubes.zip`; only the filenames were shortened
@@ -40,7 +41,6 @@ preserve the glass finish.
 
 | Local file | Archive entry | Bytes | SHA-256 |
 | --- | --- | ---: | --- |
-| `acm.glb` | `security-identity-compliance-certificate-manager-cube.glb` | 109108 | `2edb67f7eadc540b6124d3b288fa251e35b948e8b3c183838c8241165cf4a55b` |
 | `cloudwatch.glb` | `management-governance-cloudwatch-cube.glb` | 397976 | `87c3250141d9afc1444c7283c938799ad5dc073d3c5f36f088d5dbee2e73883e` |
 | `cognito.glb` | `security-identity-compliance-cognito-cube.glb` | 284504 | `5db6640394e2cd786ebf23eba76fc5139ad53cfe71a3188a623cd086bd5bfc85` |
 | `eventbridge.glb` | `app-integration-eventbridge-cube.glb` | 269240 | `d709b789e6e84c000c74273c04574e61ff3efb0529559926074ff5d9263efa13` |
