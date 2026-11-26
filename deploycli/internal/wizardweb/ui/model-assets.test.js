@@ -7,6 +7,11 @@ const vm = require("node:vm");
 
 function checkCertificate(meshes, THREE, emblem) {
   const plaque = meshes.find(mesh => mesh.userData.name === "Engraved glass plaque");
+  const frame = meshes.find(mesh => mesh.userData.name === "Certificate frame");
+  for (const part of meshes.filter(mesh => mesh !== plaque)) {
+    assert.equal(part.material, frame.material, part.name + " matches the certificate frame");
+  }
+  assert.notEqual(plaque.material, frame.material, "the engraved plaque uses neutral glass");
   const top = name => {
     const mesh = meshes.find(part => part.userData.name === name);
     return new THREE.Box3().setFromObject(mesh, true).max.y;
@@ -113,7 +118,7 @@ const customLandmarks = {
   "aws/rds.glb": ["Left table", "Right table", "Table link"],
   "aws/route53.glb": ["Raised 53", "Hexagonal post", "Round foot", "Right collar", "Left collar", "Right socket", "Left socket", "Right arrow", "Left arrow", "Right front inlay", "Left front inlay"],
   "aws/secretsmanager.glb": ["Open ruby door", "Raised door panel", "Wheel hub", "Wheel spoke 3", "Secret cartridge", "Upper cartridge band"],
-  "aws/ses.glb": ["Engraved glass plaque", "Amber certificate frame", "Envelope flap", "Scalloped ribbon seal", "Ribbon tail left", "Ribbon tail right"],
+  "aws/ses.glb": ["Engraved glass plaque", "Certificate frame", "Envelope flap", "Scalloped ribbon seal", "Ribbon tail left", "Ribbon tail right"],
   "aws/s3.glb": ["S3 bucket", "Stored object 1", "Stored object 2", "Stored object 3"]
 };
 
@@ -137,9 +142,6 @@ test("the shipped renderer loads every embedded service model without external r
         checkCertificate(meshes, THREE, "Lambda main diagonal");
         const accent = meshes.find(mesh => mesh.userData.name === "Lambda main diagonal").material;
         assert.ok(accent.attenuationColor.r > accent.attenuationColor.g);
-        for (const mesh of meshes.filter(part => /lambda|ribbon/i.test(part.userData.name))) {
-          assert.equal(mesh.material, accent, mesh.userData.name + " shares the orange glass");
-        }
       }
       if (file === "acm.glb") checkCertificate(meshes, THREE, "Raised TLS lettering");
       if (file === "secretsmanager.glb") checkVaultDoor(meshes, THREE);
