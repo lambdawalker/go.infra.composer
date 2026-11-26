@@ -160,6 +160,8 @@
     resizeObserver?.observe(stage);
     listen(window,"resize",()=>requestDraw());
     listen(document,"visibilitychange",()=>{if(!document.hidden)requestDraw();});
+    const systemTheme=window.matchMedia?.("(prefers-color-scheme: light)");
+    if(systemTheme)listen(systemTheme,"change",()=>requestDraw());
     const themeObserver=new MutationObserver(()=>requestDraw());
     themeObserver.observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
 
@@ -315,7 +317,8 @@
       renderer.setSize(bounds.width,bounds.height,false);
       const color=getComputedStyle(stage).backgroundColor;
       scene.background=new runtime.THREE.Color(color);
-      const lightTheme=document.documentElement.dataset.theme==="light";
+      const theme=document.documentElement.dataset.theme;
+      const lightTheme=theme?theme==="light":systemTheme?.matches;
       const uniforms=floor.material.uniforms;
       uniforms.backdrop.value.copy(scene.background);
       uniforms.surface.value.setHex(lightTheme?0xc2cfda:0x415061);
