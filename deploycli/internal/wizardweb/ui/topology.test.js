@@ -222,3 +222,18 @@ test("picks the artifact behind a loaded cube and does not select after orbit dr
   h.elements.stage.emit("pointerup",{pointerId:2,clientX:440,clientY:210});
   assert.deepEqual(h.selected,["picked"]);h.topology.dispose();
 });
+
+test("uses an opaque floor beneath the inventory and updates its palette with the theme", () => {
+  const h=topologyHarness();
+  h.topology.setArtifacts([{key:"root",type:"custom"}]);h.topology.activate();h.flush();
+  const stage=h.renders.at(-1).scene;
+  const floor=stage.children.find(object=>object.geometry?.type==="PlaneGeometry");
+  assert.ok(floor.position.y < -1 && !floor.material.transparent);
+  const dark=floor.material.uniforms.surface.value.getHex();
+  h.context.document.documentElement.dataset.theme="light";
+  h.topology.fitView();h.flush();
+  assert.notEqual(floor.material.uniforms.surface.value.getHex(),dark);
+  let released=0;
+  for(const resource of [floor.geometry,floor.material])resource.addEventListener("dispose",()=>released++);
+  h.topology.dispose();assert.equal(released,2);
+});

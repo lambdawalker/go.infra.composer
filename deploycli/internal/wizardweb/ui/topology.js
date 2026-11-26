@@ -107,11 +107,48 @@
     return items.filter(item => visible.has(item.key) && visible.has(item.parent)).map(item => [item.parent,item.key]);
   }
 
+  // An opaque surface gives the glTF transmission pass something to sample.
+  // The grid fades before the horizon and when it becomes smaller than a pixel.
+  function createFloor(T) {
+    const material=new T.ShaderMaterial({
+      toneMapped:false,
+      uniforms:{
+        backdrop:{value:new T.Color()}, surface:{value:new T.Color()},
+        grid:{value:new T.Color()}, radius:{value:24}
+      },
+      vertexShader:`
+        varying vec2 ground;
+        void main() {
+          vec4 world = modelMatrix * vec4(position, 1.0);
+          ground = world.xz;
+          gl_Position = projectionMatrix * viewMatrix * world;
+        }`,
+      fragmentShader:`
+        uniform vec3 backdrop, surface, grid;
+        uniform float radius;
+        varying vec2 ground;
+        void main() {
+          vec2 cell = ground / 2.0;
+          vec2 footprint = max(fwidth(cell), vec2(0.0001));
+          vec2 line = abs(fract(cell + 0.5) - 0.5) / footprint;
+          float ink = (1.0 - smoothstep(0.0, 1.1, min(line.x, line.y)))
+                    * (1.0 - smoothstep(0.15, 0.6, max(footprint.x, footprint.y)));
+          float falloff = 1.0 - smoothstep(0.0, radius, length(ground));
+          gl_FragColor = vec4(mix(backdrop, mix(surface, grid, ink), falloff), 1.0);
+          #include <colorspace_fragment>
+        }`
+    });
+    const floor=new T.Mesh(new T.PlaneGeometry(2,2),material);
+    floor.rotation.x=-Math.PI/2;
+    floor.position.y=-1.05;
+    return floor;
+  }
+
   function createArtifactTopology({stage,canvas,tooltip,message,selectedLabel,list,search,count,fit,onSelect}) {
     let items=[],byKey=new Map(),selectedKey="",active=false,drawQueued=false,pointer=null;
-    let yaw=.55,pitch=.45,distance=30,target=[0,0,0],contextLost=false,disposed=false;
+    let yaw=-.46,pitch=.45,distance=30,target=[0,0,0],contextLost=false,disposed=false;
     let renderer=null,scene=null,camera=null,runtime=null,edges=null,halo=null,environment=null;
-    let raycaster=null,mouse=null,lastEdgeSignature="";
+    let floor=null,raycaster=null,mouse=null,lastEdgeSignature="";
     const nodes=new Map(),modelCache=new Map(),loadingModels=new Set(),failedModels=new Set();
     const fallbackGeometry=new Map(),fallbackMaterials=new Map();
     const listeners=[];
@@ -123,6 +160,8 @@
     resizeObserver?.observe(stage);
     listen(window,"resize",()=>requestDraw());
     listen(document,"visibilitychange",()=>{if(!document.hidden)requestDraw();});
+    const systemTheme=window.matchMedia?.("(prefers-color-scheme: light)");
+    if(systemTheme)listen(systemTheme,"change",()=>requestDraw());
     const themeObserver=new MutationObserver(()=>requestDraw());
     themeObserver.observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
 
@@ -146,14 +185,20 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
         renderer.outputColorSpace=T.SRGBColorSpace;
         renderer.toneMapping=T.ACESFilmicToneMapping;
-        renderer.toneMappingExposure=1.1;
+        renderer.toneMappingExposure=1.0;
         scene=new T.Scene();camera=new T.PerspectiveCamera(45,1,.1,1000);
         raycaster=new T.Raycaster();mouse=new T.Vector2();
         const room=new runtime.RoomEnvironment(),generator=new T.PMREMGenerator(renderer);
-        try {environment=generator.fromScene(room,.04);scene.environment=environment.texture;}
+        try {environment=generator.fromScene(room,.015);scene.environment=environment.texture;}
         finally {room.dispose?.();generator.dispose();}
-        scene.add(new T.AmbientLight(0xffffff,.5));
-        const light=new T.DirectionalLight(0xffffff,2);light.position.set(4,8,6);scene.add(light);
+        scene.environmentIntensity=.78;
+        scene.add(new T.HemisphereLight(0xe8f2ff,0x44374a,.45));
+        const key=new T.DirectionalLight(0xffead9,1.65);
+        key.position.set(-4,7,5);
+        const rim=new T.DirectionalLight(0xc3e1ff,2.0);
+        rim.position.set(4,5,-6);
+        floor=createFloor(T);
+        scene.add(key,rim,floor);
         edges=new T.LineSegments(new T.BufferGeometry(),new T.LineBasicMaterial({color:0x61748c}));
         scene.add(edges);
         const haloBox=new T.BoxGeometry(1.95,1.95,1.95),haloEdges=new T.EdgesGeometry(haloBox);haloBox.dispose();
@@ -170,6 +215,7 @@
       for(const geometry of fallbackGeometry.values())geometry.dispose();fallbackGeometry.clear();
       for(const material of fallbackMaterials.values())material.dispose();fallbackMaterials.clear();
       edges?.geometry.dispose();edges?.material.dispose();halo?.geometry.dispose();halo?.material.dispose();
+      floor?.geometry.dispose();floor?.material.dispose();floor=null;
       environment?.dispose();renderer?.dispose();
       renderer=null;scene=null;camera=null;edges=null;halo=null;environment=null;raycaster=null;mouse=null;
     }
@@ -232,6 +278,10 @@
         }
         node.group.position.set(...item.position);
       }
+      // The layout places roots at ground level and descendants above them.
+      const radius=items.reduce((r,item)=>Math.max(r,Math.hypot(item.position[0],item.position[2])),0)*1.6+18;
+      floor.scale.set(radius,radius,1);
+      floor.material.uniforms.radius.value=radius;
       updateVisibility();
     }
     function updateVisibility() {
@@ -267,7 +317,13 @@
       renderer.setSize(bounds.width,bounds.height,false);
       const color=getComputedStyle(stage).backgroundColor;
       scene.background=new runtime.THREE.Color(color);
-      edges.material.color.set(document.documentElement.dataset.theme==="light"?0x8c9bb2:0x596e8c);
+      const theme=document.documentElement.dataset.theme;
+      const lightTheme=theme?theme==="light":systemTheme?.matches;
+      const uniforms=floor.material.uniforms;
+      uniforms.backdrop.value.copy(scene.background);
+      uniforms.surface.value.setHex(lightTheme?0xc2cfda:0x415061);
+      uniforms.grid.value.setHex(lightTheme?0xa6b5c3:0x516174);
+      edges.material.color.set(lightTheme?0x576c87:0x98adc6);
       camera.aspect=bounds.width/bounds.height;camera.updateProjectionMatrix();
       camera.position.set(target[0]+distance*Math.sin(yaw)*Math.cos(pitch),target[1]+distance*Math.sin(pitch),
         target[2]+distance*Math.cos(yaw)*Math.cos(pitch));
