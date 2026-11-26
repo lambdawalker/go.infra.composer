@@ -2,19 +2,21 @@
 
 The wizard embeds these service-specific models from the custom icon collection.
 
+For engraved certificate icons, use one shared accent glass material for the frame and every add-on, including the identifying symbol, ribbon seal and tails. Use a distinct accent color for each certificate type and neutral glass for the engraved plaque.
+
 | Local file | Design | SHA-256 |
 | --- | --- | --- |
-| `ses.glb` | Engraved glass sender certificate with an amber frame and matching plum envelope and ribbon | `910f654bba8e027abfc97501472831573c523904f9224c5e3e39b00486361ffe` |
+| `ses.glb` | Engraved glass sender certificate with a plum frame, envelope and ribbon | `1689072dd4ecb349fba9046e13d7fc50e95ada0d266ad6b2e306e90b7aedc3a6` |
 | `secretsmanager.glb` | Ruby glass vault with an exterior three-spoke handle and a frosted cyan secret cartridge | `f457ab02fbc3faa3a7b9b157cf7cd104f3a0a4e40734954055baa118efe502d3` |
 | `eventbridge.glb` | Raspberry-glass fork with two queued entry envelopes and an amber envelope midway along each of two exits | `d6d874fc7bee48c8427b17a41f5af5144b5c703d7ac41c324fc0212253540d43` |
 | `cognito.glb` | Classic Rotary user directory with 34 frosted cards, a raised ruby profile and curved glass supports | `147c3c9c0632780ca2863e17f1d22780a26784cec8a52e9e6b00c4b506784f2f` |
 | `cloudwatch.glb` | Hollow raspberry-glass ticker with raised side rims, a framed feed slot and a curled ivory log strip | `ab5956230e9d6105a4b272d8b278b69825231b2b357cc28c0ea65c08125f18f5` |
-| `acm.glb` | Engraved glass TLS certificate with raised teal letters and a sapphire ribbon seal | `5b1af3cd6536f4c45310c1c7ca7cccae7e98fd2294bad7aeb74b94e0dca466b3` |
+| `acm.glb` | Engraved glass TLS certificate with a sapphire frame, raised TLS letters and ribbon seal | `1ad620958e9a3a65958274ca39eb0236a62ef83c0805a3003b5bb0a8abb43152` |
 | `acm-shield.glb` | Alternate topology model. Transmissive ruby glass shield with a beveled opening for ivory TLS letters on its convex face | `6a00fe0b27967c7d10cef4a86be671ecbe4b4759370dea7b4b86714b052066b1` |
 | `api-gateway.glb` | Violet aperture with three compact cyan glass packets entering the iris | `931ad351625dc50cd70eb1ab8e668f9f6766b717184a0400d3e881dc26310bc9` |
 | `route53.glb` | Violet glass signpost topped with a raised 53 plate | `88dd26ae9ff936196a7f18b14b89725eb5fa52a443e46269582d7e82a94eaefe` |
 | `../cloudflare/dns.glb` | Matching DNS signpost topped with an amber cloud | `adb79b5425b190a406a67fc42a68291de61b837575a7682a64ee80b08918b74c` |
-| `lambda-permission.glb` | Engraved glass certificate with a matching mandarin-orange glass Lambda and ribbon | `5e72e851c89260c7ff79d0e4883c11f5c85526350fe3b8d9e9b4aaa5d831ac5d` |
+| `lambda-permission.glb` | Engraved glass certificate with a mandarin-orange frame, Lambda and ribbon | `5dc038e6f7fdd2e9bc7798e522566c4482edeff10a0378a277aa48fbf5c5fb9e` |
 | `lambda.glb` | Split orange Lambda | `f09f6fff1490e49f2a32b220ab49d6235841ecf2797fc12ce64313be4aa5096d` |
 | `s3.glb` | Green bucket with stored objects | `1fdd247b9bdf49d9ae6142884247313411f3c84687b9018488632a33d745b650` |
 | `iam.glb` | Scalloped ruby permission seal with an ivory check mark and two notched ribbons | `a6c9f6731b90868eca92b39084af2f11c7135266c64a324e1b313a0aa7d412c5` |
