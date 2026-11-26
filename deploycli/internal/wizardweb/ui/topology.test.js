@@ -103,6 +103,8 @@ function topologyHarness({failRenderer=false}={}) {
     addEventListener(event,fn){if(!this.events.has(event))this.events.set(event,[]);this.events.get(event).push(fn);}
     removeEventListener(event,fn){this.events.set(event,(this.events.get(event)||[]).filter(f=>f!==fn));}
     emit(event,detail={}){for(const fn of [...this.events.get(event)||[]])fn({preventDefault(){},...detail});}
+    contains(node){return node===this||this.children.some(child=>child.contains(node));}
+    focus(){}
     append(...children){this.children.push(...children);}
     replaceChildren(...children){this.children=children;}
     setAttribute(name,value){this.attributes[name]=value;}
@@ -130,7 +132,8 @@ function topologyHarness({failRenderer=false}={}) {
   }};
   context.wizardAWSIconFor=awsIconFor;
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,"topology.js"),"utf8"),context);
-  const elements=Object.fromEntries(["stage","canvas","tooltip","message","selectedLabel","list","search","count","fit","tlsModel"].map(key=>[key,new Element()]));
+  const elements=Object.fromEntries(["stage","canvas","tooltip","message","selectedLabel","list","search","count","fit","tlsModel","navigation","axes","box"].map(key=>[key,new Element()]));
+  elements.navigation.append(elements.axes);
   const selected=[];
   const topology=context.createArtifactTopology({...elements,onSelect:key=>selected.push(key)});
   function flush(){let calls=0;while(frames.length){assert.ok(++calls<5,"rendering must settle without an animation loop");frames.shift()();}}
@@ -253,5 +256,46 @@ test("supersamples the canvas and casts service and fallback shadows onto the fl
   h.artifactNodes()[0].traverse(o=>{if(o.isMesh)assert.ok(o.castShadow);});
   h.elements.tlsModel.value="shield";h.elements.tlsModel.emit("change");
   assert.ok(h.loads.has("/models/aws/acm-shield.glb"));
+  h.topology.dispose();
+});
+
+test("middle-drag translates in the camera plane and Home restores the opening camera", () => {
+  const h=topologyHarness();
+  h.topology.setArtifacts([{key:"root",type:"custom"},{key:"child",parent:"root",type:"custom"}]);
+  h.topology.activate();h.flush();
+  const {camera}=h.renders.at(-1),stage=h.elements.stage;
+  const start=camera.position.clone(),orientation=camera.quaternion.clone();
+  stage.emit("pointerdown",{button:1,pointerId:1,clientX:400,clientY:200});
+  stage.emit("pointermove",{pointerId:1,clientX:480,clientY:230});
+  stage.emit("pointerup",{pointerId:1,clientX:480,clientY:230});h.flush();
+  assert.ok(camera.position.distanceTo(start)>1);
+  assert.ok(orientation.angleTo(camera.quaternion)<1e-6);
+  assert.deepEqual(h.selected,[]);
+  stage.emit("keydown",{key:"ArrowLeft"});stage.emit("keydown",{key:"+"});h.flush();
+  stage.emit("keydown",{key:"Home"});h.flush();
+  assert.ok(camera.position.distanceTo(start)<1e-8);
+  assert.ok(orientation.angleTo(camera.quaternion)<1e-6);
+  h.topology.dispose();
+});
+
+test("box zoom frames a reversed drag, and Escape cancels an unfinished box", () => {
+  const h=topologyHarness();
+  h.topology.setArtifacts([{key:"root",type:"custom"}]);h.topology.activate();h.flush();
+  const {camera}=h.renders.at(-1),{stage,box}=h.elements;
+  const start=camera.position.clone(),orientation=camera.quaternion.clone();
+  function boxDrag(){
+    stage.emit("keydown",{key:"b",ctrlKey:true});
+    stage.emit("pointerdown",{button:0,pointerId:2,clientX:600,clientY:280});
+    stage.emit("pointermove",{pointerId:2,clientX:400,clientY:120});
+    assert.equal(box.hidden,false);assert.equal(box.style.width,"200px");
+  }
+  boxDrag();stage.emit("keydown",{key:"Escape"});h.flush();
+  assert.equal(box.hidden,true);assert.equal(stage.dataset.mode,"orbit");
+  assert.ok(camera.position.distanceTo(start)<1e-8);
+  boxDrag();stage.emit("pointerup",{pointerId:2,clientX:400,clientY:120});h.flush();
+  assert.equal(box.hidden,true);assert.equal(stage.dataset.mode,"orbit");
+  const delta=camera.position.clone().sub(start).applyQuaternion(orientation.clone().invert());
+  assert.ok(delta.x>0 && delta.z<0 && Math.abs(delta.y)<1e-8);
+  assert.deepEqual(h.selected,[]);
   h.topology.dispose();
 });

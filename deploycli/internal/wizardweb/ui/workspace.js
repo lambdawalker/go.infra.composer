@@ -49,6 +49,7 @@
   let ownerFilter = "", ownerScope = "", ownerCounts = new Map(), driftRenderKey = "";
   const workspace = $("preview-workspace"), wizard = $("wizard"), slot = $("preview-interaction-slot"), panel = $("panel"), signIn = $("sign-in"), originalParent = panel.parentNode;
   const topology = window.createArtifactTopology({
+    navigation:$("topology-navigation"),axes:$("topology-axes"),box:$("topology-box"),
     stage:$("topology-stage"),canvas:$("topology-canvas"),tooltip:$("topology-tooltip"),
     message:$("topology-message"),selectedLabel:$("topology-selected"),
     list:$("topology-list"),search:$("topology-search"),count:$("topology-count"),fit:$("topology-fit"),tlsModel:$("topology-tls-model"),
