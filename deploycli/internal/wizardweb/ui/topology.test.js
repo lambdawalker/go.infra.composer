@@ -121,11 +121,13 @@ function topologyHarness({failRenderer=false}={}) {
   context.window=context;
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,"vendor/topology-three.js"),"utf8"),context);
   const T=context.WizardTopologyThree.THREE;
-  context.WizardTopologyThree={THREE:{...T,
+  context.WizardTopologyThree={...context.WizardTopologyThree,THREE:{...T,
     WebGLRenderer:class {
-      constructor({canvas}){this.canvas=canvas;this.capabilities={maxTextureSize:4096};this.shadowMap={};stats.constructs++;if(failRenderer)throw Error("No WebGL");}
+      constructor({canvas}){this.canvas=canvas;this.extensions={has:()=>true};this.capabilities={maxTextureSize:4096};this.shadowMap={};stats.constructs++;if(failRenderer)throw Error("No WebGL");}
       setDrawingBufferSize(w,h,r){this.canvas.width=Math.floor(w*r);this.canvas.height=Math.floor(h*r);}
-      render(scene,camera){renders.push({scene,camera});}dispose(){stats.disposes++;}
+      getDrawingBufferSize(v){return v.set(this.canvas.width,this.canvas.height);}
+      getRenderTarget(){return this.target||null;} setRenderTarget(t){this.target=t;}
+      render(scene,camera){if(!this.target)renders.push({scene,camera});}dispose(){stats.disposes++;}
     },
     PMREMGenerator:class {fromScene(){return {texture:{},dispose(){stats.environmentDisposes++;}};}dispose(){}}
   },RoomEnvironment:class {dispose(){}},GLTFLoader:class {
@@ -310,4 +312,38 @@ test("box zoom frames a reversed drag, and Escape cancels an unfinished box", ()
   assert.ok(camera.position.distanceTo(start)<1e-8 && camera.projectionMatrix.equals(projection));
   assert.deepEqual(h.selected,[]);
   h.topology.dispose();
+});
+
+test("overlapping glass is captured behind the front icon and materials are restored", () => {
+  const h=topologyHarness(), {LayeredGlass,THREE:T}=h.context.WizardTopologyThree;
+  const scene=new T.Scene(),camera=new T.PerspectiveCamera(45,2,.1,100);
+  camera.position.z=8;camera.updateMatrixWorld();
+  const glass=new T.MeshPhysicalMaterial({transmission:1});
+  const nodes=[-2,0,2].map(z=>{
+    const group=new T.Group(),visual=new T.Mesh(new T.BoxGeometry(1,1,1),glass);
+    group.position.z=z;group.add(visual);scene.add(group);return {group,visual};
+  });
+  let output=null;
+  const passes=[];
+  const renderer={
+    extensions:{has:()=>true},getDrawingBufferSize:v=>v.set(800,400),
+    getRenderTarget:()=>output,setRenderTarget:t=>{output=t;},
+    render(){passes.push({output, materials:nodes.map(n=>n.visual.material)});}
+  };
+  const compositor=new LayeredGlass(renderer);
+  compositor.render(scene,camera,nodes);
+  assert.equal(passes.length,3);
+  assert.equal(passes[0].materials[0],glass);
+  assert.equal(passes[1].materials[1],glass);
+  assert.equal(passes[2].materials[2],glass);
+  assert.ok(passes[2].materials[0].isShaderMaterial && passes[2].materials[1].isShaderMaterial);
+  assert.ok(passes[0].output && passes[1].output && passes[0].output!==passes[1].output);
+  assert.equal(passes[2].output,null);
+  assert.ok(nodes.every(n=>n.visual.material===glass));
+  passes.length=0;nodes[0].group.visible=false;nodes[2].group.position.x=4;
+  compositor.render(scene,camera,nodes);
+  assert.equal(passes.length,1,"separate silhouettes use one normal render");
+  let disposed=0;
+  for (const pass of compositor.targets) pass.addEventListener("dispose",()=>disposed++);
+  compositor.dispose();assert.equal(disposed,2);h.topology.dispose();
 });

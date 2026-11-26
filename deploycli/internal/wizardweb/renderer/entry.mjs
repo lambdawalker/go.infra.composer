@@ -1,8 +1,9 @@
+export { LayeredGlass } from "./layered-glass.mjs";
 import {
   WebGLRenderer, Scene, PerspectiveCamera, Group, Vector2, Vector3, Raycaster,
   Box3, PMREMGenerator, HemisphereLight, DirectionalLight, PlaneGeometry, ShaderMaterial, UniformsUtils, UniformsLib, BufferGeometry,
   Float32BufferAttribute, LineSegments, LineBasicMaterial, Mesh,
-  MeshStandardMaterial, BoxGeometry, ConeGeometry, SphereGeometry,
+  MeshStandardMaterial, MeshPhysicalMaterial, BoxGeometry, ConeGeometry, SphereGeometry,
   OctahedronGeometry, EdgesGeometry, Color, SRGBColorSpace, ACESFilmicToneMapping
 } from "three";
 export { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
@@ -11,6 +12,6 @@ export const THREE = {
   WebGLRenderer, Scene, PerspectiveCamera, Group, Vector2, Vector3, Raycaster,
   Box3, PMREMGenerator, HemisphereLight, DirectionalLight, PlaneGeometry, ShaderMaterial, UniformsUtils, UniformsLib, BufferGeometry,
   Float32BufferAttribute, LineSegments, LineBasicMaterial, Mesh,
-  MeshStandardMaterial, BoxGeometry, ConeGeometry, SphereGeometry,
+  MeshStandardMaterial, MeshPhysicalMaterial, BoxGeometry, ConeGeometry, SphereGeometry,
   OctahedronGeometry, EdgesGeometry, Color, SRGBColorSpace, ACESFilmicToneMapping
 };
