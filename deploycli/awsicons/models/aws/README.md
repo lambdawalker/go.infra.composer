@@ -13,6 +13,7 @@ For engraved certificate icons, use one shared accent glass material for the fra
 | `cloudwatch.glb` | Hollow raspberry-glass ticker with raised side rims, a framed feed slot and a curled ivory log strip | `ab5956230e9d6105a4b272d8b278b69825231b2b357cc28c0ea65c08125f18f5` |
 | `acm.glb` | Engraved glass TLS certificate with a sapphire frame, raised TLS letters and ribbon seal | `1ad620958e9a3a65958274ca39eb0236a62ef83c0805a3003b5bb0a8abb43152` |
 | `acm-shield.glb` | Alternate topology model. Transmissive ruby glass shield with a beveled opening for ivory TLS letters on its convex face | `6a00fe0b27967c7d10cef4a86be671ecbe4b4759370dea7b4b86714b052066b1` |
+| `api-gateway-route.glb` | Violet glass sextant with a round port cap, diagonal telescope mounted in front of its frosted index arm, and cyan packet slider | `eb7a89cab28e5f9aba1a08c68ad9c8937f35d5a47f6e206e69c6cb42184143f1` |
 | `api-gateway.glb` | Violet aperture with three compact cyan glass packets entering the iris | `931ad351625dc50cd70eb1ab8e668f9f6766b717184a0400d3e881dc26310bc9` |
 | `route53.glb` | Violet glass signpost topped with a raised 53 plate | `88dd26ae9ff936196a7f18b14b89725eb5fa52a443e46269582d7e82a94eaefe` |
 | `../cloudflare/dns.glb` | Matching DNS signpost topped with an amber cloud | `adb79b5425b190a406a67fc42a68291de61b837575a7682a64ee80b08918b74c` |
