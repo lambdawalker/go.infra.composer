@@ -5,7 +5,8 @@ The wizard embeds these service-specific models from the custom icon collection.
 | Local file | Design | SHA-256 |
 | --- | --- | --- |
 | `acm.glb` | Transmissive ruby glass shield with a beveled opening for ivory TLS letters on its convex face | `6a00fe0b27967c7d10cef4a86be671ecbe4b4759370dea7b4b86714b052066b1` |
-| `api-gateway.glb` | Violet aperture with eight chevrons and three aligned cyan glass packets | `5612c6961d31d95f6bebc0d53051b27d1f085f5b824fd87611ade29b6b4baff5` |
+| `api-gateway.glb` | Violet aperture with three compact cyan glass packets entering the iris | `931ad351625dc50cd70eb1ab8e668f9f6766b717184a0400d3e881dc26310bc9` |
+| `route53.glb` | Hexagonal violet glass signpost on a wide foot with two collar-mounted arrows and frosted ivory glass inlays | `615e7e136f38e16987eaa02389a27ecebd5d69c405dfeb2ccdc9e2ffaf740d9d` |
 | `lambda.glb` | Split orange Lambda | `f09f6fff1490e49f2a32b220ab49d6235841ecf2797fc12ce64313be4aa5096d` |
 | `s3.glb` | Green bucket with stored objects | `1fdd247b9bdf49d9ae6142884247313411f3c84687b9018488632a33d745b650` |
 | `iam.glb` | Scalloped ruby permission seal with an ivory check mark and two notched ribbons | `a6c9f6731b90868eca92b39084af2f11c7135266c64a324e1b313a0aa7d412c5` |
@@ -16,7 +17,7 @@ The wizard embeds these service-specific models from the custom icon collection.
 
 ## Glass cube catalog
 
-These six GLB files are unchanged copies from the published
+These five GLB files are unchanged copies from the published
 [AWS Glass Cubes catalog](https://aws-glass-cubes.lemony-amber-5141.chatgpt.site),
 version 3, source commit `64e50dcef5cef7eeb619d216c4d24f310acb84e6`.
 The source archive is `dist/aws-glass-cubes.zip`; only the filenames were shortened
@@ -44,6 +45,5 @@ preserve the glass finish.
 | `cloudwatch.glb` | `management-governance-cloudwatch-cube.glb` | 397976 | `87c3250141d9afc1444c7283c938799ad5dc073d3c5f36f088d5dbee2e73883e` |
 | `cognito.glb` | `security-identity-compliance-cognito-cube.glb` | 284504 | `5db6640394e2cd786ebf23eba76fc5139ad53cfe71a3188a623cd086bd5bfc85` |
 | `eventbridge.glb` | `app-integration-eventbridge-cube.glb` | 269240 | `d709b789e6e84c000c74273c04574e61ff3efb0529559926074ff5d9263efa13` |
-| `route53.glb` | `networking-content-delivery-route-53-cube.glb` | 483512 | `170b915f744f1610d7aad64ef9464763216635e8aa9a4e22a332f085c3e74cec` |
 | `secretsmanager.glb` | `security-identity-compliance-secrets-manager-cube.glb` | 271832 | `acd372a8f82584ee078d6096ae5119455841dd72f68cd61abfc95c09b246d496` |
 | `ses.glb` | `business-applications-simple-email-service-cube.glb` | 306104 | `24a6790452ffafe219b7940cf9c09b966e5ec8b1d1984ed961e34a0b840ddaa3` |
