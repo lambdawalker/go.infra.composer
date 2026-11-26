@@ -4,6 +4,7 @@ The wizard embeds these service-specific models from the custom icon collection.
 
 | Local file | Design | SHA-256 |
 | --- | --- | --- |
+| `cloudwatch.glb` | Hollow raspberry-glass ticker with raised side rims, a framed feed slot and a curled ivory log strip | `ab5956230e9d6105a4b272d8b278b69825231b2b357cc28c0ea65c08125f18f5` |
 | `acm.glb` | Transmissive ruby glass shield with a beveled opening for ivory TLS letters on its convex face | `6a00fe0b27967c7d10cef4a86be671ecbe4b4759370dea7b4b86714b052066b1` |
 | `api-gateway.glb` | Violet aperture with three compact cyan glass packets entering the iris | `931ad351625dc50cd70eb1ab8e668f9f6766b717184a0400d3e881dc26310bc9` |
 | `route53.glb` | Violet glass signpost topped with a raised 53 plate | `88dd26ae9ff936196a7f18b14b89725eb5fa52a443e46269582d7e82a94eaefe` |
@@ -18,7 +19,7 @@ The wizard embeds these service-specific models from the custom icon collection.
 
 ## Glass cube catalog
 
-These five GLB files are unchanged copies from the published
+These four GLB files are unchanged copies from the published
 [AWS Glass Cubes catalog](https://aws-glass-cubes.lemony-amber-5141.chatgpt.site),
 version 3, source commit `64e50dcef5cef7eeb619d216c4d24f310acb84e6`.
 The source archive is `dist/aws-glass-cubes.zip`; only the filenames were shortened
@@ -43,7 +44,6 @@ preserve the glass finish.
 
 | Local file | Archive entry | Bytes | SHA-256 |
 | --- | --- | ---: | --- |
-| `cloudwatch.glb` | `management-governance-cloudwatch-cube.glb` | 397976 | `87c3250141d9afc1444c7283c938799ad5dc073d3c5f36f088d5dbee2e73883e` |
 | `cognito.glb` | `security-identity-compliance-cognito-cube.glb` | 284504 | `5db6640394e2cd786ebf23eba76fc5139ad53cfe71a3188a623cd086bd5bfc85` |
 | `eventbridge.glb` | `app-integration-eventbridge-cube.glb` | 269240 | `d709b789e6e84c000c74273c04574e61ff3efb0529559926074ff5d9263efa13` |
 | `secretsmanager.glb` | `security-identity-compliance-secrets-manager-cube.glb` | 271832 | `acd372a8f82584ee078d6096ae5119455841dd72f68cd61abfc95c09b246d496` |
