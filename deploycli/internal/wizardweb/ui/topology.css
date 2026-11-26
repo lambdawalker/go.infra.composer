@@ -1,9 +1,10 @@
 /* The topology is local to the deployment workspace and uses its theme tokens. */
 .preview-workspace .topology-panel {padding:16px 18px 24px;color:var(--text)}
-.preview-workspace .topology-toolbar {display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:11px}
+.preview-workspace .topology-toolbar {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:11px}
 .preview-workspace .topology-toolbar h2 {margin:0;font-size:15px}
 .preview-workspace .topology-toolbar p {margin:3px 0 0;color:var(--muted);font-size:11px}
-.preview-workspace .topology-toolbar button {flex:none;padding:5px 10px;border:1px solid var(--line);border-radius:5px;background:var(--elevated);color:var(--text);font-size:11px}
+.preview-workspace .topology-toolbar select {margin-left:auto}
+.preview-workspace .topology-toolbar select,.preview-workspace .topology-toolbar button {flex:none;padding:5px 10px;border:1px solid var(--line);border-radius:5px;background:var(--elevated);color:var(--text);font-size:11px}
 .preview-workspace .topology-toolbar button:hover {border-color:var(--blue)}
 .preview-workspace .topology-stage {position:relative;height:clamp(280px,50vh,570px);overflow:hidden;border:1px solid var(--line);border-radius:6px;background:var(--editor);touch-action:none;cursor:grab}
 .preview-workspace .topology-stage.dragging {cursor:grabbing}

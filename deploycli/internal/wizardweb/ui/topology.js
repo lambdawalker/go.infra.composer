@@ -111,19 +111,31 @@
   // The grid fades before the horizon and when it becomes smaller than a pixel.
   function createFloor(T) {
     const material=new T.ShaderMaterial({
-      toneMapped:false,
-      uniforms:{
+      toneMapped:false,lights:true,
+      uniforms:T.UniformsUtils.merge([T.UniformsLib.lights,{
         backdrop:{value:new T.Color()}, surface:{value:new T.Color()},
         grid:{value:new T.Color()}, radius:{value:24}
-      },
+      }]),
       vertexShader:`
+        #include <common>
+        #include <shadowmap_pars_vertex>
         varying vec2 ground;
         void main() {
           vec4 world = modelMatrix * vec4(position, 1.0);
           ground = world.xz;
-          gl_Position = projectionMatrix * viewMatrix * world;
+          #include <beginnormal_vertex>
+          #include <defaultnormal_vertex>
+          #include <begin_vertex>
+          #include <project_vertex>
+          #include <worldpos_vertex>
+          #include <shadowmap_vertex>
         }`,
       fragmentShader:`
+        #include <common>
+        #include <bsdfs>
+        #include <lights_pars_begin>
+        #include <shadowmap_pars_fragment>
+        #include <shadowmask_pars_fragment>
         uniform vec3 backdrop, surface, grid;
         uniform float radius;
         varying vec2 ground;
@@ -134,21 +146,23 @@
           float ink = (1.0 - smoothstep(0.0, 1.1, min(line.x, line.y)))
                     * (1.0 - smoothstep(0.15, 0.6, max(footprint.x, footprint.y)));
           float falloff = 1.0 - smoothstep(0.0, radius, length(ground));
-          gl_FragColor = vec4(mix(backdrop, mix(surface, grid, ink), falloff), 1.0);
+          vec3 litFloor = mix(surface, grid, ink) * mix(0.43, 1.0, getShadowMask());
+          gl_FragColor = vec4(mix(backdrop, litFloor, falloff), 1.0);
           #include <colorspace_fragment>
         }`
     });
     const floor=new T.Mesh(new T.PlaneGeometry(2,2),material);
+    floor.receiveShadow=true;
     floor.rotation.x=-Math.PI/2;
     floor.position.y=-1.05;
     return floor;
   }
 
-  function createArtifactTopology({stage,canvas,tooltip,message,selectedLabel,list,search,count,fit,onSelect}) {
+  function createArtifactTopology({stage,canvas,tooltip,message,selectedLabel,list,search,count,fit,tlsModel,onSelect}) {
     let items=[],byKey=new Map(),selectedKey="",active=false,drawQueued=false,pointer=null;
     let yaw=-.46,pitch=.45,distance=30,target=[0,0,0],contextLost=false,disposed=false;
     let renderer=null,scene=null,camera=null,runtime=null,edges=null,halo=null,environment=null;
-    let floor=null,raycaster=null,mouse=null,lastEdgeSignature="";
+    let keyLight=null,floor=null,raycaster=null,mouse=null,lastEdgeSignature="";
     const nodes=new Map(),modelCache=new Map(),loadingModels=new Set(),failedModels=new Set();
     const fallbackGeometry=new Map(),fallbackMaterials=new Map();
     const listeners=[];
@@ -165,13 +179,19 @@
     const themeObserver=new MutationObserver(()=>requestDraw());
     themeObserver.observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
 
+    function pathFor(item) {
+      const path=modelPathFor(item.type,window.wizardAWSIconFor);
+      return path==="/models/aws/acm.glb" && tlsModel.value==="shield" ? "/models/aws/acm-shield.glb" : path;
+    }
+    listen(tlsModel,"change",()=>{syncArtifacts();updateMessage();requestDraw();});
+
     function setMessage(text) {message.textContent=text;message.hidden=!text;}
     function updateMessage() {
       if(!items.length)setMessage("Select the deployment target to view its artifacts.");
       else if(contextLost)setMessage("3D view is temporarily unavailable. Select an artifact from the list below.");
       else if(!renderer)setMessage("3D view is unavailable here. Select an artifact from the list below.");
-      else if(items.some(item=>loadingModels.has(modelPathFor(item.type,window.wizardAWSIconFor))))setMessage("Loading resource models…");
-      else if(items.some(item=>failedModels.has(modelPathFor(item.type,window.wizardAWSIconFor))))setMessage("Some resource models could not be loaded. Those artifacts use basic shapes.");
+      else if(items.some(item=>loadingModels.has(pathFor(item))))setMessage("Loading resource models…");
+      else if(items.some(item=>failedModels.has(pathFor(item))))setMessage("Some resource models could not be loaded. Those artifacts use basic shapes.");
       else setMessage("");
     }
     function initialize() {
@@ -182,7 +202,8 @@
         if(!runtime?.THREE||!runtime.GLTFLoader||!runtime.RoomEnvironment)throw Error("3D runtime unavailable");
         const T=runtime.THREE;
         renderer=new T.WebGLRenderer({canvas,antialias:true,alpha:false});
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+        renderer.shadowMap.enabled=true;
+        renderer.shadowMap.autoUpdate=false;
         renderer.outputColorSpace=T.SRGBColorSpace;
         renderer.toneMapping=T.ACESFilmicToneMapping;
         renderer.toneMappingExposure=1.0;
@@ -193,12 +214,15 @@
         finally {room.dispose?.();generator.dispose();}
         scene.environmentIntensity=.78;
         scene.add(new T.HemisphereLight(0xe8f2ff,0x44374a,.45));
-        const key=new T.DirectionalLight(0xffead9,1.65);
-        key.position.set(-4,7,5);
+        keyLight=new T.DirectionalLight(0xffead9,1.65);
+        keyLight.castShadow=true;
+        keyLight.shadow.mapSize.setScalar(Math.min(2048,renderer.capabilities.maxTextureSize));
+        keyLight.shadow.bias=-.00015;
+        keyLight.shadow.radius=1.5;
         const rim=new T.DirectionalLight(0xc3e1ff,2.0);
         rim.position.set(4,5,-6);
         floor=createFloor(T);
-        scene.add(key,rim,floor);
+        scene.add(keyLight,rim,floor);
         edges=new T.LineSegments(new T.BufferGeometry(),new T.LineBasicMaterial({color:0x61748c}));
         scene.add(edges);
         const haloBox=new T.BoxGeometry(1.95,1.95,1.95),haloEdges=new T.EdgesGeometry(haloBox);haloBox.dispose();
@@ -216,6 +240,7 @@
       for(const material of fallbackMaterials.values())material.dispose();fallbackMaterials.clear();
       edges?.geometry.dispose();edges?.material.dispose();halo?.geometry.dispose();halo?.material.dispose();
       floor?.geometry.dispose();floor?.material.dispose();floor=null;
+      keyLight?.shadow.dispose();keyLight=null;
       environment?.dispose();renderer?.dispose();
       renderer=null;scene=null;camera=null;edges=null;halo=null;environment=null;raycaster=null;mouse=null;
     }
@@ -229,7 +254,9 @@
         fallbackGeometry.set(category,geometry);
         fallbackMaterials.set(category,new T.MeshStandardMaterial({color:new T.Color(...categories[category].color),roughness:.5}));
       }
-      return new T.Mesh(fallbackGeometry.get(category),fallbackMaterials.get(category));
+      const mesh=new T.Mesh(fallbackGeometry.get(category),fallbackMaterials.get(category));
+      mesh.castShadow=true;
+      return mesh;
     }
     function loadModel(path) {
       if(!modelCache.has(path)) {
@@ -240,6 +267,7 @@
           const extent=Math.max(size.x,size.y,size.z);
           if(!Number.isFinite(extent)||extent<=0)throw Error("Empty model");
           centered.position.copy(bounds.getCenter(new T.Vector3())).multiplyScalar(-1);
+          gltf.scene.traverse(object=>{if(object.isMesh)object.castShadow=true;});
           centered.add(gltf.scene);template.add(centered);template.scale.setScalar(1.7/extent);
           if(disposed){disposeTemplate(template);return null;}
           return template;
@@ -256,7 +284,7 @@
       const T=runtime.THREE,keys=new Set(items.map(item=>item.key));
       for(const [key,node] of nodes)if(!keys.has(key)){scene.remove(node.group);nodes.delete(key);}
       for(const item of items) {
-        const path=modelPathFor(item.type,window.wizardAWSIconFor);
+        const path=pathFor(item);
         let node=nodes.get(item.key);
         if(node&&(node.path!==path||node.category!==item.category)){
           scene.remove(node.group);nodes.delete(item.key);node=null;
@@ -272,22 +300,32 @@
               if(!template||disposed||nodes.get(item.key)!==current)return;
               current.group.remove(current.visual);
               current.visual=template.clone(true);current.group.add(current.visual);
-              requestDraw();
+              renderer.shadowMap.needsUpdate=true;requestDraw();
             });
           }
         }
         node.group.position.set(...item.position);
       }
       // The layout places roots at ground level and descendants above them.
-      const radius=items.reduce((r,item)=>Math.max(r,Math.hypot(item.position[0],item.position[2])),0)*1.6+18;
+      const extent=items.reduce((r,item)=>Math.max(r,Math.hypot(...item.position)),0)*1.5+3;
+      const radius=extent*1.1+18;
       floor.scale.set(radius,radius,1);
       floor.material.uniforms.radius.value=radius;
+      // Include the floor projection of elevated nodes in the light camera.
+      keyLight.position.set(-4,7,5).normalize().multiplyScalar(extent*2);
+      const shadowCamera=keyLight.shadow.camera;
+      Object.assign(shadowCamera,{left:-extent,right:extent,top:extent,bottom:-extent,far:extent*4});
+      shadowCamera.updateProjectionMatrix();
+      renderer.shadowMap.needsUpdate=true;
       updateVisibility();
     }
     function updateVisibility() {
       if(!scene)return;
       const query=search.value.trim().toLowerCase();
-      for(const item of items){const node=nodes.get(item.key);if(node)node.group.visible=matchesArtifact(item,query);}
+      for(const item of items){
+        const node=nodes.get(item.key),visible=matchesArtifact(item,query);
+        if(node && node.group.visible!==visible){node.group.visible=visible;renderer.shadowMap.needsUpdate=true;}
+      }
       const connections=visibleEdges(items,query);
       const signature=JSON.stringify(connections.map(([a,b])=>[a,b,byKey.get(a).position,byKey.get(b).position]));
       if(signature!==lastEdgeSignature) {
@@ -312,9 +350,14 @@
     function draw() {
       drawQueued=false;
       if(disposed||!active||document.hidden||!items.length||contextLost||!initialize())return;
-      const bounds=stage.getBoundingClientRect();if(bounds.width<2||bounds.height<2)return;
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
-      renderer.setSize(bounds.width,bounds.height,false);
+      const bounds=canvas.getBoundingClientRect();if(bounds.width<2||bounds.height<2)return;
+      // Supersample fine edges on standard displays, within GPU and pixel budgets.
+      const ratio=Math.min(Math.max(2,window.devicePixelRatio||1),
+        Math.sqrt(4_194_304/(bounds.width*bounds.height)),
+        renderer.capabilities.maxTextureSize/Math.max(bounds.width,bounds.height));
+      if(canvas.width!==Math.floor(bounds.width*ratio)||canvas.height!==Math.floor(bounds.height*ratio)){
+        renderer.setDrawingBufferSize(bounds.width,bounds.height,ratio);
+      }
       const color=getComputedStyle(stage).backgroundColor;
       scene.background=new runtime.THREE.Color(color);
       const theme=document.documentElement.dataset.theme;
@@ -357,6 +400,7 @@
     function setArtifacts(artifacts) {
       const previousStructure=items.map(a=>a.key+"\0"+a.parent).join("\n");
       items=layoutArtifacts(artifacts);byKey=new Map(items.map(a=>[a.key,a]));
+      tlsModel.hidden=!items.some(item=>modelPathFor(item.type,window.wizardAWSIconFor)==="/models/aws/acm.glb");
       if(!byKey.has(selectedKey))selectedKey="";
       canvas.hidden=!items.length||!renderer;syncArtifacts();renderList();
       if(previousStructure!==items.map(a=>a.key+"\0"+a.parent).join("\n"))fitView();else requestDraw();

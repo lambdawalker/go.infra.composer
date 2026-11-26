@@ -5,14 +5,14 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-function checkSenderCertificate(meshes, THREE) {
+function checkCertificate(meshes, THREE, emblem) {
   const plaque = meshes.find(mesh => mesh.userData.name === "Engraved glass plaque");
   const top = name => {
     const mesh = meshes.find(part => part.userData.name === name);
     return new THREE.Box3().setFromObject(mesh, true).max.y;
   };
-  assert.ok(Math.abs(top("Scalloped ribbon seal") - top("Envelope body")) < 1e-5,
-    "ribbon and envelope top edges align");
+  assert.ok(Math.abs(top("Scalloped ribbon seal") - top(emblem)) < 1e-5,
+    "ribbon and emblem top edges align");
   for (const mesh of meshes) {
     assert.equal(mesh.material.transmission, 1, mesh.name);
     assert.ok(mesh.material.thickness > 0 && Number.isFinite(mesh.material.attenuationDistance));
@@ -98,7 +98,8 @@ function checkVaultDoor(meshes, THREE) {
 
 const customLandmarks = {
   "cloudflare/dns.glb": ["Amber cloud", "Hexagonal post", "Left collar", "Right collar"],
-  "aws/acm.glb": ["Ruby shield", "Ivory T", "Ivory L", "Ivory S"],
+  "aws/acm.glb": ["Raised TLS lettering", "Engraved glass plaque", "Scalloped ribbon seal"],
+  "aws/acm-shield.glb": ["Ruby shield", "Ivory T", "Ivory L", "Ivory S"],
   "aws/api-gateway.glb": ["Aperture rim", "Iris blade 03", "Chevron 08", ...gatewayPackets],
   "aws/cloudwatch.glb": ["Ticker housing", "Left raised rim", "Right raised rim", "Glass bottom plate", "Feed slot", "Curled log strip", "Timestamp 1", "Message 1", "Timestamp 2", "Message 2", "Timestamp 3", "Message 3"],
   "aws/cognito.glb": ["Swept ruby-glass leg", "Spindle", "Fluted thumbwheel", "Profile card 01", "Profile card 34", "Profile head", "Profile shoulders"],
@@ -130,9 +131,10 @@ test("the shipped renderer loads every embedded service model without external r
     const meshes = [];
     gltf.scene.traverse(object => {if (object.isMesh) meshes.push(object);});
     if (customLandmarks[relativePath]) {
-      if (file === "ses.glb") checkSenderCertificate(meshes, THREE);
+      if (file === "ses.glb") checkCertificate(meshes, THREE, "Envelope body");
+      if (file === "acm.glb") checkCertificate(meshes, THREE, "Raised TLS lettering");
       if (file === "secretsmanager.glb") checkVaultDoor(meshes, THREE);
-      if (file === "acm.glb") checkShieldProfile(meshes, THREE);
+      if (file === "acm-shield.glb") checkShieldProfile(meshes, THREE);
       if (file === "api-gateway.glb") checkGatewayPackets(meshes, THREE);
       const names = meshes.map(mesh => mesh.userData.name);
       for (const landmark of customLandmarks[relativePath]) assert.ok(names.includes(landmark), file + " missing " + landmark);
