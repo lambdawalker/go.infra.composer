@@ -9,7 +9,7 @@
   const symbolFor = type => /route53|cloudflare|acm|domain|apiGateway/i.test(type) ? "globe" : /dynamodb|s3|storage/i.test(type) ? "database" : /iam|secret|cognito|kms|authorizer/i.test(type) ? "shield" : /ses|email/i.test(type) ? "mail" : /lambda|eventRule|eventTarget/i.test(type) ? "bolt" : "layers";
   const awsIconFor = window.wizardAWSIconFor || (() => "");
   const artifactIcon = a => {
-    const source = awsIconFor(a.type || "");
+    const source = awsIconFor(a.type || "", a.iconVariant);
     if (!source) return icon(a.symbol || symbolFor(a.type || ""));
     const img = document.createElement("img");
     img.className = "service-icon";

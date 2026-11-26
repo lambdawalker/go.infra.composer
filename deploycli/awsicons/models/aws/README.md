@@ -14,6 +14,9 @@ For engraved certificate icons, use one shared accent glass material for the fra
 | `cognito.glb` | Classic Rotary user directory with 34 frosted cards, a raised ruby profile and curved glass supports | `9e0a61b6565368cbe8a59f3d41c5306cd7080fd8aa551ee2163fa427f3be6b27` |
 | `cloudwatch.glb` | Hollow raspberry-glass ticker with raised side rims, a framed feed slot and a curled ivory log strip | `4e4183c92c44cfc395d7395b5813f9921b6b8c4e74d043c26c22adad5aaa1c56` |
 | `acm.glb` | Engraved glass TLS certificate with a sapphire frame, raised TLS letters and ribbon seal | `1ad620958e9a3a65958274ca39eb0236a62ef83c0805a3003b5bb0a8abb43152` |
+| `iam-role.glb` | IAM role plaque with ruby frame, person silhouette and matching ribbon | `d9a87301ea8e164c89e92948e58b8b4e4947aacecf4e65d00522b868f192f57a` |
+| `acm-validation.glb` | ACM certificate validation plaque with emerald frame, ACM and matching ribbon | `8a9454a3ac81a57e2fb8060d4dbb2da366fd297db96eeda13bc02f0d9c3bac90` |
+| `api-gateway-jwt.glb` | API Gateway JWT authorizer plaque with teal frame, JWT and matching ribbon | `263d3e2d7fc35566a3dcc642b9ad96b821b5f2e015aa6737dfb2d6b33c2ebdb0` |
 | `acm-shield.glb` | Alternate topology model. Transmissive ruby glass shield with a beveled opening for ivory TLS letters on its convex face | `6a00fe0b27967c7d10cef4a86be671ecbe4b4759370dea7b4b86714b052066b1` |
 | `api-gateway-route.glb` | Violet glass sextant with a round port cap, diagonal telescope mounted in front of its frosted index arm, and cyan packet slider | `40a9c4a3979b5c39dd5753df2b4026fe2be5923916eff5d9e30364cdd0a87895` |
 | `api-gateway.glb` | Violet aperture with three compact cyan glass packets entering the iris | `9b1915ce7a36bf42ec624e5596b5f9e6ae67872ce327ea1b2f312a6bd160f830` |

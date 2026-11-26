@@ -34,11 +34,13 @@ test("maps recorded state buckets and legacy abbreviated AWS types", () => {
     assert.equal(awsIconFor(type), "/icons/aws/s3.svg", type);
   }
   assert.equal(awsIconFor("aws:cloudwatch:EventRule"), "/icons/aws/eventbridge.svg");
+  assert.equal(awsIconFor("aws:apigatewayv2:Authorizer", "jwt"), "/icons/aws/api-gateway-jwt.svg");
+  assert.equal(awsIconFor("aws:apigatewayv2:Authorizer"), "/icons/aws/api-gateway.svg");
   const shortened = {
     "aws:lambda:Permission": "lambda-permission",
     "aws:acm:Certificate": "acm", "aws:apigatewayv2:Api": "api-gateway",
     "aws:cognito:UserPool": "cognito", "aws:dynamodb:Table": "dynamodb",
-    "aws:iam:Role": "iam", "aws:kms:Key": "kms", "aws:lambda:Function": "lambda",
+    "aws:iam:Role": "iam-role", "aws:acm:CertificateValidation": "acm-validation", "aws:kms:Key": "kms", "aws:lambda:Function": "lambda",
     "aws:route53:Record": "route53", "aws:secretsmanager:Secret": "secretsmanager",
     "aws:ses:EmailIdentity": "ses", "aws:cloudwatch:LogGroup": "cloudwatch",
     "aws:cloudwatch:EventTarget": "eventbridge"

@@ -26,7 +26,7 @@
   function layoutArtifacts(artifacts) {
     const items = artifacts.map(a => ({
       key:String(a.key), name:String(a.name || a.key), type:String(a.type || "Resource"),
-      description:String(a.description || ""), action:String(a.action || "unknown"),
+      iconVariant:a.iconVariant, description:String(a.description || ""), action:String(a.action || "unknown"),
       parent:String(a.parent || ""), category:categoryFor(String(a.type || "")),
       children:[], position:null
     }));
@@ -92,8 +92,8 @@
     return {x:(px+1)*width/2,y:(1-py)*height/2,visible:Math.abs(px)<=1.05&&Math.abs(py)<=1.05};
   }
 
-  function modelPathFor(type, iconFor) {
-    const icon = typeof iconFor === "function" ? iconFor(type) : "";
+  function modelPathFor(type, iconFor, variant) {
+    const icon = typeof iconFor === "function" ? iconFor(type, variant) : "";
     const match = /^\/icons\/((?:aws|cloudflare)\/[a-z0-9-]+)\.svg$/.exec(icon || "");
     return match ? "/models/" + match[1] + ".glb" : "";
   }
@@ -245,7 +245,7 @@
       stage.focus({preventScroll:true});
     });
     function pathFor(item) {
-      const path=modelPathFor(item.type,window.wizardAWSIconFor);
+      const path=modelPathFor(item.type,window.wizardAWSIconFor,item.iconVariant);
       return path==="/models/aws/acm.glb" && tlsModel.value==="shield" ? "/models/aws/acm-shield.glb" : path;
     }
     listen(tlsModel,"change",()=>{syncArtifacts();updateMessage();requestDraw();});
@@ -485,7 +485,7 @@
     function setArtifacts(artifacts) {
       const previousStructure=items.map(a=>a.key+"\0"+a.parent).join("\n");
       items=layoutArtifacts(artifacts);byKey=new Map(items.map(a=>[a.key,a]));
-      tlsModel.hidden=!items.some(item=>modelPathFor(item.type,window.wizardAWSIconFor)==="/models/aws/acm.glb");
+      tlsModel.hidden=!items.some(item=>modelPathFor(item.type,window.wizardAWSIconFor,item.iconVariant)==="/models/aws/acm.glb");
       if(!byKey.has(selectedKey))selectedKey="";
       canvas.hidden=!items.length||!renderer;syncArtifacts();renderList();
       if(previousStructure!==items.map(a=>a.key+"\0"+a.parent).join("\n"))fitView();else requestDraw();

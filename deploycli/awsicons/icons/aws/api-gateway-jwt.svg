@@ -1,0 +1,10 @@
+<svg fill="#007e82" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>API Gateway JWT authorizer</title>
+  <rect x="2" y="7" width="60" height="45" rx="4"/>
+  <path d="M9 12h46q0 4 3 4v26q-3 0-3 5H9q0-5-3-5V16q3 0 3-4Z" fill="#fff2d4"/>
+  <path d="M25 18h14m-23 6h32m-32 5h25" fill="none" stroke="#bda578" stroke-width="2.5" stroke-linecap="round"/>
+  <text x="20" y="45" text-anchor="middle" font-family="sans-serif" font-size="11" font-weight="bold">JWT</text>
+  <path d="m43 45-3 13 5-2 3 4 2-13 3 12 3-4 4 1-5-13Z"/>
+  <path d="m49 31 4 2 4 1 1 4 2 3-2 4-1 4-4 1-4 2-4-2-4-1-1-4-2-4 2-3 1-4 4-1Z"/>
+  <circle stroke="#77dad9" stroke-width="1.5" cx="49" cy="41.5" r="6"/>
+</svg>

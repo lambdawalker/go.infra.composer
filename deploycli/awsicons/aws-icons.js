@@ -10,7 +10,7 @@
     secretsmanager: "secretsmanager", ses: "ses"
   });
 
-  function awsIconFor(type) {
+  function awsIconFor(type, variant) {
     // Pulumi types end in :Kind; locally recorded resources such as the state
     // bucket can use aws:s3/stateBucket, and older records use aws:s3:Bucket.
     if (type === "cloudflare:index/dnsRecord:DnsRecord" || type === "cloudflare:DnsRecord" ||
@@ -20,6 +20,9 @@
     const [, service] = match;
     const resource = match[2] || match[4];
     if (service === "apigatewayv2" && /^route$/i.test(resource)) return "/icons/aws/api-gateway-route.svg";
+    if (service === "iam" && /^role$/i.test(resource)) return "/icons/aws/iam-role.svg";
+    if (service === "acm" && /^certificateValidation$/i.test(resource)) return "/icons/aws/acm-validation.svg";
+    if (service === "apigatewayv2" && /^authorizer$/i.test(resource) && variant === "jwt") return "/icons/aws/api-gateway-jwt.svg";
     if (service === "lambda" && /^permission$/i.test(resource)) return "/icons/aws/lambda-permission.svg";
     const icon = service === "cloudwatch" ?
       (/^event(Rule|Target)$/i.test(resource) ? "eventbridge" : "cloudwatch") :

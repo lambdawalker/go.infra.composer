@@ -101,7 +101,15 @@ function checkVaultDoor(meshes, THREE) {
   }
 }
 
+const certificateEmblems = {
+  "acm-validation.glb": "Raised ACM lettering",
+  "api-gateway-jwt.glb": "Raised JWT lettering",
+  "iam-role.glb": "Person silhouette"
+};
+
 const customLandmarks = {
+  ...Object.fromEntries(Object.entries(certificateEmblems).map(([file, emblem]) =>
+    ["aws/" + file, [emblem, "Engraved glass plaque", "Scalloped ribbon seal"]])),
   "cloudflare/dns.glb": ["Amber cloud", "Hexagonal post", "Left collar", "Right collar"],
   "aws/acm.glb": ["Raised TLS lettering", "Engraved glass plaque", "Scalloped ribbon seal"],
   "aws/acm-shield.glb": ["Ruby shield", "Ivory T", "Ivory L", "Ivory S"],
@@ -143,6 +151,7 @@ test("the shipped renderer loads every embedded service model without external r
         Number.isFinite(m.attenuationDistance) && m.metalness === 0;
     }), file + " includes volume-tinted glass");
     if (customLandmarks[relativePath]) {
+      if (certificateEmblems[file]) checkCertificate(meshes, THREE, certificateEmblems[file]);
       if (file === "ses.glb") checkCertificate(meshes, THREE, "Envelope body");
       if (file === "lambda-permission.glb") {
         checkCertificate(meshes, THREE, "Lambda main diagonal");

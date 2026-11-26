@@ -26,6 +26,7 @@ writing identity configuration.
 | `BuildPackage`, `BuildDir` | Go Lambda package and archive directory under `dist/` |
 | `Memory`, `StackIdentity` | Optional Lambda memory setting and opt-in ownership verification for programs with a compatible `deploymentIdentity` output |
 | `InputsFile`, `Inputs`, `Functions`, `ConfigDefaults` | Optional versioned nonsecret settings, validated input flags, composition functions, and defaults written only for missing Pulumi keys |
+| `ArtifactIconVariants` | Optional map of exact logical names to icon variants. Use `jwt` for API Gateway v2 JWT authorizers to distinguish them from Lambda request authorizers. |
 | `ArtifactDescriptions` | Optional map from exact Pulumi logical resource names to short, nonsecret purpose descriptions. The wizard and exported reports show them for resources already in state and resources proposed by preview. |
 | `ArtifactFeaturePrefixes` | Optional map from Pulumi logical resource name prefixes to artifact feature labels. The longest matching prefix wins. Unmatched resources and the bootstrap state bucket use `Feature`. |
 | `Outputs` | Allowlist of nonsecret string outputs for status and persisted output receipts |
