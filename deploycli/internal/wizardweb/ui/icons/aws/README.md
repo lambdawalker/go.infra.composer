@@ -1,6 +1,6 @@
 # AWS service icons
 
-These thirteen SVGs are the AWS service icons downloaded from
+These fifteen SVGs are the AWS service icons downloaded from
 [AWS Icons](https://aws-icons.com/), which identifies the
 [AWS Architecture Icons](https://aws.amazon.com/architecture/icons/) package as
 their source. The artwork is owned by Amazon Web Services, Inc.; consult AWS's

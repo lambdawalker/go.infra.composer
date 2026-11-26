@@ -1,7 +1,7 @@
 # Topology runtime
 
 This build bundles Three.js, its glTF loader, and the procedural room lighting
-used by the topology's glass cubes. The wizard serves the checked-in bundle
+used by the topology's AWS service models. The wizard serves the checked-in bundle
 locally; running the deployment CLI does not require Node or a CDN.
 
 To rebuild after changing dependencies or exports, run `npm ci` and `npm run build`

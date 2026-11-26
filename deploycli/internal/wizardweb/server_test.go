@@ -249,7 +249,7 @@ func TestLoopbackWizardProtectsStateAndReplies(t *testing.T) {
 		response := request(handler, http.MethodGet, asset, testHost, "", "", "")
 		if response.Code != http.StatusOK || response.Header().Get("Content-Type") != "model/gltf-binary" ||
 			!strings.HasPrefix(response.Body.String(), "glTF") {
-			t.Fatalf("AWS glass model %s was not served as GLB: %d", asset, response.Code)
+			t.Fatalf("AWS service model %s was not served as GLB: %d", asset, response.Code)
 		}
 	}
 	for _, asset := range []string{"/models/aws/unknown.glb", "/models/aws/README.md", "/vendor/three-LICENSE.txt"} {

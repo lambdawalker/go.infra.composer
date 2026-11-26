@@ -1,6 +1,6 @@
 "use strict";
 
-// AWS glass models are bundled locally. Labels and controls remain DOM elements
+// AWS models are bundled locally. Labels and controls remain DOM elements
 // so the inventory stays usable without WebGL and with a keyboard.
 (() => {
   const categories = {
@@ -14,7 +14,7 @@
 
   function categoryFor(type) {
     if (/lambda\/function|:Function$|:TestHost$|:StorageAndSigner$/i.test(type)) return "compute";
-    if (/dynamodb|s3\/|storage|:Bucket$|:Table$/i.test(type)) return "storage";
+    if (/dynamodb|^aws:(?:rds|neptune)[/:]|s3\/|storage|:Bucket$|:Table$/i.test(type)) return "storage";
     if (/iam|cognito|kms|secretsmanager|:Authorizer$|lambda\/permission|:Permission$|random\/|:RandomBytes/i.test(type)) return "security";
     if (/apigateway|route53|cloudflare|acm\/|:Certificate|:DnsRecord|:DomainName/i.test(type)) return "network";
     if (/ses|cloudwatch\/event|:EmailIdentity|:EventRule|:EventTarget/i.test(type)) return "message";
@@ -131,7 +131,7 @@
       if(!items.length)setMessage("Select the deployment target to view its artifacts.");
       else if(contextLost)setMessage("3D view is temporarily unavailable. Select an artifact from the list below.");
       else if(!renderer)setMessage("3D view is unavailable here. Select an artifact from the list below.");
-      else if(items.some(item=>loadingModels.has(modelPathFor(item.type,window.wizardAWSIconFor))))setMessage("Loading AWS glass models…");
+      else if(items.some(item=>loadingModels.has(modelPathFor(item.type,window.wizardAWSIconFor))))setMessage("Loading AWS models…");
       else if(items.some(item=>failedModels.has(modelPathFor(item.type,window.wizardAWSIconFor))))setMessage("Some AWS models could not be loaded. Those artifacts use basic shapes.");
       else setMessage("");
     }

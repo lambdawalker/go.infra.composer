@@ -33,7 +33,7 @@ var awsIconPaths = map[string]struct{}{
 	"/icons/aws/iam.svg": {}, "/icons/aws/kms.svg": {},
 	"/icons/aws/lambda.svg": {}, "/icons/aws/route53.svg": {},
 	"/icons/aws/s3.svg": {}, "/icons/aws/secretsmanager.svg": {},
-	"/icons/aws/ses.svg": {},
+	"/icons/aws/ses.svg": {}, "/icons/aws/rds.svg": {}, "/icons/aws/neptune.svg": {},
 }
 
 var awsModelPaths = func() map[string]struct{} {
