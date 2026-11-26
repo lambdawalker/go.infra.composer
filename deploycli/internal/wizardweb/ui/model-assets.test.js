@@ -137,6 +137,11 @@ test("the shipped renderer loads every embedded service model without external r
     const gltf = await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), "");
     const meshes = [];
     gltf.scene.traverse(object => {if (object.isMesh) meshes.push(object);});
+    assert.ok(meshes.some(mesh => {
+      const m = mesh.material;
+      return m.isMeshPhysicalMaterial && m.transmission >= .95 && m.thickness > 0 &&
+        Number.isFinite(m.attenuationDistance) && m.metalness === 0;
+    }), file + " includes volume-tinted glass");
     if (customLandmarks[relativePath]) {
       if (file === "ses.glb") checkCertificate(meshes, THREE, "Envelope body");
       if (file === "lambda-permission.glb") {

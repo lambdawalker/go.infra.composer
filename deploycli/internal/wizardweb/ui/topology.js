@@ -164,7 +164,7 @@
     let mode="orbit",yaw=openingYaw,pitch=openingPitch,distance=30,target=[0,0,0],contextLost=false,disposed=false;
     // Normalized size and center offset of the viewport inside the full perspective frame.
     let cropSize=1,cropX=0,cropY=0;
-    let renderer=null,scene=null,camera=null,runtime=null,edges=null,halo=null,environment=null;
+    let layeredGlass=null,renderer=null,scene=null,camera=null,runtime=null,edges=null,halo=null,environment=null;
     let keyLight=null,floor=null,raycaster=null,mouse=null,lastEdgeSignature="";
     const nodes=new Map(),modelCache=new Map(),loadingModels=new Set(),failedModels=new Set();
     const fallbackGeometry=new Map(),fallbackMaterials=new Map();
@@ -268,6 +268,7 @@
         if(!runtime?.THREE||!runtime.GLTFLoader||!runtime.RoomEnvironment)throw Error("3D runtime unavailable");
         const T=runtime.THREE;
         renderer=new T.WebGLRenderer({canvas,antialias:true,alpha:false});
+        layeredGlass=new runtime.LayeredGlass(renderer);
         renderer.shadowMap.enabled=true;
         renderer.shadowMap.autoUpdate=false;
         renderer.outputColorSpace=T.SRGBColorSpace;
@@ -307,6 +308,7 @@
       edges?.geometry.dispose();edges?.material.dispose();halo?.geometry.dispose();halo?.material.dispose();
       floor?.geometry.dispose();floor?.material.dispose();floor=null;
       keyLight?.shadow.dispose();keyLight=null;
+      layeredGlass?.dispose();layeredGlass=null;
       environment?.dispose();renderer?.dispose();
       renderer=null;scene=null;camera=null;edges=null;halo=null;environment=null;raycaster=null;mouse=null;
     }
@@ -318,7 +320,12 @@
           category==="security"?new T.OctahedronGeometry(1):
           category==="message"?new T.ConeGeometry(.85,1.8,16):new T.BoxGeometry(1.7,1.7,1.7);
         fallbackGeometry.set(category,geometry);
-        fallbackMaterials.set(category,new T.MeshStandardMaterial({color:new T.Color(...categories[category].color),roughness:.5}));
+        const tint=new T.Color(...categories[category].color);
+        fallbackMaterials.set(category,new T.MeshPhysicalMaterial({
+          color:tint.clone().lerp(new T.Color(0xffffff),.35),attenuationColor:tint,
+          roughness:.105,transmission:1,ior:1.48,thickness:.16,attenuationDistance:.19,
+          clearcoat:.28,clearcoatRoughness:.1
+        }));
       }
       const mesh=new T.Mesh(fallbackGeometry.get(category),fallbackMaterials.get(category));
       mesh.castShadow=true;
@@ -449,7 +456,7 @@
       const span=2*distance*Math.tan(camera.fov*Math.PI/360);
       camera.translateX(-cropX*span*camera.aspect);camera.translateY(cropY*span);
       camera.updateMatrixWorld();
-      orientAxes();renderer.render(scene,camera);
+      orientAxes();layeredGlass.render(scene,camera,nodes.values());
     }
     function requestDraw() {
       if(disposed||!active||drawQueued||contextLost)return;
