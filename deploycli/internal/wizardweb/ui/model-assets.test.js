@@ -105,6 +105,7 @@ const customLandmarks = {
   "cloudflare/dns.glb": ["Amber cloud", "Hexagonal post", "Left collar", "Right collar"],
   "aws/acm.glb": ["Raised TLS lettering", "Engraved glass plaque", "Scalloped ribbon seal"],
   "aws/acm-shield.glb": ["Ruby shield", "Ivory T", "Ivory L", "Ivory S"],
+  "aws/api-gateway-route.glb": ["Round apex pivot", "Round port scale cap", "Pierced brace eye", "Graduated outer arc", "Frosted index arm", "Diagonal telescope barrel", "Cyan packet slider"],
   "aws/api-gateway.glb": ["Aperture rim", "Iris blade 03", "Chevron 08", ...gatewayPackets],
   "aws/cloudwatch.glb": ["Ticker housing", "Left raised rim", "Right raised rim", "Glass bottom plate", "Feed slot", "Curled log strip", "Timestamp 1", "Message 1", "Timestamp 2", "Message 2", "Timestamp 3", "Message 3"],
   "aws/cognito.glb": ["Swept ruby-glass leg", "Spindle", "Fluted thumbwheel", "Profile card 01", "Profile card 34", "Profile head", "Profile shoulders"],
@@ -146,6 +147,13 @@ test("the shipped renderer loads every embedded service model without external r
       if (file === "acm.glb") checkCertificate(meshes, THREE, "Raised TLS lettering");
       if (file === "secretsmanager.glb") checkVaultDoor(meshes, THREE);
       if (file === "acm-shield.glb") checkShieldProfile(meshes, THREE);
+      if (file === "api-gateway-route.glb") {
+        const bounds = name => new THREE.Box3().setFromObject(meshes.find(mesh => mesh.userData.name === name), true);
+        const cap = bounds("Round port scale cap").getSize(new THREE.Vector3());
+        assert.ok(Math.abs(cap.x - cap.y) < .002, "port fitting has a circular face");
+        assert.ok(bounds("Diagonal telescope barrel").min.z > bounds("Frosted index arm").max.z,
+          "the telescope passes in front of the index arm");
+      }
       if (file === "api-gateway.glb") checkGatewayPackets(meshes, THREE);
       const names = meshes.map(mesh => mesh.userData.name);
       for (const landmark of customLandmarks[relativePath]) assert.ok(names.includes(landmark), file + " missing " + landmark);

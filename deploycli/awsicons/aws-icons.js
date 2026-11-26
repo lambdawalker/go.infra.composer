@@ -19,6 +19,7 @@
     if (!match) return "";
     const [, service] = match;
     const resource = match[2] || match[4];
+    if (service === "apigatewayv2" && /^route$/i.test(resource)) return "/icons/aws/api-gateway-route.svg";
     if (service === "lambda" && /^permission$/i.test(resource)) return "/icons/aws/lambda-permission.svg";
     const icon = service === "cloudwatch" ?
       (/^event(Rule|Target)$/i.test(resource) ? "eventbridge" : "cloudwatch") :

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>API Gateway Route</title>
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <path d="M7 48 31 8l24 40M8 48q23 16 46 0" fill="none" stroke="#a65aeb" stroke-width="4"/>
+    <path d="M17 33h28m-14 0v21" fill="none" stroke="#bd81ef" stroke-width="2.5"/>
+    <path d="M5 53q26 18 52-1" fill="none" stroke="#914bce" stroke-width="5"/>
+    <path d="m31 8 13 48" fill="none" stroke="#d8b6fb" stroke-width="5"/>
+    <g fill="#9e58dd" stroke="#dbaaff"><circle cx="31" cy="8" r="6"/><circle cx="7" cy="49" r="4"/></g>
+    <path d="m30 27 25-13" fill="none" stroke="#6e349b" stroke-width="7"/>
+    <path d="m30 25 25-13" fill="none" stroke="#ba78e7" stroke-width="2"/>
+    <path d="m54 11 3 6" stroke="#ce99f5" stroke-width="3"/>
+    <rect x="39" y="52" width="10" height="6" rx="1.4" transform="rotate(-17 44 55)" fill="#35d9eb"/>
+  </g>
+</svg>
