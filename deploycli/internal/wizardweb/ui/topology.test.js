@@ -44,6 +44,7 @@ test("projects the camera target to canvas center for picking", () => {
 
 test("chooses the same AWS service for the 3D model and artifact icon", () => {
   const cases = {
+    "aws:apigatewayv2/integration:Integration":"api-gateway-integration",
     "aws:apigatewayv2/route:Route":"api-gateway-route", "aws:apigatewayv2/api:Api":"api-gateway",
     "aws:lambda/function:Function":"lambda", "aws:lambda/permission:Permission":"lambda-permission",
     "aws:s3/stateBucket":"s3", "aws:s3:Bucket":"s3", "aws:s3/bucketObjectv2:BucketObjectv2":"s3",

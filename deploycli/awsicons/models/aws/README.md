@@ -18,6 +18,7 @@ For engraved certificate icons, use one shared accent glass material for the fra
 | `acm-validation.glb` | ACM certificate validation plaque with emerald frame, ACM and matching ribbon | `8a9454a3ac81a57e2fb8060d4dbb2da366fd297db96eeda13bc02f0d9c3bac90` |
 | `api-gateway-jwt.glb` | API Gateway JWT authorizer plaque with teal frame, JWT and matching ribbon | `263d3e2d7fc35566a3dcc642b9ad96b821b5f2e015aa6737dfb2d6b33c2ebdb0` |
 | `acm-shield.glb` | Alternate topology model. Transmissive ruby glass shield with a beveled opening for ivory TLS letters on its convex face | `6a00fe0b27967c7d10cef4a86be671ecbe4b4759370dea7b4b86714b052066b1` |
+| `api-gateway-integration.glb` | Rounded violet glass clevis and orange glass tongue joined by a brushed silver pin | `e8501d198eac4b15959111eca1ab3a5e0df9573b3e3099e6000c4340a12e569e` |
 | `api-gateway-route.glb` | Violet glass sextant with a round port cap, diagonal telescope mounted in front of its frosted index arm, and cyan packet slider | `40a9c4a3979b5c39dd5753df2b4026fe2be5923916eff5d9e30364cdd0a87895` |
 | `api-gateway.glb` | Violet aperture with three compact cyan glass packets entering the iris | `9b1915ce7a36bf42ec624e5596b5f9e6ae67872ce327ea1b2f312a6bd160f830` |
 | `route53.glb` | Violet glass signpost topped with a raised 53 plate | `99fc08f19b3185b1b6e57e84bcef8d8156498fe75d87d61502c81380abdd3b44` |
