@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const {categoryFor,layoutArtifacts,perspective,lookAt,multiply,project,modelPathFor,matchesArtifact,visibleEdges} = require("./topology.js");
-const {awsIconFor} = require("./aws-icons.js");
+const {awsIconFor} = require("../../../awsicons/aws-icons.js");
 
 test("keeps fallback categories for resources without a service model", () => {
   assert.equal(categoryFor("aws:lambda/function:Function"),"compute");
@@ -42,10 +42,11 @@ test("projects the camera target to canvas center for picking", () => {
 });
 
 
-test("chooses the same AWS service for the glass model and artifact icon", () => {
+test("chooses the same AWS service for the 3D model and artifact icon", () => {
   const cases = {
     "aws:lambda/function:Function":"lambda", "aws:lambda/permission:Permission":"lambda",
     "aws:s3/stateBucket":"s3", "aws:s3:Bucket":"s3", "aws:s3/bucketObjectv2:BucketObjectv2":"s3",
+    "aws:rds/instance:Instance":"rds", "aws:neptune/cluster:Cluster":"neptune",
     "aws:dynamodb/table:Table":"dynamodb", "aws:apigatewayv2/authorizer:Authorizer":"api-gateway",
     "aws:acm/certificate:Certificate":"acm", "aws:cloudwatch/logGroup:LogGroup":"cloudwatch",
     "aws:cloudwatch/eventRule:EventRule":"eventbridge", "aws:cloudwatch:EventTarget":"eventbridge",

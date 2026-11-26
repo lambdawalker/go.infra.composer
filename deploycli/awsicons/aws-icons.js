@@ -6,7 +6,7 @@
   const services = Object.freeze({
     acm: "acm", apigateway: "api-gateway", apigatewayv2: "api-gateway",
     cognito: "cognito", dynamodb: "dynamodb", iam: "iam", kms: "kms",
-    lambda: "lambda", route53: "route53", s3: "s3",
+    lambda: "lambda", neptune: "neptune", rds: "rds", route53: "route53", s3: "s3",
     secretsmanager: "secretsmanager", ses: "ses"
   });
 

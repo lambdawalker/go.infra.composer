@@ -2,7 +2,7 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const {awsIconFor} = require("./aws-icons.js");
+const {awsIconFor} = require("../../../awsicons/aws-icons.js");
 
 test("maps the email verification and discovery AWS resource families", () => {
   const cases = {
