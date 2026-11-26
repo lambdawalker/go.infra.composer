@@ -13,6 +13,9 @@
   <script src="/aws-icons.js" defer></script>
   <script src="/vendor/topology-three.js" defer></script>
   <script src="/topology.js" defer></script>
+  <script src="/preview-review.js" defer></script>
+  <script src="/artifact-dependencies.js" defer></script>
+  <script src="/deployment-history.js" defer></script>
   <script src="/workspace.js" defer></script>
 </head>
 <body>
@@ -88,7 +91,13 @@
           <div class="section-title"><div><h2>Backend at a glance</h2><p>Recorded deployment and proposed changes</p></div><span class="badge same" id="plan-state">Loading</span></div>
           <div class="metric-row"><div class="metric present"><b id="artifact-total">0</b><span>Known artifacts</span></div><div class="metric changed"><b id="change-total">0</b><span>Planned changes</span></div><div class="metric unknown"><b id="unknown-total">0</b><span>Presence unchecked</span></div></div>
           <p class="section-note" id="inventory-source">Checking deployment records…</p><div class="rule"></div>
-          <section id="proposed-changes"><div class="section-title"><div><h2>Proposed changes</h2><p>Select a card to inspect its artifact on the right</p></div></div><div class="change-list" id="changes"></div></section>
+          <section id="proposed-changes"><div class="section-title"><div><h2>Proposed changes</h2><p>Select a card to inspect its artifact on the right</p><p id="plan-limit" hidden></p></div></div><div class="change-list" id="changes"></div></section>
+          <section class="overview-section" id="drift-check">
+            <div class="section-title"><h2>Drift check</h2><button class="button outline" id="check-drift" type="button" disabled>Check drift</button></div>
+            <p class="section-note" id="drift-summary" aria-live="polite">No drift check recorded.</p>
+            <div id="drift-results"></div>
+          </section>
+          <section class="overview-section" id="deployment-history"></section>
           </div>
         </section>
         <section class="tab-panel editor-panel" id="actions-panel" role="tabpanel" aria-labelledby="actions-tab" tabindex="0" hidden><div id="actions-slot"></div><div id="actions-standby" aria-label="Available deployment actions"></div></section>
@@ -103,7 +112,7 @@
         <section class="tab-panel console-panel" id="console-panel" role="tabpanel" aria-labelledby="console-tab" tabindex="0" hidden><div class="console-intro"><div><h2>Process output</h2><p>Recent wizard activity</p></div><span class="badge same" id="console-status"></span></div><div class="console-shell"><div class="console-toolbar"><span>All stages · <span id="line-count">0</span> lines</span><button class="console-action" id="wrap-output" type="button" aria-pressed="false">Wrap lines</button></div><div class="console-output" id="console-output" role="log" aria-label="Recent process output"></div></div></section>
       </div>
       <div class="divider" role="separator" tabindex="0" aria-label="Resize artifact panel" aria-orientation="vertical" data-side="right"></div>
-      <div class="right" id="right"><section class="panel details" id="details" aria-label="Selected artifact details"><div class="detail-head"><h2>Artifact details</h2><button class="panel-toggle" id="toggle-details" type="button" aria-label="Collapse artifact details" aria-expanded="true">−</button></div><div id="detail-content" class="detail-content"></div></section><div class="h-divider" role="separator" tabindex="0" aria-label="Resize artifact details and list" aria-orientation="horizontal" data-side="right-height"></div><section class="panel inventory"><div class="inventory-header"><div class="panel-heading"><h2>Artifacts</h2><span class="count" id="count"></span></div><div class="tools"><input id="search" type="search" placeholder="Search artifacts" aria-label="Search artifacts"><select id="filter" aria-label="Filter artifacts"><option value="all">All artifacts</option><option value="changed">Changes only</option><option value="unchanged">Unchanged</option><option value="unknown">Presence unchecked</option></select></div></div><div class="list" id="list" aria-label="Artifact hierarchy"></div><div class="inventory-note">Hierarchy reflects Pulumi relationships. Expand a branch to inspect its children.</div></section></div>
+      <div class="right" id="right"><section class="panel details" id="details" aria-label="Selected artifact details"><div class="detail-head"><h2>Artifact details</h2><button class="panel-toggle" id="toggle-details" type="button" aria-label="Collapse artifact details" aria-expanded="true">−</button></div><div id="detail-content" class="detail-content"></div></section><div class="h-divider" role="separator" tabindex="0" aria-label="Resize artifact details and list" aria-orientation="horizontal" data-side="right-height"></div><section class="panel inventory"><div class="inventory-header"><div class="panel-heading"><h2>Artifacts</h2><span class="count" id="count"></span></div><div class="tools"><input id="search" type="search" placeholder="Search artifacts" aria-label="Search artifacts"><select id="filter" aria-label="Filter artifacts"><option value="all">All artifacts</option><option value="changed">Changes only</option><option value="unchanged">Unchanged</option><option value="unknown">Presence unchecked</option></select></div><div id="owner-filters" class="owner-filters" role="group" aria-label="Filter artifacts and proposed changes by owner" hidden></div></div><div class="list" id="list" aria-label="Artifact hierarchy"></div><div class="inventory-note">Hierarchy reflects Pulumi relationships. Expand a branch to inspect its children.</div></section></div>
       <nav class="tool-stripe right-stripe" aria-label="Artifact tools"><div class="stripe-zone"><button class="stripe-button active" id="stripe-details" type="button" aria-label="Collapse artifact details" aria-expanded="true" title="Artifact details"><svg class="icon"><use href="#ws-shield"></use></svg></button></div></nav>
     </div>
     <dialog id="workspace-dialog" aria-labelledby="panel-title"><div id="dialog-content"></div><div id="dialog-footer"><div id="dialog-countdown"></div><div id="dialog-actions"></div></div></dialog>

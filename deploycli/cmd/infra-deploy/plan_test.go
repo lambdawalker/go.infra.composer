@@ -1,6 +1,11 @@
 package main
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+
+	"github.com/lambdawalker/go.infra.composer/reporting/pulumicli"
+)
 
 func TestDestructivePlan(t *testing.T) {
 	for _, tc := range []struct {
@@ -16,5 +21,28 @@ func TestDestructivePlan(t *testing.T) {
 		if got != tc.want || (e != nil) != tc.fail {
 			t.Fatal(tc.data, got, e)
 		}
+	}
+}
+
+func TestPreviewChangesPutsDestructiveOperationsBeforeDisplayLimit(t *testing.T) {
+	resources := map[string]resourcePlan{
+		"zz-delete":  {Steps: []string{"delete"}},
+		"zz-replace": {Steps: []string{"replace"}},
+		"unchanged":  {Steps: []string{"same"}},
+	}
+	for i := range 101 {
+		resources[fmt.Sprintf("create-%03d", i)] = resourcePlan{Steps: []string{"create"}}
+	}
+	review := map[string]pulumicli.PreviewReview{
+		"zz-replace": {ReplacementFields: []string{"name"}},
+	}
+	got, total, counts := previewChanges(resources, manifest{Feature: "host-app"}, review)
+	if total != 103 || len(got) != 100 || counts["host-app"] != 103 {
+		t.Fatalf("preview returned %d of %d changes with owner counts %v", len(got), total, counts)
+	}
+	if got[0].Resource != "zz-delete" || got[1].Resource != "zz-replace" ||
+		len(got[1].ReplacementFields) != 1 || got[1].ReplacementFields[0] != "name" ||
+		got[1].Feature != "host-app" || got[2].Resource != "create-000" {
+		t.Fatalf("preview started with %+v", got[:3])
 	}
 }

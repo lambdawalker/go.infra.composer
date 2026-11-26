@@ -313,7 +313,7 @@ func TestStopDeploymentCanReturnAfterCleanup(t *testing.T) {
 					return ctx.Err()
 				}
 				s.Action("deploy")
-				s.Preview([]Change{{Resource: "fixture", Operation: "create"}}, 1)
+				s.Preview([]Change{{Resource: "fixture", Operation: "create"}}, 1, nil)
 				<-ctx.Done()
 				<-finishCleanup
 				close(cleaned)

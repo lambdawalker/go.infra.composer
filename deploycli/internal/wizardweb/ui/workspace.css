@@ -150,8 +150,10 @@
 .preview-workspace .metric.unknown b {color:var(--amber)}
 .preview-workspace .rule {border-top:1px solid var(--line);margin:2px 0}
 .preview-workspace .change-list {display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));align-items:start;gap:7px}
-.preview-workspace .change-row {min-width:0;min-height:0;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:5px;padding:8px 9px 7px;text-align:left;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:5px}
-.preview-workspace .change-row:hover, .preview-workspace .change-row[aria-current="true"] {background:var(--selected);border-color:var(--focus)}
+.preview-workspace .change-card {min-width:0;padding-bottom:5px;background:var(--surface);border:1px solid var(--line);border-radius:5px}
+.preview-workspace .change-card:has(.change-row:hover), .preview-workspace .change-card:has(.change-row[aria-current="true"]) {background:var(--selected);border-color:var(--focus)}
+.preview-workspace .change-row {width:100%;min-width:0;min-height:0;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:5px;padding:7px 9px 3px;text-align:left;color:var(--text);background:transparent;border:0;border-radius:4px}
+.preview-workspace .change-card .change-owner {margin-left:9px}
 .preview-workspace .change-top, .preview-workspace .change-meta {display:flex;align-items:center;gap:8px;min-width:0}
 .preview-workspace .change-meta {justify-content:space-between}
 .preview-workspace .change-meta .badge {flex:none}
@@ -224,6 +226,23 @@
 .preview-workspace .tools input {flex:1;width:1px}
 .preview-workspace .tools select {width:112px}
 .preview-workspace .tools input::placeholder {color:var(--muted)}
+.preview-workspace .owner-filters, .preview-workspace .drift-counts {display:flex;flex-wrap:wrap;gap:4px}
+.preview-workspace .owner-filters {padding:0 9px 8px}
+.preview-workspace .owner-filter-button {cursor:pointer;font-family:inherit;text-align:left}
+.preview-workspace .owner-filter-chip {padding:2px 6px;border:1px solid var(--line);border-radius:4px;background:var(--elevated);color:var(--muted);font-size:10.5px}
+.preview-workspace .owner-filter-button:hover, .preview-workspace .owner-filter-button[aria-pressed="true"] {color:var(--text);border-color:var(--focus);background:var(--selected)}
+.preview-workspace .overview-section {display:grid;gap:7px;padding-top:12px;border-top:1px solid var(--line);margin-top:6px}
+.preview-workspace .overview-section .section-title {margin:0}
+.preview-workspace .overview-section .section-note {margin:0}
+.preview-workspace .drift-group {margin-top:6px;font-size:11px}
+.preview-workspace .drift-group summary {cursor:pointer}
+.preview-workspace .drift-group ul {margin-top:4px}
+.preview-workspace .deployment-history-list {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%, 210px),1fr));gap:7px}
+.preview-workspace .deployment-history-entry {padding:9px;border:1px solid var(--line);border-radius:5px;background:var(--elevated);font-size:11px}
+.preview-workspace .deployment-history-entry h3 {margin:0 0 4px;font-size:12px}
+.preview-workspace .deployment-history-entry p {margin:5px 0}
+.preview-workspace .deployment-history-entry p:empty {display:none}
+.preview-workspace .deployment-history-entry time {color:var(--muted)}
 .preview-workspace .list {flex:1;min-height:0;overflow:auto;padding:5px 7px 8px;scrollbar-gutter:stable}
 .preview-workspace .artifact-tree {--tree-step:16px;--tree-center:4px;--tree-root-gutter:8px;--tree-junction:17px;--tree-elbow:8px;--tree-branch-center:8px}
 .preview-workspace .artifact-tree, .preview-workspace .artifact-tree ul {list-style:none;margin:0;padding:0}
@@ -245,14 +264,15 @@
 .preview-workspace .branch-toggle:hover {color:var(--text);background:transparent}
 .preview-workspace .branch-toggle[aria-expanded="true"] .chevron {transform:rotate(45deg)}
 .preview-workspace .branch-toggle .chevron {display:block;width:6px;height:6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-45deg);transition:transform .15s}
-.preview-workspace .tree-entry {flex:1;min-width:0;display:flex;align-items:flex-start;gap:6px;padding:5px 6px;text-align:left;color:var(--text);border:1px solid transparent;border-radius:4px;background:transparent}
-.preview-workspace .tree-entry:hover, .preview-workspace .tree-entry[aria-current="true"] {background:var(--selected)}
-.preview-workspace .tree-entry[aria-current="true"] {border-color:var(--focus)}
+.preview-workspace .tree-card {flex:1;min-width:0;padding:0 0 4px;border:1px solid transparent;border-radius:4px}
+.preview-workspace .tree-card:has(.tree-entry:hover), .preview-workspace .tree-card:has(.tree-entry[aria-current="true"]) {background:var(--selected)}
+.preview-workspace .tree-card:has(.tree-entry[aria-current="true"]) {border-color:var(--focus)}
+.preview-workspace .tree-context .artifact-name {color:var(--muted)}
+.preview-workspace .tree-entry {width:100%;min-width:0;display:flex;align-items:flex-start;gap:6px;padding:4px 6px 0;text-align:left;color:var(--text);border:0;border-radius:3px;background:transparent}
 .preview-workspace .tree-entry>.icon {width:15px;height:15px;margin-top:2px;color:var(--blue)}
 .preview-workspace .tree-entry>.service-icon {width:17px;height:17px;margin-top:1px}
-.preview-workspace .tree-content {min-width:0;flex:1}
 .preview-workspace .artifact-name {display:block;overflow-wrap:anywhere;font-size:11.5px;font-weight:600;line-height:1.3}
-.preview-workspace .tree-meta {display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px}
+.preview-workspace .tree-meta {display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:2px 6px 0 29px}
 .preview-workspace .tree-meta .badge {font-size:9.5px;padding:1px 4px}
 .preview-workspace .tree-owner {display:inline-flex;align-items:center;padding:1px 4px;border:1px solid var(--line);border-radius:3px;background:var(--elevated);color:var(--muted);font-size:9.5px;white-space:nowrap}
 .preview-workspace .inventory-note {flex:none;padding:6px 9px;border-top:1px solid var(--line);background:var(--header);color:var(--muted);font-size:10px}
@@ -541,3 +561,9 @@ body:has(#vault-lock:not([hidden])) .theme-control select { min-height:27px; bac
 .preview-workspace #workspace-dialog[data-mode="signIn"] #sign-in .section-heading p {margin:0;color:var(--muted);font-size:12px}
 .preview-workspace #workspace-dialog[data-mode="signIn"] #sign-in pre {margin:0 20px 20px}
 .preview-workspace #workspace-dialog[data-mode="signIn"] #dialog-countdown {display:none}
+
+.preview-workspace .artifact-preview-review {margin:12px 0; padding-top:10px; border-top:1px solid var(--line)}
+.preview-workspace .artifact-preview-review p {margin:6px 0; font-size:11px; overflow-wrap:anywhere}
+.preview-workspace .artifact-preview-values th[scope="row"], .preview-workspace .artifact-preview-values td {
+  padding:5px; vertical-align:top; overflow-wrap:anywhere;
+}

@@ -6,10 +6,61 @@ import (
 	r "github.com/lambdawalker/go.infra.composer/reporting"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestStateDependenciesOnlyExposeKnownManagedResourceKeys(t *testing.T) {
+	input := `{"deployment":{"resources":[
+		{"urn":"function","type":"aws:lambda/function:Function","parent":"component",
+		 "dependencies":["role","key","function","provider","unknown-secret-value"],
+		 "propertyDependencies":{"sensitive-property":["key","table"]}},
+		{"urn":"role","type":"aws:iam/role:Role"},
+		{"urn":"key","type":"aws:kms/key:Key"},
+		{"urn":"table","type":"aws:dynamodb/table:Table"},
+		{"urn":"component","type":"custom:app:Component","custom":false},
+		{"urn":"provider","type":"pulumi:providers:aws"}]}}`
+	got, err := ReadState(strings.NewReader(input), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 4 || !slices.Equal(got[0].Dependencies, []string{"key", "role", "table"}) {
+		t.Fatalf("incorrect dependency graph: %#v", got)
+	}
+	var body strings.Builder
+	if err := r.WriteJSON(&body, r.Report{Artifacts: got}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(body.String(), "unknown-secret-value") || strings.Contains(body.String(), "sensitive-property") {
+		t.Fatal("dependency property names or unresolved values escaped the state reader")
+	}
+}
+
+func TestSavedPlanDependenciesOverrideOnlyKnownGoals(t *testing.T) {
+	recorded := []r.Artifact{
+		{Key: "lambda", Dependencies: []string{"old-role"}, ProviderID: "existing"},
+		{Key: "old-role", Dependencies: []string{"key"}},
+		{Key: "removed-edge", Dependencies: []string{"old-role"}},
+		{Key: "new-role"},
+		{Key: "key"},
+	}
+	input := `{"resourcePlans":{
+		"lambda":{"goal":{"dependencies":["new-role"],"propertyDependencies":{"keyArn":["key","new-role","unmanaged"]}}},
+		"old-role":{"steps":["delete"]},
+		"removed-edge":{"goal":{}}}}`
+	got, err := ApplyPlanDependencies(recorded, strings.NewReader(input))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(got[0].Dependencies, []string{"key", "new-role"}) ||
+		!slices.Equal(got[1].Dependencies, []string{"key"}) ||
+		len(got[2].Dependencies) != 0 || got[0].ProviderID != "existing" ||
+		!slices.Equal(recorded[0].Dependencies, []string{"old-role"}) {
+		t.Fatalf("incorrect planned links: %#v", got)
+	}
+}
 
 func TestStateAllowlistAndParentInference(t *testing.T) {
 	input := `{"deployment":{"resources":[{"urn":"bucket","id":"b","type":"aws:s3/bucket:Bucket","outputs":{"tags":{"ic:feature":"capture"},"password":"secret-marker"}},{"urn":"object","id":"b/k","type":"aws:s3/bucketObjectv2:BucketObjectv2","outputs":{"bucket":"b","key":"index.html","secret":{"4dabf18193072939515e22adb298388d":"secret-marker"}}}]}}`
@@ -83,16 +134,20 @@ func TestPreviewPreservesPhysicalIdentity(t *testing.T) {
 }
 
 func TestRealRefreshMetadataAndMalformedAbsence(t *testing.T) {
-	as := []r.Artifact{{Key: "a", ProviderID: "id"}, {Key: "b", ProviderID: "idb"}, {Key: "c", ProviderID: "idc"}}
+	as := []r.Artifact{{Key: "a", ProviderID: "id"}, {Key: "b", ProviderID: "idb"}, {Key: "c", ProviderID: "idc"}, {Key: "d", ProviderID: "idd"}}
 	events := `{"resourceOutputsEvent":{"metadata":{"urn":"a","op":"same","old":{"id":"id"},"new":{"id":"id"}}}}
 {"resourceOutputsEvent":{"metadata":{"urn":"b","op":"delete","old":{"id":"idb"},"new":null}}}
-{"resourceOutputsEvent":{"metadata":{"urn":"c","op":"refresh","old":{"id":"idc"}}}}`
+{"resourceOutputsEvent":{"metadata":{"urn":"c","op":"refresh","old":{"id":"idc"}}}}
+{"resourceOutputsEvent":{"metadata":{"urn":"d","op":"update","old":{"id":"idd"},"new":{"id":"idd"}}}}`
 	got, e := ReadRefresh(strings.NewReader(events), as, time.Now())
 	if e != nil {
 		t.Fatal(e)
 	}
 	if got[0].Observation.Status != r.Present || got[1].Observation.Status != r.Absent || got[2].Observation.Status != r.Unknown {
 		t.Fatalf("%#v", got)
+	}
+	if got[3].Observation.Status != r.Present || got[3].Observation.Reason != r.ExternalChange {
+		t.Fatalf("expected completed update to identify drift, got %#v", got[3])
 	}
 }
 

@@ -292,7 +292,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 		fs.StringVar(&discoveryURL, "discovery-index", os.Getenv("INFRA_DISCOVERY_INDEX_URL"), "HTTPS environment discovery index URL")
 		fs.StringVar(&discoveryRegion, "discovery-region", os.Getenv("INFRA_DISCOVERY_INDEX_REGION"), "AWS region hosting the discovery index")
 	}
-	action := fs.String("action", "", "setup, build, clean-cache, preview, deploy, status, destroy, destroy-all, github-setup, github-teardown, report (default: deploy interactively, preview in CI)")
+	action := fs.String("action", "", "setup, build, clean-cache, preview, deploy, status, drift, destroy, destroy-all, github-setup, github-teardown, report (default: deploy interactively, preview in CI)")
 	profile := fs.String("profile", "", "AWS SSO profile (omit in CI)")
 	region := fs.String("region", "", "AWS region")
 	account := fs.String("account", "", "expected AWS account")
@@ -354,7 +354,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	if *refreshReport && *action != "report" {
 		return errors.New("--refresh-report requires --action report")
 	}
-	allowedActions := map[string]bool{"setup": true, "build": true, "clean-cache": true, "preview": true, "deploy": true, "status": true, "destroy": true, "destroy-all": true, "github-setup": true, "github-teardown": true, "report": true}
+	allowedActions := map[string]bool{"setup": true, "build": true, "clean-cache": true, "preview": true, "deploy": true, "status": true, "destroy": true, "destroy-all": true, "github-setup": true, "github-teardown": true, "report": true, wizardweb.DriftAction: true}
 	if !allowedActions[*action] {
 		return errors.New("unknown action")
 	}
@@ -595,7 +595,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	}
 	lock.Close()
 	defer os.Remove(lock.Name())
-	if cli.spec.Memory != 0 {
+	if cli.spec.Memory != 0 && *action != wizardweb.DriftAction {
 		var deploymentFlags struct{ Version, Memory int }
 		memoryExplicit := false
 		fs.Visit(func(f *flag.Flag) {
@@ -654,11 +654,17 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	var credentials, submittedCredentials providerCredentials
 	credentialPath := filepath.Join(localEnv, "credentials.bin")
 	if !*ci {
+		vaultPath := filepath.Join(localEnv, "vault.bin")
+		if *action == wizardweb.DriftAction {
+			if _, err := os.Stat(vaultPath); err != nil {
+				return errors.New("drift check requires the existing deployment vault")
+			}
+		}
 		legacyVault := ""
 		if projectName == cli.spec.PulumiProject {
 			legacyVault = filepath.Join(legacy, "vault.bin")
 		}
-		pass, err := loadProjectVault(ctx, filepath.Join(localEnv, "vault.bin"), legacyVault, vaultPassphrase)
+		pass, err := loadProjectVault(ctx, vaultPath, legacyVault, vaultPassphrase)
 		if err == nil {
 			credentials, err = readCredentials(credentialPath, vaultPassphrase)
 		}
@@ -681,6 +687,13 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 				githubField:     credentials.configured(githubField),
 			})
 		}
+	}
+	if *action == wizardweb.DriftAction {
+		if e = verifySavedTarget(saved, *account, *region, *backend); e != nil {
+			return e
+		}
+		ctx = context.WithValue(ctx, credentialsKey{}, credentials)
+		return cli.checkDrift(ctx, root, private, projectName, saved, *ci, *workers)
 	}
 	if *importPath != "" {
 		imported, err := importSettings(*importPath, projectName, *env)
@@ -1010,6 +1023,22 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 		return e
 	}
 
+	dir := filepath.Join(root, cli.spec.PulumiDir)
+	stack := cli.spec.stackName(projectName, *env)
+	var activeFeatureReport *featureReport
+	if *action == "deploy" {
+		started := time.Now().UTC()
+		target := Settings{1, *env, *profile, *region, *account, *backend}
+		defer func() {
+			if activeFeatureReport != nil {
+				return
+			}
+			if err := cli.saveEarlyDeploymentFailure(ctx, root, dir, stack, local, target, started, runErr); err != nil {
+				runErr = errors.Join(runErr, fmt.Errorf("failed deployment report could not be saved: %w", err))
+			}
+		}()
+	}
+
 	projectFlags.Version = 1
 	projectFlags.Environment = *env
 	flagsBytes, _ := json.MarshalIndent(projectFlags, "", "  ")
@@ -1046,8 +1075,6 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	}
 
 	ui.phase("prepare", "Prepare the Pulumi stack")
-	dir := filepath.Join(root, cli.spec.PulumiDir)
-	stack := cli.spec.stackName(projectName, *env)
 	if e = command(ctx, dir, "pulumi", "login", *backend, "--non-interactive"); e != nil {
 		return e
 	}
@@ -1086,7 +1113,6 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 			return e
 		}
 	}
-	var activeFeatureReport *featureReport
 	if *action == "report" || *action == "preview" || *action == "deploy" {
 		attempt := cli.newFeatureReport(ctx, root, dir, stack, private, local, Settings{1, *env, *profile, *region, *account, *backend}, projectName, *action)
 		if *action == "report" {
@@ -1236,8 +1262,8 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 		return e
 	}
 	if ui.browser != nil {
-		activeFeatureReport.publish(ctx, true)
-		if err := ui.preview(planBytes, cli.spec); err != nil {
+		activeFeatureReport.publish(ctx, true, planBytes)
+		if err := ui.preview(planBytes, cli.spec, activeFeatureReport.previewLog); err != nil {
 			return err
 		}
 	}
@@ -1294,6 +1320,7 @@ func (cli deployCLI) runWizard(ctx context.Context, args []string, showActions b
 	if e = command(ctx, dir, "pulumi", "up", "--stack", stack, "--plan", plan, "--yes", "--non-interactive"); e != nil {
 		return e
 	}
+	activeFeatureReport.applyCompleted = true
 	outputs, e := outputIn(ctx, dir, "pulumi", "stack", "output", "--stack", stack, "--json")
 	if e != nil {
 		return e

@@ -14,8 +14,10 @@ type Environment struct {
 
 type EnvironmentTarget struct {
 	Inventory reporting.Report
+	Drift     reporting.Report
 	Source    string
 	Fields    []Field
+	History   []DeploymentHistoryRecord
 }
 
 var errEnvironmentUnavailable = errors.New("Choose an environment from the action menu.")
@@ -70,6 +72,8 @@ func (s *Session) selectEnvironment(id uint64, mode, name string) error {
 	}
 	s.openEnvironment(name)
 	s.setInventory(target.Inventory, target.Source)
+	s.setDrift(target.Drift)
+	s.setDeploymentHistory(target.History)
 	s.setSettingsFields(target.Fields)
 	if onMenu && prompt.Kind == "environment" {
 		s.submitReply(reply{Value: &name})

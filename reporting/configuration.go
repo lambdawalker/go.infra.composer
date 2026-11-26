@@ -84,12 +84,12 @@ func normalizeConfiguration(typ string, c *Configuration) *Configuration {
 	return &Configuration{Source: c.Source, ObservedAt: c.ObservedAt, Values: values}
 }
 
-// NewStateConfiguration extracts only known, plain output settings. Call only
-// for recorded state; desired preview outputs are not observed configuration.
-func NewStateConfiguration(typ string, outputs map[string]json.RawMessage, at time.Time) *Configuration {
+// SafeConfigurationValues selects only allowlisted, plain resource settings.
+// It does not establish where or when the settings were observed.
+func SafeConfigurationValues(typ string, properties map[string]json.RawMessage) map[string]string {
 	values := map[string]string{}
 	for field, kind := range configurationFields(typ) {
-		raw := outputs[field]
+		raw := properties[field]
 		value := strings.TrimSpace(string(raw))
 		if kind == configurationBillingMode {
 			if json.Unmarshal(raw, &value) != nil {
@@ -100,5 +100,15 @@ func NewStateConfiguration(typ string, outputs map[string]json.RawMessage, at ti
 			values[field] = safe
 		}
 	}
-	return normalizeConfiguration(typ, &Configuration{Source: "pulumi-state", ObservedAt: at, Values: values})
+	return values
+}
+
+// NewStateConfiguration extracts only known, plain output settings. Call only
+// for recorded state; desired preview outputs are not observed configuration.
+func NewStateConfiguration(typ string, outputs map[string]json.RawMessage, at time.Time) *Configuration {
+	values := SafeConfigurationValues(typ, outputs)
+	if at.IsZero() || len(values) == 0 {
+		return nil
+	}
+	return &Configuration{Source: "pulumi-state", ObservedAt: at, Values: values}
 }

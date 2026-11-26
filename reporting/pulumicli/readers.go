@@ -21,6 +21,14 @@ type resource struct {
 	Parent  string                     `json:"parent"`
 	Outputs map[string]json.RawMessage `json:"outputs"`
 	Inputs  map[string]json.RawMessage `json:"inputs"`
+	resourceDependencies
+}
+
+// Dependency metadata contains logical resource identities. Property names and
+// input/output values do not contribute to relationship labels.
+type resourceDependencies struct {
+	Dependencies         []string            `json:"dependencies"`
+	PropertyDependencies map[string][]string `json:"propertyDependencies"`
 }
 
 func plain(m map[string]json.RawMessage, key string) string {
@@ -89,12 +97,12 @@ func ReadState(rd io.Reader, at time.Time) ([]r.Artifact, error) {
 func safeArtifacts(resources []resource, observation r.Observation) []r.Artifact {
 	var as []r.Artifact
 	ids := map[string][]resource{}
-	byURN := map[string]resource{}
+	byURN := map[string]bool{}
 	for _, s := range resources {
 		if !managed(s) {
 			continue
 		}
-		byURN[s.URN] = s
+		byURN[s.URN] = true
 		// ARN is an internal, allowlisted alias only; never copied into the report.
 		aliases := map[string]bool{}
 		for _, alias := range []string{s.ID, plain(s.Outputs, "arn")} {
@@ -109,6 +117,7 @@ func safeArtifacts(resources []resource, observation r.Observation) []r.Artifact
 			continue
 		}
 		a := r.Artifact{Key: s.URN, Name: name(s.URN), Type: s.Type, Provider: provider(s.Type), ProviderID: s.ID, Parent: s.Parent, Observation: observation}
+		a.Dependencies = s.keys(s.URN, byURN)
 		var tags map[string]json.RawMessage
 		_ = json.Unmarshal(s.Outputs["tags"], &tags)
 		a.Owner = plain(tags, "ic:owner")
@@ -121,7 +130,7 @@ func safeArtifacts(resources []resource, observation r.Observation) []r.Artifact
 		if a.Feature == "" {
 			a.Feature = plain(inputTags, "ic:feature")
 		}
-		if _, ok := byURN[a.Parent]; !ok {
+		if !byURN[a.Parent] {
 			a.Parent = ""
 		}
 		if a.Parent == "" {
@@ -190,8 +199,11 @@ type metadata struct {
 	Type string `json:"type"`
 	Op   string `json:"op"`
 
-	Old *resource `json:"old"`
-	New *resource `json:"new"`
+	Old          *resource               `json:"old"`
+	New          *resource               `json:"new"`
+	Keys         []string                `json:"keys"`
+	Diffs        []string                `json:"diffs"`
+	DetailedDiff map[string]propertyDiff `json:"detailedDiff"`
 }
 type event struct {
 	Pre *struct {
@@ -283,6 +295,9 @@ func ApplyPreview(as []r.Artifact, rd io.Reader) ([]r.Artifact, error) {
 		}
 		if i, ok := index[a.Key]; ok {
 			out[i].PlannedAction = action
+			if source := resources[resourceIndex[a.Key]]; source.Dependencies != nil || source.PropertyDependencies != nil {
+				out[i].Dependencies = a.Dependencies
+			}
 			continue
 		}
 		a.ProviderID = ""
@@ -322,6 +337,9 @@ func ReadRefresh(rd io.Reader, as []r.Artifact, at time.Time) ([]r.Artifact, err
 			if m.New != nil && m.New.ID == out[i].ProviderID {
 				status = r.Present
 				reason = ""
+				if m.Op == "update" {
+					reason = r.ExternalChange
+				}
 			}
 		case "delete":
 			if m.Old != nil && m.Old.ID == out[i].ProviderID && m.New == nil {
