@@ -4,7 +4,7 @@ The wizard embeds these service-specific models from the custom icon collection.
 
 | Local file | Design | SHA-256 |
 | --- | --- | --- |
-| `eventbridge.glb` | Raspberry-glass clock bridge with three parallel exits and four amber envelopes | `344b8a7f0cd848d5078236cf94c379d2acafee8355d211293ac1597045d96b11` |
+| `eventbridge.glb` | Raspberry-glass fork with two queued entry envelopes and an amber envelope midway along each of two exits | `d6d874fc7bee48c8427b17a41f5af5144b5c703d7ac41c324fc0212253540d43` |
 | `cognito.glb` | Classic Rotary user directory with 34 frosted cards, a raised ruby profile and curved glass supports | `147c3c9c0632780ca2863e17f1d22780a26784cec8a52e9e6b00c4b506784f2f` |
 | `cloudwatch.glb` | Hollow raspberry-glass ticker with raised side rims, a framed feed slot and a curled ivory log strip | `ab5956230e9d6105a4b272d8b278b69825231b2b357cc28c0ea65c08125f18f5` |
 | `acm.glb` | Transmissive ruby glass shield with a beveled opening for ivory TLS letters on its convex face | `6a00fe0b27967c7d10cef4a86be671ecbe4b4759370dea7b4b86714b052066b1` |
