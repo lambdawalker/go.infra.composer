@@ -94,8 +94,8 @@
 
   function modelPathFor(type, iconFor) {
     const icon = typeof iconFor === "function" ? iconFor(type) : "";
-    const match = /^\/icons\/aws\/([a-z0-9-]+)\.svg$/.exec(icon || "");
-    return match ? "/models/aws/" + match[1] + ".glb" : "";
+    const match = /^\/icons\/((?:aws|cloudflare)\/[a-z0-9-]+)\.svg$/.exec(icon || "");
+    return match ? "/models/" + match[1] + ".glb" : "";
   }
 
   function matchesArtifact(item, query) {
@@ -131,8 +131,8 @@
       if(!items.length)setMessage("Select the deployment target to view its artifacts.");
       else if(contextLost)setMessage("3D view is temporarily unavailable. Select an artifact from the list below.");
       else if(!renderer)setMessage("3D view is unavailable here. Select an artifact from the list below.");
-      else if(items.some(item=>loadingModels.has(modelPathFor(item.type,window.wizardAWSIconFor))))setMessage("Loading AWS models…");
-      else if(items.some(item=>failedModels.has(modelPathFor(item.type,window.wizardAWSIconFor))))setMessage("Some AWS models could not be loaded. Those artifacts use basic shapes.");
+      else if(items.some(item=>loadingModels.has(modelPathFor(item.type,window.wizardAWSIconFor))))setMessage("Loading resource models…");
+      else if(items.some(item=>failedModels.has(modelPathFor(item.type,window.wizardAWSIconFor))))setMessage("Some resource models could not be loaded. Those artifacts use basic shapes.");
       else setMessage("");
     }
     function initialize() {

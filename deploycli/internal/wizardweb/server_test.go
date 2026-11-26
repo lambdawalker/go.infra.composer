@@ -236,7 +236,7 @@ func TestLoopbackWizardProtectsStateAndReplies(t *testing.T) {
 	if iconMap.Code != http.StatusOK || !strings.Contains(iconMap.Body.String(), "awsIconFor") {
 		t.Fatalf("AWS icon mapper was not served locally: %d", iconMap.Code)
 	}
-	icons, err := fs.Glob(awsicons.Files(), "icons/aws/*.svg")
+	icons, err := fs.Glob(awsicons.Files(), "icons/*/*.svg")
 	if err != nil || len(icons) == 0 {
 		t.Fatalf("listing AWS service icons: %v (%d icons)", err, len(icons))
 	}
@@ -253,7 +253,7 @@ func TestLoopbackWizardProtectsStateAndReplies(t *testing.T) {
 		t.Fatalf("unlisted icon was served: %d", response.Code)
 	}
 	for _, name := range icons {
-		asset := "/models/aws/" + strings.TrimSuffix(strings.TrimPrefix(name, "icons/aws/"), ".svg") + ".glb"
+		asset := "/models/" + strings.TrimSuffix(strings.TrimPrefix(name, "icons/"), ".svg") + ".glb"
 		response := request(handler, http.MethodGet, asset, testHost, "", "", "")
 		if response.Code != http.StatusOK || response.Header().Get("Content-Type") != "model/gltf-binary" ||
 			!strings.HasPrefix(response.Body.String(), "glTF") {
