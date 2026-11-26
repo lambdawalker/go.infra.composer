@@ -135,9 +135,11 @@ test("the shipped renderer loads every embedded service model without external r
       if (file === "ses.glb") checkCertificate(meshes, THREE, "Envelope body");
       if (file === "lambda-permission.glb") {
         checkCertificate(meshes, THREE, "Lambda main diagonal");
-        const colorOf = name => meshes.find(part => part.userData.name === name).material.attenuationColor;
-        const mark = colorOf("Lambda main diagonal"), ribbon = colorOf("Scalloped ribbon seal");
-        assert.ok(mark.r > mark.g && ribbon.g > ribbon.r, "orange Lambda and green ribbon are distinct");
+        const accent = meshes.find(mesh => mesh.userData.name === "Lambda main diagonal").material;
+        assert.ok(accent.attenuationColor.r > accent.attenuationColor.g);
+        for (const mesh of meshes.filter(part => /lambda|ribbon/i.test(part.userData.name))) {
+          assert.equal(mesh.material, accent, mesh.userData.name + " shares the orange glass");
+        }
       }
       if (file === "acm.glb") checkCertificate(meshes, THREE, "Raised TLS lettering");
       if (file === "secretsmanager.glb") checkVaultDoor(meshes, THREE);
