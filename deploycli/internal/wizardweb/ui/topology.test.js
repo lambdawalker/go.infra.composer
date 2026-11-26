@@ -282,7 +282,13 @@ test("box zoom frames a reversed drag, and Escape cancels an unfinished box", ()
   const h=topologyHarness();
   h.topology.setArtifacts([{key:"root",type:"custom"}]);h.topology.activate();h.flush();
   const {camera}=h.renders.at(-1),{stage,box}=h.elements;
-  const start=camera.position.clone(),orientation=camera.quaternion.clone();
+  const start=camera.position.clone(),projection=camera.projectionMatrix.clone();
+  // The box spans x=400..600, y=120..280 on an 800x400 canvas.
+  // Its height limits the 2.5x crop, with room on both sides.
+  const samples=[[0,.4,.94],[.25,0,.98],[.5,-.4,.995]].map(([x,y,z])=>({
+    world:camera.position.clone().set(x,y,z).unproject(camera),
+    expected:[(x-.25)*2.5,y*2.5]
+  }));
   function boxDrag(){
     stage.emit("keydown",{key:"b",ctrlKey:true});
     stage.emit("pointerdown",{button:0,pointerId:2,clientX:600,clientY:280});
@@ -294,8 +300,13 @@ test("box zoom frames a reversed drag, and Escape cancels an unfinished box", ()
   assert.ok(camera.position.distanceTo(start)<1e-8);
   boxDrag();stage.emit("pointerup",{pointerId:2,clientX:400,clientY:120});h.flush();
   assert.equal(box.hidden,true);assert.equal(stage.dataset.mode,"orbit");
-  const delta=camera.position.clone().sub(start).applyQuaternion(orientation.clone().invert());
-  assert.ok(delta.x>0 && delta.z<0 && Math.abs(delta.y)<1e-8);
+  for(const {world,expected} of samples){
+    const point=world.clone().project(camera);
+    assert.ok(Math.abs(point.x-expected[0])<1e-8 && Math.abs(point.y-expected[1])<1e-8,
+      "box zoom must preserve the crop at every scene depth");
+  }
+  stage.emit("keydown",{key:"Home"});h.flush();
+  assert.ok(camera.position.distanceTo(start)<1e-8 && camera.projectionMatrix.equals(projection));
   assert.deepEqual(h.selected,[]);
   h.topology.dispose();
 });

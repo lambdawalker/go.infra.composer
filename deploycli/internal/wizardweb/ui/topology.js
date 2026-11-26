@@ -162,6 +162,8 @@
     let items=[],byKey=new Map(),selectedKey="",active=false,drawQueued=false,pointer=null;
     const openingYaw=-.46,openingPitch=.45,pitchLimit=Math.PI/2-.00001;
     let mode="orbit",yaw=openingYaw,pitch=openingPitch,distance=30,target=[0,0,0],contextLost=false,disposed=false;
+    // Normalized size and center offset of the viewport inside the full perspective frame.
+    let cropSize=1,cropX=0,cropY=0;
     let renderer=null,scene=null,camera=null,runtime=null,edges=null,halo=null,environment=null;
     let keyLight=null,floor=null,raycaster=null,mouse=null,lastEdgeSignature="";
     const nodes=new Map(),modelCache=new Map(),loadingModels=new Set(),failedModels=new Set();
@@ -222,7 +224,16 @@
         button.setAttribute("aria-pressed",String(next===button.dataset.nav));
       tooltip.hidden=true;
     }
-    function zoom(factor){distance=Math.max(5,Math.min(500,distance*factor));requestDraw();}
+    function zoom(factor){
+      if(factor>1 && cropSize<1){
+        const next=Math.min(1,cropSize*factor);
+        const recenter=(1-next)/(1-cropSize);
+        cropX*=recenter;cropY*=recenter;
+        factor/=next/cropSize;cropSize=next;
+      }
+      if(Math.abs(factor-1)>1e-10)distance=Math.max(5,Math.min(500,distance*factor));
+      requestDraw();
+    }
     function resetView(){
       cancelGesture();yaw=openingYaw;pitch=openingPitch;frame(items);
     }
@@ -398,6 +409,7 @@
       frame(items.filter(item=>matchesArtifact(item,search.value.trim().toLowerCase())));
     }
     function frame(visible){
+      cropSize=1;cropX=0;cropY=0;
       if(!visible.length){target=[0,0,0];distance=30;requestDraw();return;}
       const extents=[0,1,2].map(i=>[Math.min(...visible.map(a=>a.position[i])),Math.max(...visible.map(a=>a.position[i]))]);
       target=extents.map(([min,max])=>(min+max)/2);
@@ -424,10 +436,19 @@
       uniforms.surface.value.setHex(lightTheme?0xc2cfda:0x415061);
       uniforms.grid.value.setHex(lightTheme?0xa6b5c3:0x516174);
       edges.material.color.set(lightTheme?0x576c87:0x98adc6);
-      camera.aspect=bounds.width/bounds.height;camera.updateProjectionMatrix();
+      camera.aspect=bounds.width/bounds.height;
+      if(cropSize!==1||cropX!==0||cropY!==0){
+        camera.setViewOffset(bounds.width,bounds.height,
+          (.5+cropX-cropSize/2)*bounds.width,(.5+cropY-cropSize/2)*bounds.height,
+          cropSize*bounds.width,cropSize*bounds.height);
+      }else camera.clearViewOffset();
       camera.position.set(target[0]+distance*Math.sin(yaw)*Math.cos(pitch),target[1]+distance*Math.sin(pitch),
         target[2]+distance*Math.cos(yaw)*Math.cos(pitch));
-      camera.lookAt(...target);camera.updateMatrixWorld();
+      camera.lookAt(...target);
+      // Keep the orbit pivot on the center ray of an off-axis crop.
+      const span=2*distance*Math.tan(camera.fov*Math.PI/360);
+      camera.translateX(-cropX*span*camera.aspect);camera.translateY(cropY*span);
+      camera.updateMatrixWorld();
       orientAxes();renderer.render(scene,camera);
     }
     function requestDraw() {
@@ -479,7 +500,7 @@
     }
     // Screen deltas are in CSS pixels. Use the plane through the orbit target.
     function offsetTarget(origin,dx,dy){
-      const scale=2*distance*Math.tan(camera.fov*Math.PI/360)/canvas.getBoundingClientRect().height;
+      const scale=cropSize*2*distance*Math.tan(camera.fov*Math.PI/360)/canvas.getBoundingClientRect().height;
       const basis=camera.matrixWorld.elements;
       return origin.map((value,i)=>value+scale*(dx*basis[i]+dy*basis[4+i]));
     }
@@ -499,8 +520,30 @@
     function applyBox(bounds){
       if(bounds.width<5||bounds.height<5)return;
       const rect=canvas.getBoundingClientRect();
-      target=offsetTarget(target,bounds.left+bounds.width/2-rect.width/2,rect.height/2-bounds.top-bounds.height/2);
-      zoom(Math.max(bounds.width/rect.width,bounds.height/rect.height));
+      const x=(bounds.left+bounds.width/2)/rect.width-.5;
+      const y=(bounds.top+bounds.height/2)/rect.height-.5;
+      // Limit by the longer relative side so the entire rectangle stays in frame.
+      const nextSize=Math.max(.0001,cropSize*Math.max(bounds.width/rect.width,bounds.height/rect.height));
+      // Use the closest projected artifact center inside the box as the orbit depth.
+      let closest=Infinity;
+      for(const {group} of nodes.values()){
+        if(!group.visible)continue;
+        const p=group.position.clone().project(camera);
+        if(p.z< -1||p.z>1)continue;
+        const dx=((p.x/2)-x)*rect.width,dy=((-p.y/2)-y)*rect.height;
+        if(Math.abs(dx)>bounds.width/2||Math.abs(dy)>bounds.height/2)continue;
+        const separation=dx*dx+dy*dy;
+        if(separation<closest){
+          closest=separation;distance=-camera.worldToLocal(group.position.clone()).z;
+        }
+      }
+      cropX+=cropSize*x;cropY+=cropSize*y;cropSize=nextSize;
+      // Move the pivot along the chosen ray while leaving the eye fixed. A dolly
+      // would magnify foreground models more than the rectangle requests.
+      const span=2*distance*Math.tan(camera.fov*Math.PI/360);
+      const pivot=new runtime.THREE.Vector3(cropX*span*camera.aspect,-cropY*span,-distance);
+      target=camera.localToWorld(pivot).toArray();
+      requestDraw();
     }
     listen(stage,"pointerdown",event=>{
       if(!active||navigation.hidden||pointer||navigation.contains(event.target)||![0,1].includes(event.button))return;
