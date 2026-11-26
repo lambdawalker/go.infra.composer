@@ -149,6 +149,8 @@ test("the shipped renderer loads every embedded service model without external r
       if (file === "acm-shield.glb") checkShieldProfile(meshes, THREE);
       if (file === "api-gateway-route.glb") {
         const bounds = name => new THREE.Box3().setFromObject(meshes.find(mesh => mesh.userData.name === name), true);
+        const eye = bounds("Pierced brace eye").getSize(new THREE.Vector3());
+        assert.ok(eye.x > .29 && eye.y > .29, "the open brace eye spans the three braces");
         const cap = bounds("Round port scale cap").getSize(new THREE.Vector3());
         assert.ok(Math.abs(cap.x - cap.y) < .002, "port fitting has a circular face");
         assert.ok(bounds("Diagonal telescope barrel").min.z > bounds("Frosted index arm").max.z,
