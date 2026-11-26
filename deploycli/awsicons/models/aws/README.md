@@ -4,6 +4,7 @@ The wizard embeds these service-specific models from the custom icon collection.
 
 | Local file | Design | SHA-256 |
 | --- | --- | --- |
+| `eventbridge.glb` | Raspberry-glass clock bridge with three parallel exits and four amber envelopes | `344b8a7f0cd848d5078236cf94c379d2acafee8355d211293ac1597045d96b11` |
 | `cognito.glb` | Classic Rotary user directory with 34 frosted cards, a raised ruby profile and curved glass supports | `147c3c9c0632780ca2863e17f1d22780a26784cec8a52e9e6b00c4b506784f2f` |
 | `cloudwatch.glb` | Hollow raspberry-glass ticker with raised side rims, a framed feed slot and a curled ivory log strip | `ab5956230e9d6105a4b272d8b278b69825231b2b357cc28c0ea65c08125f18f5` |
 | `acm.glb` | Transmissive ruby glass shield with a beveled opening for ivory TLS letters on its convex face | `6a00fe0b27967c7d10cef4a86be671ecbe4b4759370dea7b4b86714b052066b1` |
@@ -20,7 +21,7 @@ The wizard embeds these service-specific models from the custom icon collection.
 
 ## Glass cube catalog
 
-These three GLB files are unchanged copies from the published
+These two GLB files are unchanged copies from the published
 [AWS Glass Cubes catalog](https://aws-glass-cubes.lemony-amber-5141.chatgpt.site),
 version 3, source commit `64e50dcef5cef7eeb619d216c4d24f310acb84e6`.
 The source archive is `dist/aws-glass-cubes.zip`; only the filenames were shortened
@@ -45,6 +46,5 @@ preserve the glass finish.
 
 | Local file | Archive entry | Bytes | SHA-256 |
 | --- | --- | ---: | --- |
-| `eventbridge.glb` | `app-integration-eventbridge-cube.glb` | 269240 | `d709b789e6e84c000c74273c04574e61ff3efb0529559926074ff5d9263efa13` |
 | `secretsmanager.glb` | `security-identity-compliance-secrets-manager-cube.glb` | 271832 | `acd372a8f82584ee078d6096ae5119455841dd72f68cd61abfc95c09b246d496` |
 | `ses.glb` | `business-applications-simple-email-service-cube.glb` | 306104 | `24a6790452ffafe219b7940cf9c09b966e5ec8b1d1984ed961e34a0b840ddaa3` |

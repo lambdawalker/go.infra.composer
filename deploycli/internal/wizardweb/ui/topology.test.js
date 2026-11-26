@@ -50,6 +50,7 @@ test("chooses the same AWS service for the 3D model and artifact icon", () => {
     "aws:dynamodb/table:Table":"dynamodb", "aws:apigatewayv2/authorizer:Authorizer":"api-gateway",
     "aws:acm/certificate:Certificate":"acm", "aws:cloudwatch/logGroup:LogGroup":"cloudwatch",
     "aws:cloudwatch/eventRule:EventRule":"eventbridge", "aws:cloudwatch:EventTarget":"eventbridge",
+    "aws:cloudwatch/eventTarget:EventTarget":"eventbridge",
     "aws:cognito/userPool:UserPool":"cognito", "aws:cognito/userPoolClient:UserPoolClient":"cognito",
     "aws:iam/role:Role":"iam", "aws:kms/key:Key":"kms",
     "aws:route53/record:Record":"route53", "aws:secretsmanager/secret:Secret":"secretsmanager",
