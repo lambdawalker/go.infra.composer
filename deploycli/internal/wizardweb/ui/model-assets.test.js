@@ -6,7 +6,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 test("bundled AWS cubes contain their geometry and preserve the catalog materials", () => {
-  const services = ["acm", "cloudwatch", "cognito", "eventbridge",
+  const services = ["cloudwatch", "cognito", "eventbridge",
     "route53", "secretsmanager", "ses"];
   for (const service of services) {
     const bytes = fs.readFileSync(path.join(__dirname, "../../../awsicons/models/aws", service + ".glb"));
@@ -49,7 +49,38 @@ function checkGatewayPackets(meshes, THREE) {
   assert.ok(Math.abs(sizes[2].x - sizes[2].y) < 1e-5 && Math.abs(sizes[2].x - sizes[2].z) < 1e-5);
 }
 
+function checkShieldProfile(meshes, THREE) {
+  // The shield and its lettering wrap around the same vertical cylinder.
+  const radiusRange = mesh => {
+    const points = mesh.geometry.getAttribute("position");
+    let inner = Infinity, outer = 0;
+    for (let i = 0; i < points.count; i++) {
+      const radius = Math.hypot(points.getX(i), points.getZ(i) + .68);
+      inner = Math.min(inner, radius);
+      outer = Math.max(outer, radius);
+    }
+    return {inner, outer};
+  };
+  const shield = meshes.find(mesh => mesh.userData.name === "Ruby shield");
+  assert.ok(shield.material.transmission >= .95, "the shield transmits the scene behind it");
+  assert.equal(shield.material.metalness, 0);
+  assert.ok(shield.material.thickness > 0 && Number.isFinite(shield.material.attenuationDistance));
+  assert.ok(shield.material.attenuationColor.r > shield.material.attenuationColor.g);
+  const shieldRadius = radiusRange(shield);
+  const ray = new THREE.Raycaster();
+  function hitsShield(x, y) {
+    ray.set(new THREE.Vector3(x, y, 2), new THREE.Vector3(0, 0, -1));
+    return ray.intersectObject(shield).length > 0;
+  }
+  assert.ok(hitsShield(0, .6) && hitsShield(0, -.6), "glass fills the shield above and below TLS");
+  assert.ok(!hitsShield(0, .04), "the lettering opening passes through the glass");
+  for (const mesh of meshes.filter(mesh => mesh.userData.name.startsWith("Ivory "))) {
+    assert.ok(radiusRange(mesh).inner > shieldRadius.outer, "each letter follows the outside of the shield");
+  }
+}
+
 const customLandmarks = {
+  "acm.glb": ["Ruby shield", "Ivory T", "Ivory L", "Ivory S"],
   "api-gateway.glb": ["Aperture rim", "Iris blade 03", "Chevron 08", ...gatewayPackets],
   "dynamodb.glb": ["Key puzzle piece", "Value puzzle piece"],
   "iam.glb": ["Scalloped ruby seal", "Inset ruby face", "Raised ivory check", "Left ribbon tail", "Right ribbon tail"],
@@ -73,6 +104,7 @@ test("the shipped renderer loads every embedded service model without external r
     const meshes = [];
     gltf.scene.traverse(object => {if (object.isMesh) meshes.push(object);});
     if (customLandmarks[file]) {
+      if (file === "acm.glb") checkShieldProfile(meshes, THREE);
       if (file === "api-gateway.glb") checkGatewayPackets(meshes, THREE);
       const names = meshes.map(mesh => mesh.userData.name);
       for (const landmark of customLandmarks[file]) assert.ok(names.includes(landmark), file + " missing " + landmark);
