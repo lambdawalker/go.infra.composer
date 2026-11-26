@@ -7,7 +7,7 @@ const vm = require("node:vm");
 
 test("bundled AWS cubes contain their geometry and preserve the catalog materials", () => {
   const services = ["acm", "cloudwatch", "cognito", "eventbridge",
-    "iam", "route53", "secretsmanager", "ses"];
+    "route53", "secretsmanager", "ses"];
   for (const service of services) {
     const bytes = fs.readFileSync(path.join(__dirname, "../../../awsicons/models/aws", service + ".glb"));
     assert.equal(bytes.toString("ascii", 0, 4), "glTF", service);
@@ -52,6 +52,7 @@ function checkGatewayPackets(meshes, THREE) {
 const customLandmarks = {
   "api-gateway.glb": ["Aperture rim", "Iris blade 03", "Chevron 08", ...gatewayPackets],
   "dynamodb.glb": ["Key puzzle piece", "Value puzzle piece"],
+  "iam.glb": ["Scalloped ruby seal", "Inset ruby face", "Raised ivory check", "Left ribbon tail", "Right ribbon tail"],
   "kms.glb": ["Center key", "Left key", "Right key", "Faceted collar"],
   "lambda.glb": ["Main diagonal", "Left leg"],
   "neptune.glb": ["Node 0", "Node 1", "Node 2"],
