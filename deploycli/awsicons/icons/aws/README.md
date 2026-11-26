@@ -1,6 +1,7 @@
 # AWS service icons
 
 The Route 53 signpost is custom artwork shared with the Cloudflare DNS visual.
+The Lambda Permission certificate is custom artwork for invocation permissions.
 The other fourteen SVGs are AWS service icons downloaded from
 [AWS Icons](https://aws-icons.com/), which identifies the
 [AWS Architecture Icons](https://aws.amazon.com/architecture/icons/) package as

@@ -107,6 +107,7 @@ const customLandmarks = {
   "aws/eventbridge.glb": ["Continuous fork deck", "Center slot", "Entry envelope", "Second entry envelope", "Left exit envelope", "Right exit envelope"],
   "aws/iam.glb": ["Scalloped ruby seal", "Inset ruby face", "Raised ivory check", "Left ribbon tail", "Right ribbon tail"],
   "aws/kms.glb": ["Center key", "Left key", "Right key", "Faceted collar"],
+  "aws/lambda-permission.glb": ["Lambda main diagonal", "Lambda left leg", "Scalloped ribbon seal", "Engraved glass plaque"],
   "aws/lambda.glb": ["Main diagonal", "Left leg"],
   "aws/neptune.glb": ["Node 0", "Node 1", "Node 2"],
   "aws/rds.glb": ["Left table", "Right table", "Table link"],
@@ -132,6 +133,12 @@ test("the shipped renderer loads every embedded service model without external r
     gltf.scene.traverse(object => {if (object.isMesh) meshes.push(object);});
     if (customLandmarks[relativePath]) {
       if (file === "ses.glb") checkCertificate(meshes, THREE, "Envelope body");
+      if (file === "lambda-permission.glb") {
+        checkCertificate(meshes, THREE, "Lambda main diagonal");
+        const colorOf = name => meshes.find(part => part.userData.name === name).material.attenuationColor;
+        const mark = colorOf("Lambda main diagonal"), ribbon = colorOf("Scalloped ribbon seal");
+        assert.ok(mark.r > mark.g && ribbon.g > ribbon.r, "orange Lambda and green ribbon are distinct");
+      }
       if (file === "acm.glb") checkCertificate(meshes, THREE, "Raised TLS lettering");
       if (file === "secretsmanager.glb") checkVaultDoor(meshes, THREE);
       if (file === "acm-shield.glb") checkShieldProfile(meshes, THREE);
