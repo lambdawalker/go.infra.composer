@@ -7,6 +7,8 @@ launchers, and its GitHub workflow. Both launchers and CI run the same pinned
 CLI. The Composer simulator and runtime packages remain independent of this
 module.
 
+The wizard uses the public [AWS icon catalog](awsicons/) for its artifact list and 3D topology.
+
 ## Define a deployment
 
 Place a `deploy.json` at the consumer repository root. The [email verification

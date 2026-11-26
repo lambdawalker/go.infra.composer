@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/lambdawalker/go.infra.composer/deploycli/awsicons"
 	"github.com/lambdawalker/go.infra.composer/reporting"
 )
 
@@ -234,7 +236,12 @@ func TestLoopbackWizardProtectsStateAndReplies(t *testing.T) {
 	if iconMap.Code != http.StatusOK || !strings.Contains(iconMap.Body.String(), "awsIconFor") {
 		t.Fatalf("AWS icon mapper was not served locally: %d", iconMap.Code)
 	}
-	for asset := range awsIconPaths {
+	icons, err := fs.Glob(awsicons.Files(), "icons/aws/*.svg")
+	if err != nil || len(icons) == 0 {
+		t.Fatalf("listing AWS service icons: %v (%d icons)", err, len(icons))
+	}
+	for _, name := range icons {
+		asset := "/" + name
 		response := request(handler, http.MethodGet, asset, testHost, "", "", "")
 		if response.Code != http.StatusOK || !strings.Contains(response.Header().Get("Content-Type"), "image/svg+xml") ||
 			!strings.Contains(response.Header().Get("Content-Security-Policy"), "img-src 'self'") ||
@@ -245,14 +252,15 @@ func TestLoopbackWizardProtectsStateAndReplies(t *testing.T) {
 	if response := request(handler, http.MethodGet, "/icons/aws/unknown.svg", testHost, "", "", ""); response.Code != http.StatusNotFound {
 		t.Fatalf("unlisted icon was served: %d", response.Code)
 	}
-	for asset := range awsModelPaths {
+	for _, name := range icons {
+		asset := "/models/aws/" + strings.TrimSuffix(strings.TrimPrefix(name, "icons/aws/"), ".svg") + ".glb"
 		response := request(handler, http.MethodGet, asset, testHost, "", "", "")
 		if response.Code != http.StatusOK || response.Header().Get("Content-Type") != "model/gltf-binary" ||
 			!strings.HasPrefix(response.Body.String(), "glTF") {
 			t.Fatalf("AWS service model %s was not served as GLB: %d", asset, response.Code)
 		}
 	}
-	for _, asset := range []string{"/models/aws/unknown.glb", "/models/aws/README.md", "/vendor/three-LICENSE.txt"} {
+	for _, asset := range []string{"/models/aws/", "/icons/aws/", "/icons/aws/../aws/s3.svg", "/models/aws/unknown.glb", "/models/aws/README.md", "/vendor/three-LICENSE.txt"} {
 		if response := request(handler, http.MethodGet, asset, testHost, "", "", ""); response.Code != http.StatusNotFound {
 			t.Fatalf("unlisted model asset was served: %s: %d", asset, response.Code)
 		}

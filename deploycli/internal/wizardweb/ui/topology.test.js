@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const {categoryFor,layoutArtifacts,perspective,lookAt,multiply,project,modelPathFor,matchesArtifact,visibleEdges} = require("./topology.js");
-const {awsIconFor} = require("./aws-icons.js");
+const {awsIconFor} = require("../../../awsicons/aws-icons.js");
 
 test("keeps fallback categories for resources without a service model", () => {
   assert.equal(categoryFor("aws:lambda/function:Function"),"compute");

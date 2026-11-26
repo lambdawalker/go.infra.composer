@@ -9,7 +9,7 @@ test("bundled AWS cubes contain their geometry and preserve the catalog material
   const services = ["acm", "api-gateway", "cloudwatch", "cognito", "eventbridge",
     "iam", "route53", "secretsmanager", "ses"];
   for (const service of services) {
-    const bytes = fs.readFileSync(path.join(__dirname, "models/aws", service + ".glb"));
+    const bytes = fs.readFileSync(path.join(__dirname, "../../../awsicons/models/aws", service + ".glb"));
     assert.equal(bytes.toString("ascii", 0, 4), "glTF", service);
     assert.equal(bytes.readUInt32LE(4), 2, service);
     assert.equal(bytes.readUInt32LE(8), bytes.length, service);
@@ -42,7 +42,7 @@ test("the shipped renderer loads every embedded service model without external r
   const context = {console, TextDecoder, TextEncoder, ArrayBuffer, AbortController};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "vendor/topology-three.js"), "utf8"), context);
   const {GLTFLoader, THREE} = context.WizardTopologyThree;
-  const directory = path.join(__dirname, "models/aws");
+  const directory = path.join(__dirname, "../../../awsicons/models/aws");
   const files = fs.readdirSync(directory).filter(name => name.endsWith(".glb"));
   for (const file of Object.keys(customLandmarks)) assert.ok(files.includes(file), file);
   for (const file of files) {

@@ -19,30 +19,14 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/lambdawalker/go.infra.composer/deploycli/awsicons"
 )
 
 //go:embed ui
 var assets embed.FS
 
 var indexPage = template.Must(template.ParseFS(assets, "ui/index.html"))
-
-var awsIconPaths = map[string]struct{}{
-	"/icons/aws/acm.svg": {}, "/icons/aws/api-gateway.svg": {},
-	"/icons/aws/cloudwatch.svg": {}, "/icons/aws/cognito.svg": {},
-	"/icons/aws/dynamodb.svg": {}, "/icons/aws/eventbridge.svg": {},
-	"/icons/aws/iam.svg": {}, "/icons/aws/kms.svg": {},
-	"/icons/aws/lambda.svg": {}, "/icons/aws/route53.svg": {},
-	"/icons/aws/s3.svg": {}, "/icons/aws/secretsmanager.svg": {},
-	"/icons/aws/ses.svg": {}, "/icons/aws/rds.svg": {}, "/icons/aws/neptune.svg": {},
-}
-
-var awsModelPaths = func() map[string]struct{} {
-	paths := make(map[string]struct{}, len(awsIconPaths))
-	for icon := range awsIconPaths {
-		paths[strings.Replace(strings.TrimSuffix(icon, ".svg"), "/icons/", "/models/", 1)+".glb"] = struct{}{}
-	}
-	return paths
-}()
 
 func Serve(ctx context.Context, title, repository string, open bool, register func(int, string) (func() error, error), run func(context.Context, *Session, bool) error) (result error) {
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
@@ -145,6 +129,8 @@ func (s *Session) handler(host, key string) http.Handler {
 		panic(err)
 	}
 	files := http.FileServerFS(static)
+	catalog := awsicons.Files()
+	catalogFiles := http.FileServerFS(catalog)
 	page := struct {
 		Title      string
 		Repository string
@@ -176,21 +162,26 @@ func (s *Session) handler(host, key string) http.Handler {
 			w.Header().Set("X-Infra-Composer-Instance", s.instanceID)
 		}
 		if !strings.HasPrefix(r.URL.Path, "/api/") {
-			_, isAWSIcon := awsIconPaths[r.URL.Path]
-			_, isAWSModel := awsModelPaths[r.URL.Path]
-			if (r.Method == http.MethodGet || r.Method == http.MethodHead) &&
-				(r.URL.Path == "/" || r.URL.Path == "/favicon.svg" || r.URL.Path == "/wizard.css" || r.URL.Path == "/wizard.js" ||
-					r.URL.Path == "/preview-review.js" || r.URL.Path == "/artifact-dependencies.js" ||
-					r.URL.Path == "/workspace.css" || r.URL.Path == "/workspace.js" || r.URL.Path == "/deployment-history.js" ||
-					r.URL.Path == "/topology.css" || r.URL.Path == "/topology.js" ||
-					r.URL.Path == "/aws-icons.js" || r.URL.Path == "/environment-menu.js" || r.URL.Path == "/vendor/topology-three.js" ||
-					isAWSIcon || isAWSModel) {
+			if r.Method != http.MethodGet && r.Method != http.MethodHead {
+				http.NotFound(w, r)
+				return
+			}
+			name := strings.TrimPrefix(r.URL.Path, "/")
+			if entry, err := fs.Stat(catalog, name); err == nil && entry.Mode().IsRegular() {
+				if strings.HasSuffix(name, ".glb") {
+					w.Header().Set("Content-Type", "model/gltf-binary")
+				}
+				catalogFiles.ServeHTTP(w, r)
+				return
+			}
+			if r.URL.Path == "/" || r.URL.Path == "/favicon.svg" || r.URL.Path == "/wizard.css" || r.URL.Path == "/wizard.js" ||
+				r.URL.Path == "/preview-review.js" || r.URL.Path == "/artifact-dependencies.js" ||
+				r.URL.Path == "/workspace.css" || r.URL.Path == "/workspace.js" || r.URL.Path == "/deployment-history.js" ||
+				r.URL.Path == "/topology.css" || r.URL.Path == "/topology.js" ||
+				r.URL.Path == "/environment-menu.js" || r.URL.Path == "/vendor/topology-three.js" {
 				if r.URL.Path == "/" {
 					http.ServeContent(w, r, "index.html", time.Time{}, bytes.NewReader(index.Bytes()))
 					return
-				}
-				if isAWSModel {
-					w.Header().Set("Content-Type", "model/gltf-binary")
 				}
 				files.ServeHTTP(w, r)
 			} else {
