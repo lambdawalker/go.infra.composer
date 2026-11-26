@@ -4,7 +4,7 @@ The wizard embeds these service-specific models from the custom icon collection.
 
 | Local file | Design | SHA-256 |
 | --- | --- | --- |
-| `ses.glb` | Engraved glass sender certificate with an amber frame and matching plum envelope and ribbon | `bd30dfb992625ebf08257c2021261bda04c789724a08c620c24b38254e7ac9d4` |
+| `ses.glb` | Engraved glass sender certificate with an amber frame and matching plum envelope and ribbon | `910f654bba8e027abfc97501472831573c523904f9224c5e3e39b00486361ffe` |
 | `secretsmanager.glb` | Ruby glass vault with an exterior three-spoke handle and a frosted cyan secret cartridge | `f457ab02fbc3faa3a7b9b157cf7cd104f3a0a4e40734954055baa118efe502d3` |
 | `eventbridge.glb` | Raspberry-glass fork with two queued entry envelopes and an amber envelope midway along each of two exits | `d6d874fc7bee48c8427b17a41f5af5144b5c703d7ac41c324fc0212253540d43` |
 | `cognito.glb` | Classic Rotary user directory with 34 frosted cards, a raised ruby profile and curved glass supports | `147c3c9c0632780ca2863e17f1d22780a26784cec8a52e9e6b00c4b506784f2f` |

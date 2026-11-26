@@ -7,6 +7,12 @@ const vm = require("node:vm");
 
 function checkSenderCertificate(meshes, THREE) {
   const plaque = meshes.find(mesh => mesh.userData.name === "Engraved glass plaque");
+  const top = name => {
+    const mesh = meshes.find(part => part.userData.name === name);
+    return new THREE.Box3().setFromObject(mesh, true).max.y;
+  };
+  assert.ok(Math.abs(top("Scalloped ribbon seal") - top("Envelope body")) < 1e-5,
+    "ribbon and envelope top edges align");
   for (const mesh of meshes) {
     assert.equal(mesh.material.transmission, 1, mesh.name);
     assert.ok(mesh.material.thickness > 0 && Number.isFinite(mesh.material.attenuationDistance));
