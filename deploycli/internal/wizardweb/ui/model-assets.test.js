@@ -6,8 +6,8 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 test("bundled AWS cubes contain their geometry and preserve the catalog materials", () => {
-  const services = ["acm", "api-gateway", "cloudwatch", "cognito", "eventbridge",
-    "iam", "route53", "secretsmanager", "ses"];
+  const services = ["acm", "cloudwatch", "cognito", "eventbridge",
+    "route53", "secretsmanager", "ses"];
   for (const service of services) {
     const bytes = fs.readFileSync(path.join(__dirname, "../../../awsicons/models/aws", service + ".glb"));
     assert.equal(bytes.toString("ascii", 0, 4), "glTF", service);
@@ -29,8 +29,30 @@ test("bundled AWS cubes contain their geometry and preserve the catalog material
   }
 });
 
+const gatewayPackets = ["Packet - entering", "Packet - stretching", "Packet - cube"];
+
+function checkGatewayPackets(meshes, THREE) {
+  const bounds = gatewayPackets.map(name => {
+    const packet = meshes.find(mesh => mesh.userData.name === name);
+    assert.ok(packet.material.transmission > 0, name + " uses glass");
+    return new THREE.Box3().setFromObject(packet);
+  });
+  const [lead, middle, cube] = bounds;
+  const sizes = bounds.map(box => box.getSize(new THREE.Vector3()));
+  for (const box of bounds) {
+    const center = box.getCenter(new THREE.Vector3());
+    assert.ok(Math.abs(center.y) < 1e-5 && Math.abs(center.z) < 1e-5, "packets share the aperture axis");
+  }
+  assert.ok(Math.abs(lead.min.x + lead.max.x) < 1e-5, "lead packet is halfway through the iris");
+  assert.ok(lead.max.x < middle.min.x && middle.max.x < cube.min.x, "packets have visible gaps");
+  assert.ok(sizes[0].x > sizes[1].x && sizes[1].x > sizes[2].x);
+  assert.ok(Math.abs(sizes[2].x - sizes[2].y) < 1e-5 && Math.abs(sizes[2].x - sizes[2].z) < 1e-5);
+}
+
 const customLandmarks = {
+  "api-gateway.glb": ["Aperture rim", "Iris blade 03", "Chevron 08", ...gatewayPackets],
   "dynamodb.glb": ["Key puzzle piece", "Value puzzle piece"],
+  "iam.glb": ["Scalloped ruby seal", "Inset ruby face", "Raised ivory check", "Left ribbon tail", "Right ribbon tail"],
   "kms.glb": ["Center key", "Left key", "Right key", "Faceted collar"],
   "lambda.glb": ["Main diagonal", "Left leg"],
   "neptune.glb": ["Node 0", "Node 1", "Node 2"],
@@ -51,6 +73,7 @@ test("the shipped renderer loads every embedded service model without external r
     const meshes = [];
     gltf.scene.traverse(object => {if (object.isMesh) meshes.push(object);});
     if (customLandmarks[file]) {
+      if (file === "api-gateway.glb") checkGatewayPackets(meshes, THREE);
       const names = meshes.map(mesh => mesh.userData.name);
       for (const landmark of customLandmarks[file]) assert.ok(names.includes(landmark), file + " missing " + landmark);
     } else {
