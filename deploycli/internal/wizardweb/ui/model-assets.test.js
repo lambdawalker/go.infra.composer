@@ -6,7 +6,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 test("bundled AWS cubes contain their geometry and preserve the catalog materials", () => {
-  const services = ["eventbridge", "secretsmanager", "ses"];
+  const services = ["secretsmanager", "ses"];
   for (const service of services) {
     const bytes = fs.readFileSync(path.join(__dirname, "../../../awsicons/models/aws", service + ".glb"));
     assert.equal(bytes.toString("ascii", 0, 4), "glTF", service);
@@ -86,6 +86,7 @@ const customLandmarks = {
   "aws/cloudwatch.glb": ["Ticker housing", "Left raised rim", "Right raised rim", "Glass bottom plate", "Feed slot", "Curled log strip", "Timestamp 1", "Message 1", "Timestamp 2", "Message 2", "Timestamp 3", "Message 3"],
   "aws/cognito.glb": ["Swept ruby-glass leg", "Spindle", "Fluted thumbwheel", "Profile card 01", "Profile card 34", "Profile head", "Profile shoulders"],
   "aws/dynamodb.glb": ["Key puzzle piece", "Value puzzle piece"],
+  "aws/eventbridge.glb": ["Continuous fork deck", "Outer clock arch", "Clock face", "Entry envelope", "Left exit envelope", "Middle exit envelope", "Right exit envelope"],
   "aws/iam.glb": ["Scalloped ruby seal", "Inset ruby face", "Raised ivory check", "Left ribbon tail", "Right ribbon tail"],
   "aws/kms.glb": ["Center key", "Left key", "Right key", "Faceted collar"],
   "aws/lambda.glb": ["Main diagonal", "Left leg"],
