@@ -9,6 +9,7 @@ For engraved certificate icons, use one shared accent glass material for the fra
 | Local file | Design | SHA-256 |
 | --- | --- | --- |
 | `ses.glb` | Engraved glass sender certificate with a plum frame, envelope and ribbon | `1689072dd4ecb349fba9046e13d7fc50e95ada0d266ad6b2e306e90b7aedc3a6` |
+| `secret-version.glb` | Rolled champagne glass manuscript with a woven teal binding and ruby wax seal | `b68da9e1f51354a09c67b6548dfe621090ba2a390913e55f51cc2710a09993dc` |
 | `secretsmanager.glb` | Ruby glass vault with an exterior three-spoke handle and a frosted cyan secret cartridge | `57e031a3598ef8065aa5a7f9761a68b2fcfcf398793ad3cda8575ca807720af2` |
 | `eventbridge.glb` | Raspberry-glass fork with two queued entry envelopes and an amber envelope midway along each of two exits | `6d50fa1b95e371f9b4eff349f85c01d52cc30aa326370e875ab03052860a1156` |
 | `cognito.glb` | Classic Rotary user directory with 34 frosted cards, a raised ruby profile and curved glass supports | `9e0a61b6565368cbe8a59f3d41c5306cd7080fd8aa551ee2163fa427f3be6b27` |
@@ -32,7 +33,6 @@ For engraved certificate icons, use one shared accent glass material for the fra
 | `rds.glb` | Database with linked tables | `8351ec50a9c0498bc6cf4ee2fe3fbf0cd55555f3ea6fe11293c97e5f414c1a48` |
 | `neptune.glb` | Database with a three-node graph | `4c7dfd2367f48a35c47377256157dcb8665c62c91b326942768fca99fa7368af` |
 
-All meshes and materials are embedded in the GLBs. They require no textures,
-external buffers, decompression extensions, or network resources. A glTF renderer
+All meshes and materials are embedded in the GLBs. The manuscript includes embedded textures for its woven binding. The models require no external buffers or textures, decompression extensions, or network resources. A glTF renderer
 with `KHR_materials_transmission` and `KHR_materials_volume` support is needed to
 preserve the glass finish.
