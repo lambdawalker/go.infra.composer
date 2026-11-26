@@ -120,8 +120,9 @@ function topologyHarness({failRenderer=false}={}) {
   const T=context.WizardTopologyThree.THREE;
   context.WizardTopologyThree={THREE:{...T,
     WebGLRenderer:class {
-      constructor(){stats.constructs++;if(failRenderer)throw Error("No WebGL");}
-      setPixelRatio(){}setSize(){}render(scene,camera){renders.push({scene,camera});}dispose(){stats.disposes++;}
+      constructor({canvas}){this.canvas=canvas;this.capabilities={maxTextureSize:4096};this.shadowMap={};stats.constructs++;if(failRenderer)throw Error("No WebGL");}
+      setDrawingBufferSize(w,h,r){this.canvas.width=Math.floor(w*r);this.canvas.height=Math.floor(h*r);}
+      render(scene,camera){renders.push({scene,camera});}dispose(){stats.disposes++;}
     },
     PMREMGenerator:class {fromScene(){return {texture:{},dispose(){stats.environmentDisposes++;}};}dispose(){}}
   },RoomEnvironment:class {dispose(){}},GLTFLoader:class {
@@ -129,7 +130,7 @@ function topologyHarness({failRenderer=false}={}) {
   }};
   context.wizardAWSIconFor=awsIconFor;
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,"topology.js"),"utf8"),context);
-  const elements=Object.fromEntries(["stage","canvas","tooltip","message","selectedLabel","list","search","count","fit"].map(key=>[key,new Element()]));
+  const elements=Object.fromEntries(["stage","canvas","tooltip","message","selectedLabel","list","search","count","fit","tlsModel"].map(key=>[key,new Element()]));
   const selected=[];
   const topology=context.createArtifactTopology({...elements,onSelect:key=>selected.push(key)});
   function flush(){let calls=0;while(frames.length){assert.ok(++calls<5,"rendering must settle without an animation loop");frames.shift()();}}
@@ -236,4 +237,21 @@ test("uses an opaque floor beneath the inventory and updates its palette with th
   let released=0;
   for(const resource of [floor.geometry,floor.material])resource.addEventListener("dispose",()=>released++);
   h.topology.dispose();assert.equal(released,2);
+});
+
+test("supersamples the canvas and casts service and fallback shadows onto the floor", async () => {
+  const h=topologyHarness();
+  h.topology.setArtifacts([{key:"cert",type:"aws:acm/certificate:Certificate"}]);h.topology.activate();h.flush();
+  assert.equal(h.elements.canvas.width,1600);
+  assert.equal(h.elements.canvas.height,800);
+  assert.equal(h.elements.tlsModel.hidden,false);
+  assert.equal(h.artifactNodes()[0].children[0].castShadow,true);
+  const scene=h.renders.at(-1).scene;
+  assert.ok(scene.children.some(o=>o.isDirectionalLight && o.castShadow));
+  assert.ok(scene.children.some(o=>o.geometry?.type==="PlaneGeometry" && o.receiveShadow));
+  h.loads.get("/models/aws/acm.glb").resolve(h.model());await settleModels();h.flush();
+  h.artifactNodes()[0].traverse(o=>{if(o.isMesh)assert.ok(o.castShadow);});
+  h.elements.tlsModel.value="shield";h.elements.tlsModel.emit("change");
+  assert.ok(h.loads.has("/models/aws/acm-shield.glb"));
+  h.topology.dispose();
 });

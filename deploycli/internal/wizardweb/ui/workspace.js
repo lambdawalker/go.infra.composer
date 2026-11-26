@@ -51,7 +51,7 @@
   const topology = window.createArtifactTopology({
     stage:$("topology-stage"),canvas:$("topology-canvas"),tooltip:$("topology-tooltip"),
     message:$("topology-message"),selectedLabel:$("topology-selected"),
-    list:$("topology-list"),search:$("topology-search"),count:$("topology-count"),fit:$("topology-fit"),
+    list:$("topology-list"),search:$("topology-search"),count:$("topology-count"),fit:$("topology-fit"),tlsModel:$("topology-tls-model"),
     onSelect:key=>{const artifact=state.nodes.find(a=>a.key===key);if(artifact)select(artifact,true);}
   });
   const dialog = $("workspace-dialog"), dialogContent = $("dialog-content"), promptActions = $("prompt-actions"), signInActions = $("sign-in-actions"), countdown = $("countdown"), stop = $("stop"), lockPanel = document.querySelector("#vault-lock .lock-panel");
