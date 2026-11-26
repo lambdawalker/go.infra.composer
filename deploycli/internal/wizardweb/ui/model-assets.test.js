@@ -127,13 +127,25 @@ const customLandmarks = {
   "aws/neptune.glb": ["Node 0", "Node 1", "Node 2"],
   "aws/rds.glb": ["Left table", "Right table", "Table link"],
   "aws/route53.glb": ["Raised 53", "Hexagonal post", "Round foot", "Right collar", "Left collar", "Right socket", "Left socket", "Right arrow", "Left arrow", "Right front inlay", "Left front inlay"],
+  "aws/secret-version.glb": ["Wide teal binding", "Wax seal with diamond impression"],
   "aws/secretsmanager.glb": ["Open ruby door", "Raised door panel", "Wheel hub", "Wheel spoke 3", "Secret cartridge", "Upper cartridge band"],
   "aws/ses.glb": ["Engraved glass plaque", "Certificate frame", "Envelope flap", "Scalloped ribbon seal", "Ribbon tail left", "Ribbon tail right"],
   "aws/s3.glb": ["S3 bucket", "Stored object 1", "Stored object 2", "Stored object 3"]
 };
 
 test("the shipped renderer loads every embedded service model without external resources", async () => {
-  const context = {console, TextDecoder, TextEncoder, ArrayBuffer, AbortController};
+  const context = {console, TextDecoder, TextEncoder, ArrayBuffer, AbortController, AbortSignal, Blob, self:{URL},
+    fetch(url, options) {
+      assert.ok(url.startsWith("blob:"), "model textures must be embedded");
+      return fetch(url, options);
+    },
+    // Node has no bitmap decoder. Validate the embedded PNG and expose its size to Three.
+    async createImageBitmap(blob) {
+      const png = Buffer.from(await blob.arrayBuffer());
+      assert.equal(png.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+      return {width:png.readUInt32BE(16), height:png.readUInt32BE(20)};
+    }
+  };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "vendor/topology-three.js"), "utf8"), context);
   const {GLTFLoader, THREE} = context.WizardTopologyThree;
   const directory = path.join(__dirname, "../../../awsicons/models");
@@ -160,6 +172,10 @@ test("the shipped renderer loads every embedded service model without external r
         assert.ok(accent.attenuationColor.r > accent.attenuationColor.g);
       }
       if (file === "acm.glb") checkCertificate(meshes, THREE, "Raised TLS lettering");
+      if (file === "secret-version.glb") {
+        const tie = meshes.find(mesh => mesh.userData.name === "Wide teal binding");
+        assert.ok(tie.material.map?.image.width > 0 && tie.material.normalMap?.image.width > 0);
+      }
       if (file === "secretsmanager.glb") checkVaultDoor(meshes, THREE);
       if (file === "acm-shield.glb") checkShieldProfile(meshes, THREE);
       if (file === "api-gateway-route.glb") {
