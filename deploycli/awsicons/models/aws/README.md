@@ -4,6 +4,7 @@ The wizard embeds these service-specific models from the custom icon collection.
 
 | Local file | Design | SHA-256 |
 | --- | --- | --- |
+| `secretsmanager.glb` | Ruby glass vault with an exterior three-spoke handle and a frosted cyan secret cartridge | `f457ab02fbc3faa3a7b9b157cf7cd104f3a0a4e40734954055baa118efe502d3` |
 | `eventbridge.glb` | Raspberry-glass fork with two queued entry envelopes and an amber envelope midway along each of two exits | `d6d874fc7bee48c8427b17a41f5af5144b5c703d7ac41c324fc0212253540d43` |
 | `cognito.glb` | Classic Rotary user directory with 34 frosted cards, a raised ruby profile and curved glass supports | `147c3c9c0632780ca2863e17f1d22780a26784cec8a52e9e6b00c4b506784f2f` |
 | `cloudwatch.glb` | Hollow raspberry-glass ticker with raised side rims, a framed feed slot and a curled ivory log strip | `ab5956230e9d6105a4b272d8b278b69825231b2b357cc28c0ea65c08125f18f5` |
@@ -21,16 +22,16 @@ The wizard embeds these service-specific models from the custom icon collection.
 
 ## Glass cube catalog
 
-These two GLB files are unchanged copies from the published
+The SES GLB is an unchanged copy from the published
 [AWS Glass Cubes catalog](https://aws-glass-cubes.lemony-amber-5141.chatgpt.site),
 version 3, source commit `64e50dcef5cef7eeb619d216c4d24f310acb84e6`.
-The source archive is `dist/aws-glass-cubes.zip`; only the filenames were shortened
+The source archive is `dist/aws-glass-cubes.zip`; its filename was shortened
 for the wizard's service mapping. No runtime request goes to the catalog.
 
 The catalog defaults are preserved: glass opacity **55%**, white stroke width
-**85%**, white extrusion **120%**, and white inward depth **11.5%**. In glTF these
-models use transmission `0.873`, volume thickness `2`, attenuation distance `3.6`,
-and glyph depth from `-0.115` to `0.066` relative to each cube face. Each model
+**85%**, white extrusion **120%**, and white inward depth **11.5%**. In glTF this
+model uses transmission `0.873`, volume thickness `2`, attenuation distance `3.6`,
+and glyph depth from `-0.115` to `0.066` relative to each cube face. The model
 contains one rounded glass cube spanning `[-1, 1]` on every axis and the same
 extruded white service glyph on all six faces.
 
@@ -46,5 +47,4 @@ preserve the glass finish.
 
 | Local file | Archive entry | Bytes | SHA-256 |
 | --- | --- | ---: | --- |
-| `secretsmanager.glb` | `security-identity-compliance-secrets-manager-cube.glb` | 271832 | `acd372a8f82584ee078d6096ae5119455841dd72f68cd61abfc95c09b246d496` |
 | `ses.glb` | `business-applications-simple-email-service-cube.glb` | 306104 | `24a6790452ffafe219b7940cf9c09b966e5ec8b1d1984ed961e34a0b840ddaa3` |

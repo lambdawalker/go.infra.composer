@@ -5,8 +5,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-test("bundled AWS cubes contain their geometry and preserve the catalog materials", () => {
-  const services = ["secretsmanager", "ses"];
+test("the bundled SES cube contains its geometry and preserves the catalog materials", () => {
+  const services = ["ses"];
   for (const service of services) {
     const bytes = fs.readFileSync(path.join(__dirname, "../../../awsicons/models/aws", service + ".glb"));
     assert.equal(bytes.toString("ascii", 0, 4), "glTF", service);
@@ -79,6 +79,23 @@ function checkShieldProfile(meshes, THREE) {
   }
 }
 
+function checkVaultDoor(meshes, THREE) {
+  const mesh = name => meshes.find(part => part.userData.name === name);
+  const door = mesh("Open ruby door"), hinge = door.parent;
+  assert.equal(hinge.userData.name, "Door hinge pivot");
+  assert.ok(door.material.transmission > 0 && mesh("Secret cartridge").material.transmission > 0);
+  // Close the hinge in glTF space. The vault opens toward +Z.
+  hinge.quaternion.identity();
+  hinge.updateWorldMatrix(true, true);
+  const front = new THREE.Box3().setFromObject(door, true).max.z;
+  const wheel = meshes.filter(part => part.userData.name?.startsWith("Wheel "));
+  assert.equal(wheel.length, 6);
+  for (const part of wheel) {
+    assert.equal(part.parent, hinge);
+    assert.ok(new THREE.Box3().setFromObject(part, true).min.z > front, part.name);
+  }
+}
+
 const customLandmarks = {
   "cloudflare/dns.glb": ["Amber cloud", "Hexagonal post", "Left collar", "Right collar"],
   "aws/acm.glb": ["Ruby shield", "Ivory T", "Ivory L", "Ivory S"],
@@ -93,6 +110,7 @@ const customLandmarks = {
   "aws/neptune.glb": ["Node 0", "Node 1", "Node 2"],
   "aws/rds.glb": ["Left table", "Right table", "Table link"],
   "aws/route53.glb": ["Raised 53", "Hexagonal post", "Round foot", "Right collar", "Left collar", "Right socket", "Left socket", "Right arrow", "Left arrow", "Right front inlay", "Left front inlay"],
+  "aws/secretsmanager.glb": ["Open ruby door", "Raised door panel", "Wheel hub", "Wheel spoke 3", "Secret cartridge", "Upper cartridge band"],
   "aws/s3.glb": ["S3 bucket", "Stored object 1", "Stored object 2", "Stored object 3"]
 };
 
@@ -111,6 +129,7 @@ test("the shipped renderer loads every embedded service model without external r
     const meshes = [];
     gltf.scene.traverse(object => {if (object.isMesh) meshes.push(object);});
     if (customLandmarks[relativePath]) {
+      if (file === "secretsmanager.glb") checkVaultDoor(meshes, THREE);
       if (file === "acm.glb") checkShieldProfile(meshes, THREE);
       if (file === "api-gateway.glb") checkGatewayPackets(meshes, THREE);
       const names = meshes.map(mesh => mesh.userData.name);
