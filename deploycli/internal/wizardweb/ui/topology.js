@@ -110,7 +110,7 @@
 
   function modelPathFor(type, iconFor, variant) {
     const icon = typeof iconFor === "function" ? iconFor(type, variant) : "";
-    const match = /^\/icons\/((?:aws|cloudflare)\/[a-z0-9-]+)\.svg$/.exec(icon || "");
+    const match = /^\/icons\/((?:aws|cloudflare|random)\/[a-z0-9-]+)\.svg$/.exec(icon || "");
     return match ? "/models/" + match[1] + ".glb" : "";
   }
 

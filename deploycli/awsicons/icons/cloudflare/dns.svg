@@ -1,9 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-3 -7 54 54">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-3 -10 54 57">
   <title>Cloudflare DNS</title>
   <g stroke="#ab86eb" stroke-width="2" stroke-linejoin="round">
-    <path fill="#69459a" d="M21.5 12 24 10.5 26.5 12v30h-5Z"/>
-    <path transform="translate(0 8)" fill="#e6def4" d="M26.5 7H40l5 4.5-5 4.5H26.5Z M21.5 18H8l-5 4.5L8 27h13.5Z"/>
+    <path fill="#69459a" d="M21.5 9 24 7.5 26.5 9v33h-5Z"/>
+    <path transform="translate(0 3) scale(1 1.2)" stroke="#605956" fill="#999290" d="M26.5 7H40l5 4.5-5 4.5H26.5Z M21.5 18H8l-5 4.5L8 27h13.5Z"/>
     <ellipse cx="24" cy="43" rx="9" ry="2.6" fill="#704896"/>
   </g>
-  <path transform="translate(4 -25) scale(.84)" fill="#ffac4c" stroke="#603413" stroke-width="1.2" d="M16 38a4 4 0 0 1-.2-8 4.4 4.4 0 0 1 5.3-2.4A6 6 0 0 1 32 30a4 4 0 0 1 .6 8Z"/>
+  <path transform="translate(4 -28) scale(.84)" fill="#69459a" stroke="#603413" stroke-width="1.2" d="M16 38a4 4 0 0 1-.2-8 4.4 4.4 0 0 1 5.3-2.4A6 6 0 0 1 32 30a4 4 0 0 1 .6 8Z"/>
 </svg>

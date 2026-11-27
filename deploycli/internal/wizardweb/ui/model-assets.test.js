@@ -114,7 +114,7 @@ const certificateEmblems = {
 const customLandmarks = {
   ...Object.fromEntries(Object.entries(certificateEmblems).map(([file, emblem]) =>
     ["aws/" + file, [emblem, "Engraved glass plaque", "Scalloped ribbon seal"]])),
-  "cloudflare/dns.glb": ["Amber cloud", "Hexagonal post", "Left collar", "Right collar"],
+  "cloudflare/dns.glb": ["Violet cloud", "Hexagonal post", "Left collar", "Right collar"],
   "aws/acm.glb": ["Raised TLS lettering", "Engraved glass plaque", "Scalloped ribbon seal"],
   "aws/acm-shield.glb": ["Ruby shield", "Ivory T", "Ivory L", "Ivory S"],
   "aws/api-gateway-domain-name.glb": ["Perpendicular wall mounting plate", "Cantilever arm with swept gusset", "Left hanging link", "Right hanging link"],
@@ -125,7 +125,7 @@ const customLandmarks = {
   "aws/eventbridge-target.glb": ["Hinged nickel mail flap", "Faceted raspberry mail slot bezel", "Left pointing triangular closure", "Amber envelope - short edge entering"],
   "aws/api-gateway-route.glb": ["Round apex pivot", "Round port scale cap", "Pierced brace eye", "Graduated outer arc", "Nickel index arm", "Diagonal telescope barrel", "Cyan packet slider"],
   "aws/api-gateway.glb": ["Aperture rim", "Iris blade 03", "Chevron 08", ...gatewayPackets],
-  "aws/cloudwatch.glb": ["Ticker housing", "Left raised rim", "Right raised rim", "Glass bottom plate", "Feed slot", "Curled log strip", "Timestamp 1", "Message 1", "Timestamp 2", "Message 2", "Timestamp 3", "Message 3"],
+  "aws/cloudwatch.glb": ["Ticker housing", "Left raised rim", "Right raised rim", "Glass bottom plate", "Feed slot", "Feed roller"],
   "aws/cognito.glb": ["Swept ruby-glass leg", "Spindle", "Fluted thumbwheel", "Profile card 01", "Profile card 34", "Profile head", "Profile shoulders"],
   "aws/dynamodb.glb": ["Key puzzle piece", "Value puzzle piece"],
   "aws/eventbridge.glb": ["Continuous fork deck", "Center slot", "Entry envelope", "Second entry envelope", "Left exit envelope", "Right exit envelope"],
@@ -139,6 +139,7 @@ const customLandmarks = {
   "aws/secret-version.glb": ["Wide teal binding", "Wax seal with diamond impression"],
   "aws/secretsmanager.glb": ["Open ruby door", "Raised door panel", "Wheel hub", "Wheel spoke 3", "Secret cartridge", "Upper cartridge band"],
   "aws/ses.glb": ["Engraved glass plaque", "Certificate frame", "Envelope flap", "Scalloped ribbon seal", "Ribbon tail left", "Ribbon tail right"],
+  "random/random-bytes.glb": ["Tipped teal dice cup", "Inside die honey core", "Settled die honey core", "Tumbling die honey core"],
   "aws/s3.glb": ["S3 bucket", "Stored object 1", "Stored object 2", "Stored object 3"]
 };
 
@@ -174,6 +175,47 @@ test("the shipped renderer loads every embedded service model without external r
     }), file + " includes volume-tinted glass");
     if (customLandmarks[relativePath]) {
       if (certificateEmblems[file]) checkCertificate(meshes, THREE, certificateEmblems[file]);
+      if (file === "cloudwatch.glb") {
+        const paper = meshes.filter(m=>["Frosted ivory glass","Engraved smoked ivory"].includes(m.material.name));
+        const ray = new THREE.Raycaster();
+        function front(x,y) {
+          ray.set(new THREE.Vector3(x,y,1),new THREE.Vector3(0,0,-1));
+          return ray.intersectObjects(paper)[0];
+        }
+        for (const y of [.464,.764,1.014]) {
+          const surface = front(-.16,y);
+          for (const x of [-.31,.11]) {
+            const recess = front(x,y);
+            assert.equal(recess.object.material.name,"Engraved smoked ivory");
+            assert.ok(recess.distance-surface.distance>.015,"marks are recessed into the sheet");
+          }
+        }
+      }
+      if (file === "random-bytes.glb") {
+        const cup = meshes.find(m=>m.userData.name==="Tipped teal dice cup");
+        const dice = meshes.filter(m=>m.material.name==="Amber die glass");
+        assert.equal(dice.length,3);
+        const inner = meshes.find(m=>m.userData.name==="Inside die honey core");
+        assert.ok(new THREE.Box3().setFromObject(cup,true).containsBox(new THREE.Box3().setFromObject(inner,true)));
+        assert.equal(cup.userData.transmissionLayer,1);
+      }
+      if (file === "eventbridge-target.glb") {
+        const ray = new THREE.Raycaster(new THREE.Vector3(-1,1.23,2),new THREE.Vector3(0,0,-1));
+        assert.equal(ray.intersectObject(gltf.scene,true).length,0,"clear sightline through slot beside the envelope");
+      }
+      if (file === "route53.glb" || file === "dns.glb") {
+        const part = name=>meshes.find(m=>m.userData.name===name);
+        const post = part("Hexagonal post");
+        for (const side of ["Left","Right"]) {
+          for (const name of ["arrow","socket","collar"]) {
+            assert.equal(part(side+" "+name).material.name,"Satin graphite nickel");
+          }
+          assert.ok(new THREE.Box3().setFromObject(part(side+" arrow"),true).getSize(new THREE.Vector3()).y>.61);
+        }
+        const badge=part(file==="dns.glb"?"Violet cloud":"Route number plate");
+        assert.equal(post.material,badge.material);
+        assert.ok(new THREE.Box3().setFromObject(badge,true).min.y>new THREE.Box3().setFromObject(post,true).max.y);
+      }
       if (file === "ses.glb") checkCertificate(meshes, THREE, "Envelope body");
       if (file === "lambda-permission.glb") {
         checkCertificate(meshes, THREE, "Lambda main diagonal");
@@ -223,15 +265,23 @@ test("the shipped renderer loads every embedded service model without external r
   }
 });
 
-test("sextant metal uses the domain sign bracket finish", () => {
-  function meshMaterial(file, name) {
-    const bytes=fs.readFileSync(path.join(__dirname,"../../../awsicons/models/aws",file));
-    const doc=JSON.parse(bytes.subarray(20,20+bytes.readUInt32LE(12)).toString());
-    const mesh=doc.nodes.find(node=>node.name===name).mesh;
-    return doc.materials[doc.meshes[mesh].primitives[0].material];
+test("catalog hardware shares the domain sign bracket material", () => {
+  const directory = path.join(__dirname, "../../../awsicons/models");
+  function readModel(file) {
+    const bytes = fs.readFileSync(file);
+    return JSON.parse(bytes.subarray(20, 20 + bytes.readUInt32LE(12)).toString());
   }
-  const finish=meshMaterial("api-gateway-domain-name.glb","Perpendicular wall mounting plate");
-  for (const name of ["Nickel index arm","Diagonal telescope barrel"]) {
-    assert.deepEqual(meshMaterial("api-gateway-route.glb",name),finish);
+  const domain = readModel(path.join(directory, "aws/api-gateway-domain-name.glb"));
+  const bracket = domain.nodes.find(node => node.name === "Perpendicular wall mounting plate");
+  const finish = domain.materials[domain.meshes[bracket.mesh].primitives[0].material];
+  assert.equal(finish.name, "Satin graphite nickel");
+  for (const provider of fs.readdirSync(directory)) {
+    for (const file of fs.readdirSync(path.join(directory, provider)).filter(name => name.endsWith(".glb"))) {
+      for (const material of readModel(path.join(directory, provider, file)).materials) {
+        if ((material.pbrMetallicRoughness?.metallicFactor ?? 1) >= .5 || material.name === finish.name) {
+          assert.deepEqual(material, finish, file + " / " + material.name);
+        }
+      }
+    }
   }
 });

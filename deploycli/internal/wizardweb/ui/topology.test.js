@@ -76,8 +76,14 @@ test("Cloudflare DNS records use the cloud signpost in details and topology", ()
   }
 });
 
+test("uses the dice cup for Pulumi RandomBytes", () => {
+  const type="random:index/randomBytes:RandomBytes";
+  assert.equal(awsIconFor(type),"/icons/random/random-bytes.svg");
+  assert.equal(modelPathFor(type,awsIconFor),"/models/random/random-bytes.glb");
+});
+
 test("uses basic shapes for unknown providers and never loads an external model", () => {
-  for(const type of ["", "cloudflare:index/zone:Zone", "random:index/randomBytes:RandomBytes",
+  for(const type of ["", "cloudflare:index/zone:Zone", "random:index/randomInteger:RandomInteger",
     "apexfission:email-verification:TestHost", "aws:unknown/resource:Resource"]) {
     assert.equal(modelPathFor(type,awsIconFor),"",type);
   }

@@ -13,6 +13,7 @@
   function awsIconFor(type, variant) {
     // Pulumi types end in :Kind; locally recorded resources such as the state
     // bucket can use aws:s3/stateBucket, and older records use aws:s3:Bucket.
+    if (type === "random:index/randomBytes:RandomBytes") return "/icons/random/random-bytes.svg";
     if (type === "cloudflare:index/dnsRecord:DnsRecord" || type === "cloudflare:DnsRecord" ||
         type === "cloudflare:index/record:Record") return "/icons/cloudflare/dns.svg";
     const match = /^aws:([a-z0-9]+)(?:\/([A-Za-z0-9]+)(?::([A-Za-z0-9]+))?|:([A-Za-z0-9]+))$/.exec(type);

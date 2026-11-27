@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-3 -7 54 54">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-3 -10 54 57">
   <title>Route 53</title>
   <g stroke="#ab86eb" stroke-width="2" stroke-linejoin="round">
-    <path fill="#69459a" d="M21.5 12 24 10.5 26.5 12v30h-5Z"/>
-    <path transform="translate(0 8)" fill="#e6def4" d="M26.5 7H40l5 4.5-5 4.5H26.5Z M21.5 18H8l-5 4.5L8 27h13.5Z"/>
+    <path fill="#69459a" d="M21.5 9 24 7.5 26.5 9v33h-5Z"/>
+    <path transform="translate(0 3) scale(1 1.2)" stroke="#605956" fill="#999290" d="M26.5 7H40l5 4.5-5 4.5H26.5Z M21.5 18H8l-5 4.5L8 27h13.5Z"/>
     <ellipse cx="24" cy="43" rx="9" ry="2.6" fill="#704896"/>
   </g>
-  <ellipse cx="24" cy="1" rx="8" ry="6.5" fill="#69459a"/>
-  <text x="24" y="5" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="11" fill="#ffe0a4" stroke="#45276e" stroke-width="2" paint-order="stroke">53</text>
+  <ellipse cx="24" cy="-2" rx="8" ry="6.5" fill="#69459a"/>
+  <text x="24" y="2" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="11" fill="#9473bb" stroke="#45276e" stroke-width="2" paint-order="stroke">53</text>
 </svg>

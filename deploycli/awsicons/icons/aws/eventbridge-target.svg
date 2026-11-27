@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <title>EventBridge target</title>
-  <path d="m4 13 4-4h48l5 5v37l-5 4H8l-5-5z" fill="#aa165a"/><path d="M10 17h44v28H10z" fill="#52162f"/>
+  <path d="m4 13 4-4h48l5 5v37l-5 4H8l-5-5z M10 22h44v18H10z" fill-rule="evenodd" fill="#aa165a"/>
   <path d="m23 25 16-1 4 32-17 2z" fill="#ffb03c" stroke="#b66a17" stroke-width="2"/><path d="m40 28-12 14 14 11" fill="none" stroke="#ac6215" stroke-width="2"/>
-  <path d="M11 17h42l2 10-44 2z" fill="#c0b7af"/>
+  <path d="M10 21h44l2 10-44 2z" fill="#c0b7af"/>
 </svg>
