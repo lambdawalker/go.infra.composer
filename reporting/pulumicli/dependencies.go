@@ -32,7 +32,13 @@ func (d resourceDependencies) keys(source string, known map[string]bool) []strin
 func ApplyPlanDependencies(as []r.Artifact, rd io.Reader) ([]r.Artifact, error) {
 	var plan struct {
 		ResourcePlans map[string]struct {
-			Goal *resourceDependencies `json:"goal"`
+			Goal *struct {
+				resourceDependencies
+				Type   string `json:"type"`
+				Custom *bool  `json:"custom"`
+				Parent string `json:"parent"`
+			} `json:"goal"`
+			Steps []string `json:"steps"`
 		} `json:"resourcePlans"`
 	}
 	if err := json.NewDecoder(rd).Decode(&plan); err != nil || plan.ResourcePlans == nil {
@@ -43,9 +49,30 @@ func ApplyPlanDependencies(as []r.Artifact, rd io.Reader) ([]r.Artifact, error) 
 		known[a.Key] = true
 	}
 	out := append([]r.Artifact(nil), as...)
+	// A saved plan can be the only source of inventory on a first preview.
+	for _, key := range slices.Sorted(maps.Keys(plan.ResourcePlans)) {
+		entry := plan.ResourcePlans[key]
+		goal := entry.Goal
+		if known[key] || goal == nil || goal.Custom == nil || !inventoryResource(resource{URN: key, Type: goal.Type}) {
+			continue
+		}
+		a := r.Artifact{Key: key, Name: name(key), Type: goal.Type, Provider: provider(goal.Type), Priority: Priority(goal.Type),
+			Observation: r.Observation{Status: r.Unknown, Reason: r.Unchecked}}
+		if len(entry.Steps) > 0 {
+			a.PlannedAction = allowedAction(entry.Steps[0])
+		}
+		out = append(out, a)
+		known[key] = true
+	}
 	for i := range out {
 		if goal := plan.ResourcePlans[out[i].Key].Goal; goal != nil {
 			out[i].Dependencies = goal.keys(out[i].Key, known)
+			if goal.Custom != nil {
+				out[i].Component = !*goal.Custom
+			}
+			if goal.Parent != out[i].Key && known[goal.Parent] {
+				out[i].Parent = goal.Parent
+			}
 		}
 	}
 	return out, nil

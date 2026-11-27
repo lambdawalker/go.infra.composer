@@ -39,8 +39,8 @@ func plain(m map[string]json.RawMessage, key string) string {
 func name(urn string) string     { p := strings.Split(urn, "::"); return p[len(p)-1] }
 func provider(typ string) string { return strings.Split(typ, ":")[0] }
 
-func managed(s resource) bool {
-	return s.URN != "" && s.Type != "" && !strings.HasPrefix(s.Type, "pulumi:") && (s.Custom == nil || *s.Custom)
+func inventoryResource(s resource) bool {
+	return s.URN != "" && s.Type != "" && !strings.HasPrefix(s.Type, "pulumi:")
 }
 func parentType(field, typ string) bool {
 	parts := strings.Split(strings.ToLower(typ), ":")
@@ -84,7 +84,7 @@ func ReadState(rd io.Reader, at time.Time) ([]r.Artifact, error) {
 	as := safeArtifacts(root.Deployment.Resources, r.Observation{Status: r.Recorded, Source: "pulumi-state", ObservedAt: at})
 	i := 0
 	for _, s := range root.Deployment.Resources {
-		if managed(s) {
+		if inventoryResource(s) {
 			as[i].Configuration = r.NewStateConfiguration(s.Type, s.Outputs, at)
 			i++
 		}
@@ -99,10 +99,13 @@ func safeArtifacts(resources []resource, observation r.Observation) []r.Artifact
 	ids := map[string][]resource{}
 	byURN := map[string]bool{}
 	for _, s := range resources {
-		if !managed(s) {
+		if !inventoryResource(s) {
 			continue
 		}
 		byURN[s.URN] = true
+		if s.Custom != nil && !*s.Custom {
+			continue // Component outputs can alias their children.
+		}
 		// ARN is an internal, allowlisted alias only; never copied into the report.
 		aliases := map[string]bool{}
 		for _, alias := range []string{s.ID, plain(s.Outputs, "arn")} {
@@ -113,10 +116,10 @@ func safeArtifacts(resources []resource, observation r.Observation) []r.Artifact
 		}
 	}
 	for _, s := range resources {
-		if !managed(s) {
+		if !inventoryResource(s) {
 			continue
 		}
-		a := r.Artifact{Key: s.URN, Name: name(s.URN), Type: s.Type, Provider: provider(s.Type), ProviderID: s.ID, Parent: s.Parent, Observation: observation}
+		a := r.Artifact{Key: s.URN, Name: name(s.URN), Type: s.Type, Provider: provider(s.Type), ProviderID: s.ID, Parent: s.Parent, Component: s.Custom != nil && !*s.Custom, Observation: observation}
 		a.Dependencies = s.keys(s.URN, byURN)
 		var tags map[string]json.RawMessage
 		_ = json.Unmarshal(s.Outputs["tags"], &tags)
@@ -249,7 +252,8 @@ func ApplyPreview(as []r.Artifact, rd io.Reader) ([]r.Artifact, error) {
 	for i, a := range out {
 		index[a.Key] = i
 		resourceIndex[a.Key] = len(resources)
-		resources = append(resources, resource{URN: a.Key, Type: a.Type, ID: a.ProviderID, Parent: a.Parent})
+		custom := !a.Component
+		resources = append(resources, resource{Custom: &custom, URN: a.Key, Type: a.Type, ID: a.ProviderID, Parent: a.Parent})
 	}
 	actions := map[string]string{}
 	parseErr := events(rd, func(e event) {
@@ -267,6 +271,7 @@ func ApplyPreview(as []r.Artifact, rd io.Reader) ([]r.Artifact, error) {
 		} else if m.Old != nil {
 			s = *m.Old
 		}
+		hasStateIdentity := s.URN != ""
 		s.URN = m.URN
 		if m.Type != "" {
 			s.Type = m.Type
@@ -276,10 +281,23 @@ func ApplyPreview(as []r.Artifact, rd io.Reader) ([]r.Artifact, error) {
 				s.Type = out[i].Type
 			}
 		}
-		if !managed(s) {
+		// Pulumi omits custom:false from step state, but includes the state URN.
+		// Sparse event metadata can instead reuse the recorded classification.
+		if s.Custom == nil {
+			if hasStateIdentity {
+				custom := false
+				s.Custom = &custom
+			} else if i, ok := resourceIndex[s.URN]; ok {
+				s.Custom = resources[i].Custom
+			}
+		}
+		if !inventoryResource(s) {
 			return
 		}
 		if i, ok := resourceIndex[s.URN]; ok {
+			if s.Parent == "" && m.New == nil && m.Old == nil {
+				s.Parent = resources[i].Parent
+			}
 			resources[i] = s
 		} else {
 			resourceIndex[s.URN] = len(resources)
@@ -295,6 +313,10 @@ func ApplyPreview(as []r.Artifact, rd io.Reader) ([]r.Artifact, error) {
 		}
 		if i, ok := index[a.Key]; ok {
 			out[i].PlannedAction = action
+			out[i].Component = a.Component
+			if source := resources[resourceIndex[a.Key]]; source.Parent != "" || a.Parent != "" {
+				out[i].Parent = a.Parent
+			}
 			if source := resources[resourceIndex[a.Key]]; source.Dependencies != nil || source.PropertyDependencies != nil {
 				out[i].Dependencies = a.Dependencies
 			}

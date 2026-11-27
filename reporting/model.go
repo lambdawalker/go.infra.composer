@@ -57,6 +57,7 @@ type Artifact struct {
 	Owner         string         `json:"owner,omitempty"`
 	Feature       string         `json:"feature,omitempty"`
 	Parent        string         `json:"parent,omitempty"`
+	Component     bool           `json:"component,omitempty"`
 	Dependencies  []string       `json:"dependencies,omitempty"`
 	Priority      int            `json:"priority,omitempty"`
 	PlannedAction string         `json:"plannedAction,omitempty"`
