@@ -113,6 +113,7 @@ const customLandmarks = {
   "cloudflare/dns.glb": ["Amber cloud", "Hexagonal post", "Left collar", "Right collar"],
   "aws/acm.glb": ["Raised TLS lettering", "Engraved glass plaque", "Scalloped ribbon seal"],
   "aws/acm-shield.glb": ["Ruby shield", "Ivory T", "Ivory L", "Ivory S"],
+  "aws/api-gateway-mapping.glb": ["Transparent three-port housing", "Nickel selector lever", "L-bored selector ball", "Selected inlet-to-right L passage", "Idle left outlet flange", "Selected right outlet flange", "Common inlet flange"],
   "aws/api-gateway-integration.glb": ["Amethyst clevis fork", "Mandarin coupling tongue", "Brushed silver pivot pin"],
   "aws/api-gateway-route.glb": ["Round apex pivot", "Round port scale cap", "Pierced brace eye", "Graduated outer arc", "Frosted index arm", "Diagonal telescope barrel", "Cyan packet slider"],
   "aws/api-gateway.glb": ["Aperture rim", "Iris blade 03", "Chevron 08", ...gatewayPackets],

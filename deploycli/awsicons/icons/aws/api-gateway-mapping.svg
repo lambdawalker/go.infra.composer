@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>API Gateway API mapping</title>
+  <g fill="#7953ac" stroke="#c59ae7" stroke-width="2.5" stroke-linejoin="round">
+    <path d="M4 27h14a17 17 0 0 1 28 0h14v12H48a17 17 0 0 1-10 10v11H26V49a17 17 0 0 1-10-10H4z"/>
+    <circle cx="32" cy="33" r="14" fill="#635d92"/>
+  </g>
+  <path d="M32 57V37q0-4 4-4h22" fill="none" stroke="#54e2cd" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M4 25v16m56-16v16M24 60h16" fill="none" stroke="#af7fdf" stroke-width="5" stroke-linecap="round"/>
+  <path d="M32 18v-5L49 6" fill="none" stroke="#e2dce5" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="32" cy="13" r="3" fill="#918897"/>
+</svg>

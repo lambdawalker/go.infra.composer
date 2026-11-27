@@ -20,6 +20,7 @@
     const [, service] = match;
     const resource = match[2] || match[4];
     if ((service === "apigateway" || service === "apigatewayv2") && /^integration$/i.test(resource)) return "/icons/aws/api-gateway-integration.svg";
+    if (service === "apigatewayv2" && /^apiMapping$/i.test(resource)) return "/icons/aws/api-gateway-mapping.svg";
     if (service === "apigatewayv2" && /^route$/i.test(resource)) return "/icons/aws/api-gateway-route.svg";
     if (service === "secretsmanager" && /^secretVersion$/i.test(resource)) return "/icons/aws/secret-version.svg";
     if (service === "iam" && /^role$/i.test(resource)) return "/icons/aws/iam-role.svg";
