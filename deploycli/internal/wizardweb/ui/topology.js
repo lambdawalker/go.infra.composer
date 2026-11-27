@@ -119,7 +119,7 @@
     const parents = hierarchy(artifacts);
     const items = artifacts.map(a => ({
       key:a.key, name:String(a.name || a.key), type:String(a.type || "Resource"),
-      iconVariant:a.iconVariant, description:String(a.description || ""), action:String(a.action || "unknown"),
+      dependencies:[...new Set(a.dependencies || [])], iconVariant:a.iconVariant, description:String(a.description || ""), action:String(a.action || "unknown"),
       parent:parents.get(a.key) || "", attachment:!!a.attachment && parents.get(a.key)===a.attachment,
       category:a.component ? "component" : categoryFor(String(a.type || "")), children:[]
     }));
@@ -149,6 +149,28 @@
     for (const shelf of new Set(items.map(item=>item.shelf))) shelf.z-=offset;
     for (const item of items) item.position[2]-=offset;
     return items;
+  }
+
+  const changeMarks=new Map([["create","+"],["update","~"],["replace","±"],["delete","−"],
+    ["create-replacement","±"],["delete-replaced","±"],["import","↓"],["import-replacement","±"]]);
+
+  function previewKeys(items,byKey){
+    const keys=new Set();
+    for(const item of items)if(changeMarks.has(item.action)){
+      for(let node=item;node&&!keys.has(node.key);node=byKey.get(node.parent))keys.add(node.key);
+    }
+    return keys;
+  }
+
+  function tracePairs(items,selected,mode){
+    const links=[];
+    if(!selected||!mode)return links;
+    for(const other of items){
+      if(other.key===selected.key)continue;
+      if(mode==="out"&&selected.dependencies.includes(other.key))links.push([selected.key,other.key]);
+      if(mode==="in"&&other.dependencies.includes(selected.key))links.push([other.key,selected.key]);
+    }
+    return links;
   }
 
   function selectionFamily(item,byKey) {
@@ -360,7 +382,7 @@
     ["aws:acm/certificate",certificateIcons]
   ]);
 
-  function createArtifactTopology({stage,canvas,tooltip,message,selectedLabel,list,search,count,fit,frameButton,branchButton,labels,iconSettings,iconDialog,iconRows,arrows,focus,platformOpacity,glassTransparency,navigation,axes,box,onSelect}) {
+  function createArtifactTopology({stage,canvas,tooltip,message,selectedLabel,list,search,count,fit,changesOnly,trace,relationship,frameButton,branchButton,labels,iconSettings,iconDialog,iconRows,arrows,focus,platformOpacity,glassTransparency,navigation,axes,box,onSelect}) {
     let items=[],byKey=new Map(),selectedKey="",active=false,drawQueued=false,pointer=null;
     const openingYaw=-.18,openingPitch=.24,pitchLimit=Math.PI/2-.00001;
     let mode="orbit",yaw=openingYaw,pitch=openingPitch,distance=30,target=[0,0,0],contextLost=false,disposed=false;
@@ -371,6 +393,7 @@
     const nodes=new Map(),modelCache=new Map(),loadingModels=new Set(),failedModels=new Set();
     const fallbackGeometry=new Map(),fallbackMaterials=new Map();
     const listeners=[];
+    let dependencyEdges=null,inspected=null,links=[],changeKeys=new Set();
     let attachmentEdges=null,shelfMaterial=null,rimMaterial=null,shelfSignature="";
     const shelves=new Map(),perimeters=[];
     const originalGlass=new WeakMap();
@@ -592,7 +615,11 @@
         attachmentEdges.material.attenuationColor.setHex(0x62dbeb);
         attachmentEdges.material.attenuationDistance=.055;
         edges.material.attenuationDistance=.07;
-        scene.add(edges.group,attachmentEdges.group);
+        dependencyEdges=new runtime.DirectedConduits();
+        dependencyEdges.group.name="Recorded Pulumi dependencies";
+        dependencyEdges.material.color.setHex(0xdccafa);
+        dependencyEdges.material.attenuationColor.setHex(0x9967e4);
+        scene.add(edges.group,attachmentEdges.group,dependencyEdges.group);
         shelfMaterial=new T.MeshPhysicalMaterial({color:0xb4dded,roughness:.18,metalness:.08,
           clearcoat:.8,transparent:true,opacity:.095,depthWrite:false});
         rimMaterial=new T.LineBasicMaterial({color:0xa0cee4,transparent:true,opacity:.32,depthWrite:false});
@@ -610,7 +637,7 @@
       for(const geometry of fallbackGeometry.values())geometry.dispose();fallbackGeometry.clear();
       for(const material of fallbackMaterials.values())material.dispose();fallbackMaterials.clear();
       clearShelves();perimeterMaterial?.dispose();focusBlend?.dispose();focusBlend=null;shelfMaterial?.dispose();rimMaterial?.dispose();shelfSignature="";
-      attachmentEdges?.dispose();attachmentEdges=null;edges?.dispose();outline?.dispose();
+      dependencyEdges?.dispose();dependencyEdges=null;attachmentEdges?.dispose();attachmentEdges=null;edges?.dispose();outline?.dispose();
       floor?.geometry.dispose();floor?.material.dispose();floor=null;
       keyLight?.shadow.dispose();keyLight=null;
       layeredGlass?.dispose();layeredGlass=null;
@@ -778,16 +805,18 @@
     });
     function updateVisibility() {
       if(!scene)return;
-      const query=search.value.trim().toLowerCase();
-      for(const {line,keys,groups} of perimeters)line.visible=keys.some(key=>!hiddenChildren.has(key)) && [...keys,...groups].some(key=>!hiddenChildren.has(key)&&matchesArtifact(byKey.get(key),query));
-      for (const {mesh,keys} of shelves.values()) mesh.visible=keys.some(key=>!hiddenChildren.has(key)&&matchesArtifact(byKey.get(key),query));
+      for(const {line,keys,groups} of perimeters)line.visible=keys.some(key=>!hiddenChildren.has(key))&&[...keys,...groups].some(isVisible);
+      for(const {mesh,keys} of shelves.values())mesh.visible=keys.some(isVisible);
       for(const item of items){
-        const node=nodes.get(item.key),visible=!hiddenChildren.has(item.key)&&matchesArtifact(item,query);
+        const node=nodes.get(item.key),visible=isVisible(item.key);
         if(node && node.group.visible!==visible){node.group.visible=visible;edgesDirty=true;renderer.shadowMap.needsUpdate=true;}
       }
     }
+    function isVisible(key){
+      return !hiddenChildren.has(key)&&(!changesOnly.checked||changeKeys.has(key))&&matchesArtifact(byKey.get(key),search.value.trim().toLowerCase());
+    }
     function fitView() {
-      frame(items.filter(item=>!hiddenChildren.has(item.key)&&matchesArtifact(item,search.value.trim().toLowerCase())));
+      frame(items.filter(item=>isVisible(item.key)));
     }
     function frame(visible){
       cropSize=1;cropX=0;cropY=0;
@@ -820,11 +849,12 @@
       shelfMaterial.opacity=opacity;
       rimMaterial.opacity=Math.min(1,opacity*.32/.095);
       perimeterMaterial.opacity=Math.min(1,opacity*8);
-      edges.group.visible=attachmentEdges.group.visible=arrows.checked;
+      edges.group.visible=attachmentEdges.group.visible=dependencyEdges.group.visible=arrows.checked;
       if (arrows.checked && edgesDirty) {
-        const links=visibleEdges(items.filter(n=>!hiddenChildren.has(n.key)),search.value.trim().toLowerCase());
-        edges.update(nodes,links.filter(([,key])=>!byKey.get(key).attachment));
-        attachmentEdges.update(nodes,links.filter(([,key])=>byKey.get(key).attachment));
+        const hierarchyLinks=visibleEdges(items.filter(n=>isVisible(n.key)),"");
+        dependencyEdges.update(nodes,links.filter(([a,b])=>isVisible(a)&&isVisible(b)));
+        edges.update(nodes,hierarchyLinks.filter(([,key])=>!byKey.get(key).attachment));
+        attachmentEdges.update(nodes,hierarchyLinks.filter(([,key])=>byKey.get(key).attachment));
         edgesDirty=false;
       }
       camera.aspect=bounds.width/bounds.height;
@@ -855,7 +885,7 @@
         for(const [key,node] of nodes)if(node.group.visible && !family.has(key))context.push(node.group);
         for(const {mesh,keys} of shelves.values())if(mesh.visible && !keys.some(k=>family.has(k)))context.push(mesh);
         for(const {line,groups} of perimeters)if(line.visible && !groups.some(k=>family.has(k)))context.push(line);
-        for(const conduits of [edges,attachmentEdges]){
+        for(const conduits of [edges,attachmentEdges,dependencyEdges]){
           if(!conduits.group.visible)continue;
           for(const edge of conduits.group.children){
             if(!family.has(edge.userData.source)||!family.has(edge.userData.destination))context.push(edge);
@@ -870,8 +900,41 @@
       if(disposed||!active||drawQueued||contextLost)return;
       drawQueued=true;requestAnimationFrame(draw);
     }
+    function reveal(key){
+      search.value="";
+      if(changesOnly.checked&&!changeKeys.has(key))changesOnly.checked=false;
+      onSelect(key);
+      renderList();
+      frameSelection();
+    }
+    function showRelationships(){
+      relationship.replaceChildren();
+      relationship.hidden=!inspected&&!trace.value;
+      function endpoint(key){
+        const button=document.createElement("button");
+        button.type="button";button.textContent=byKey.get(key).name;
+        button.onclick=()=>reveal(key);return button;
+      }
+      if(inspected){
+        relationship.append(endpoint(inspected.source)," "+inspected.meaning+" → ",endpoint(inspected.destination));
+        const close=document.createElement("button");close.type="button";close.textContent="Close";
+        close.onclick=()=>{inspected=null;showRelationships();};relationship.append(" ",close);
+      }else if(trace.value){
+        relationship.append(trace.selectedOptions[0].textContent+" · recorded Pulumi dependencies ");
+        if(!links.length)relationship.append("· None recorded");
+        for(const [source,destination] of links)relationship.append(" ",endpoint(trace.value==="out"?destination:source));
+      }
+    }
     function updateSelection() {
       const selected=byKey.get(selectedKey);family=selectionFamily(selected,byKey);selectedLabel.hidden=!selected;
+      const nextLinks=tracePairs(items,selected,trace.value);
+      if(JSON.stringify(nextLinks)!==JSON.stringify(links)){
+        edgesDirty=true;links=nextLinks;
+        for(const pair of links)for(const key of pair)for(let n=byKey.get(key);n;n=byKey.get(n.parent))collapsed.delete(n.parent);
+        rebuildCollapsed();
+      }
+      for(const pair of links)for(const key of pair)family?.add(key);
+      showRelationships();
       if(frameButton)frameButton.disabled=!selected;
       if(branchButton){
         branchButton.hidden=!selected?.children.length;
@@ -886,8 +949,8 @@
           const crumb=document.createElement("button");crumb.type="button";crumb.textContent=n.name;
           crumb.onclick=()=>onSelect(n.key);selectedLabel.append(crumb);
         }
-        for(const n of new Set([...path,...[...collapsed].map(k=>byKey.get(k)).filter(Boolean)])){
-          const label=document.createElement("span");label.dataset.key=n.key;label.textContent=n.name;
+        for(const n of new Set([...(changesOnly.checked?items.filter(n=>changeMarks.has(n.action)):[]),...path,...[...collapsed].map(k=>byKey.get(k)).filter(Boolean)])){
+          const label=document.createElement("span");label.dataset.key=n.key;label.textContent=changesOnly.checked&&changeMarks.has(n.action)?changeMarks.get(n.action)+" "+n.action+" · "+n.name:n.name;
           if(collapsed.has(n.key))label.textContent+=" · "+descendants(n).length+" hidden";
           labels.append(label);
         }
@@ -897,29 +960,35 @@
     }
     function renderList() {
       const query=search.value.trim().toLowerCase();list.replaceChildren();
-      const visible=items.filter(item=>matchesArtifact(item,query));
+      const visible=items.filter(item=>matchesArtifact(item,query)&&(!changesOnly.checked||changeKeys.has(item.key)));
       count.textContent=items.length?`${visible.length} of ${items.length}`:"0";
-      if(items.length&&!visible.length){const empty=document.createElement("li");empty.textContent="No artifacts match this search.";empty.className="topology-empty";list.append(empty);}
+      if(items.length&&!visible.length){const empty=document.createElement("li");empty.textContent=changesOnly.checked&&!changeKeys.size?"No planned changes.":"No artifacts match this search.";empty.className="topology-empty";list.append(empty);}
       for(const item of visible){const li=document.createElement("li"),button=document.createElement("button");
         button.type="button";button.dataset.key=item.key;button.title=item.name;
         button.setAttribute("aria-label",`${item.name}, ${categories[item.category].label}, ${item.action}`);
         const marker=document.createElement("i");marker.className="topology-key "+item.category;marker.setAttribute("aria-hidden","true");
         const name=document.createElement("span");name.className="topology-list-text";name.textContent=item.name;
-        const kind=document.createElement("span");kind.className="topology-list-kind";kind.textContent=categories[item.category].label;
-        button.append(marker,name,kind);button.onclick=()=>onSelect(item.key);li.append(button);list.append(li);}
+        const kind=document.createElement("span");kind.className="topology-list-kind";kind.textContent=changesOnly.checked&&changeMarks.has(item.action)?changeMarks.get(item.action)+" "+item.action:categories[item.category].label;
+        button.append(marker,name,kind);button.onclick=()=>query?reveal(item.key):onSelect(item.key);li.append(button);list.append(li);}
       updateSelection();
     }
     function setArtifacts(artifacts,scope="") {
       if(projectScope!==scope)switchProject(scope);
       const previousStructure=items.map(a=>a.key+"\0"+a.parent).join("\n");
       items=layoutArtifacts(artifacts);byKey=new Map(items.map(a=>[a.key,a]));
-      rebuildCollapsed();syncIconSettings();
+      changeKeys=previewKeys(items,byKey);
+      if(inspected){
+        const destination=byKey.get(inspected.destination),source=byKey.get(inspected.source);
+        if(!source||!destination||(inspected.meaning==="depends on (Pulumi)"?
+          !source.dependencies.includes(destination.key):destination.parent!==source.key))inspected=null;
+      }rebuildCollapsed();syncIconSettings();
       if(!byKey.has(selectedKey))selectedKey="";
       canvas.hidden=!items.length||!renderer;syncArtifacts();renderList();
       if(previousStructure!==items.map(a=>a.key+"\0"+a.parent).join("\n"))fitView();else requestDraw();
       if(!items.length||renderer)updateMessage();
     }
     function setSelection(key) {
+      if(selectedKey!==key)inspected=null;
       selectedKey=key||"";
       if(hiddenChildren.has(key)){
         for(let n=byKey.get(key);n;n=byKey.get(n.parent))collapsed.delete(n.parent);
@@ -935,7 +1004,16 @@
       mouse.set((clientX-rect.left)/rect.width*2-1,-(clientY-rect.top)/rect.height*2+1);
       raycaster.setFromCamera(mouse,camera);scene.updateMatrixWorld(true);
       const visuals=[...nodes.values()].filter(node=>node.group.visible).map(node=>node.visual);
+      for(const [bundle,meaning] of [[edges,"is Pulumi parent of"],[attachmentEdges,"has AWS attachment"],[dependencyEdges,"depends on (Pulumi)"]]){
+        if(!bundle.group.visible)continue;
+        visuals.push(...bundle.group.children);
+        bundle.group.userData.meaning=meaning;
+      }
       for(const hit of raycaster.intersectObjects(visuals,true)) {
+        for(let o=hit.object;o;o=o.parent)if(o.userData.source){
+          const {source,destination}=o.userData,meaning=o.parent.userData.meaning;
+          return {source,destination,meaning,name:byKey.get(source).name+" → "+byKey.get(destination).name};
+        }
         for(let object=hit.object;object;object=object.parent)if(object.userData.artifactKey)return byKey.get(object.userData.artifactKey)||null;
       }
       return null;
@@ -1011,7 +1089,7 @@
       if(navigation.contains(event.target)||mode!=="orbit"){tooltip.hidden=true;return;}
       const item=near(event.clientX,event.clientY);tooltip.hidden=!item;
       if(item){tooltip.replaceChildren();const title=document.createElement("strong"),kind=document.createElement("small");
-        title.textContent=item.name;kind.textContent=categories[item.category].label;tooltip.append(title,kind);
+        title.textContent=item.name;kind.textContent=item.meaning||categories[item.category].label;tooltip.append(title,kind);
         const rect=stage.getBoundingClientRect();tooltip.style.left=Math.max(8,Math.min(event.clientX-rect.left+12,rect.width-270))+"px";
         tooltip.style.top=Math.max(8,Math.min(event.clientY-rect.top+12,rect.height-65))+"px";}});
     listen(stage,"pointerup",event=>{
@@ -1020,7 +1098,7 @@
       if(gesture.mode==="box")applyBox(boxBounds(event.clientX,event.clientY));
       cancelGesture(gesture.mode==="box");
       if(gesture.mode==="orbit"&&!gesture.dragged){
-        const item=near(event.clientX,event.clientY);if(item)onSelect(item.key);
+        const item=near(event.clientX,event.clientY);if(item?.meaning){inspected=item;showRelationships();}else if(item)onSelect(item.key);
       }
     });
     for(const type of ["pointercancel","lostpointercapture"])
@@ -1055,6 +1133,18 @@
     });
     listen(canvas,"webglcontextlost",event=>{event.preventDefault();cancelGesture();contextLost=true;canvas.hidden=true;updateMessage();});
     listen(canvas,"webglcontextrestored",()=>{contextLost=false;releaseRenderer();if(active)initialize();requestDraw();});
+    listen(trace,"change",()=>{
+      inspected=null;edgesDirty=true;
+      updateSelection();
+    });
+    listen(changesOnly,"change",()=>{
+      inspected=null;edgesDirty=true;
+      if(changesOnly.checked)for(const key of changeKeys)collapsed.delete(key);
+      rebuildCollapsed();renderList();fitView();
+    });
+    listen(search,"keydown",event=>{
+      if(event.key==="Enter"){const first=list.querySelector("button");if(first){event.preventDefault();reveal(first.dataset.key);}}
+    });
     listen(search,"input",()=>{renderList();updateVisibility();requestDraw();});listen(fit,"click",fitView);
     function disposeTemplate(template) {
       const geometries=new Set(),materials=new Set(),textures=new Set();
@@ -1076,5 +1166,5 @@
     window.createArtifactTopology=createArtifactTopology;
     window.artifactHierarchy=hierarchy;
   }
-  if(typeof module!=="undefined"&&module.exports)module.exports={categoryFor,layoutArtifacts,perspective,lookAt,multiply,project,modelPathFor,matchesArtifact,visibleEdges,selectionFamily,bottomPerimeters};
+  if(typeof module!=="undefined"&&module.exports)module.exports={tracePairs,previewKeys,categoryFor,layoutArtifacts,perspective,lookAt,multiply,project,modelPathFor,matchesArtifact,visibleEdges,selectionFamily,bottomPerimeters};
 })();

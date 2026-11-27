@@ -108,6 +108,8 @@
             <label class="topology-switch"><input type="checkbox" role="switch" id="topology-arrows" checked> Arrows</label><label class="topology-switch"><input type="checkbox" role="switch" id="topology-focus" checked> Selection focus</label>
             <label class="topology-slider">Platform opacity <input type="range" aria-label="Platform opacity" id="topology-opacity" min="0" max="100" step=".25" value="4.75"><output for="topology-opacity">4.75%</output></label>
             <label class="topology-slider" title="50 restores the original glass finish">Icon glass transparency <input type="range" aria-label="Icon glass transparency" id="topology-glass" min="0" max="100" value="50"><output for="topology-glass">50%</output></label>
+            <label class="topology-switch"><input type="checkbox" id="topology-changes"> Changes only</label>
+            <label>Trace <select id="topology-trace"><option value="">Off</option><option value="out">Depends on</option><option value="in">Used by</option></select></label>
             <button type="button" id="topology-frame" title="Frame selection (F)">Frame selection</button><button type="button" id="topology-branch" hidden>Collapse branch</button><button type="button" id="topology-fit">Fit view</button></div>
           <dialog id="topology-icon-dialog" class="topology-icon-dialog" aria-labelledby="topology-icon-title">
             <header><h2 id="topology-icon-title">Icon settings</h2><form method="dialog"><button type="submit" aria-label="Close icon settings">Close</button></form></header>
@@ -126,6 +128,7 @@
             </div>
             <div class="topology-box" id="topology-box" hidden></div>
             <div class="topology-tooltip" id="topology-tooltip" hidden></div><p class="topology-message" id="topology-message">Select the deployment target to view its artifacts.</p><div id="topology-labels" aria-hidden="true"></div><div class="topology-selected" id="topology-selected" aria-live="polite" hidden></div></div>
+          <div id="topology-relationship" aria-live="polite" hidden></div>
           <div class="topology-legend" aria-label="Topology legend"><span><i class="topology-key glass"></i> AWS service models</span><span><i class="topology-key component"></i> Component group</span><span><i class="topology-key membership" aria-hidden="true"></i> Pulumi parent → child</span><span><i class="topology-key attachment" aria-hidden="true"></i> AWS attachment</span><span><i class="topology-key selected"></i> Selected artifact</span></div>
           <div class="topology-list-head"><h3>Artifacts <span id="topology-count">0</span></h3><input id="topology-search" type="search" placeholder="Find an artifact" aria-label="Find an artifact in topology"></div>
           <ol class="topology-list" id="topology-list" aria-label="Artifact topology in text form"></ol>

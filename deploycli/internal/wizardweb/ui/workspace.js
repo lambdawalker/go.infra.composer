@@ -53,6 +53,7 @@
     stage:$("topology-stage"),canvas:$("topology-canvas"),tooltip:$("topology-tooltip"),
     message:$("topology-message"),selectedLabel:$("topology-selected"),
     list:$("topology-list"),search:$("topology-search"),count:$("topology-count"),fit:$("topology-fit"),arrows:$("topology-arrows"),focus:$("topology-focus"),platformOpacity:$("topology-opacity"),glassTransparency:$("topology-glass"),
+    changesOnly:$("topology-changes"),trace:$("topology-trace"),relationship:$("topology-relationship"),
     frameButton:$("topology-frame"),branchButton:$("topology-branch"),labels:$("topology-labels"),
     iconSettings:$("topology-icon-settings"),iconDialog:$("topology-icon-dialog"),iconRows:$("topology-icon-rows"),
     onSelect:key=>{const artifact=state.nodes.find(a=>a.key===key);if(artifact)select(artifact,true);}
