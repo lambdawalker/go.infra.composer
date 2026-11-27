@@ -93,6 +93,9 @@ func (cli deployCLI) checkDrift(ctx context.Context, root, private, project stri
 		}
 		var changed, missing, unverified, unchanged int
 		for _, a := range report.Artifacts {
+			if a.Component {
+				continue
+			}
 			switch a.Observation.Status {
 			case reporting.Absent:
 				missing++

@@ -4,6 +4,7 @@
 // so the inventory stays usable without WebGL and with a keyboard.
 (() => {
   const categories = {
+    component: {label:"Component group", shape:"sphere", color:[.42,.72,.83]},
     compute: {label:"Compute", shape:"pyramid", color:[.45,.67,1]},
     storage: {label:"Storage", shape:"cube", color:[.38,.77,.70]},
     network: {label:"API & DNS", shape:"sphere", color:[.68,.59,.94]},
@@ -13,7 +14,7 @@
   };
 
   function categoryFor(type) {
-    if (/lambda\/function|:Function$|:TestHost$|:StorageAndSigner$/i.test(type)) return "compute";
+    if (/lambda\/function|:Function$/i.test(type)) return "compute";
     if (/dynamodb|^aws:(?:rds|neptune)[/:]|s3\/|storage|:Bucket$|:Table$/i.test(type)) return "storage";
     if (/iam|cognito|kms|secretsmanager|:Authorizer$|lambda\/permission|:Permission$|random\/|:RandomBytes/i.test(type)) return "security";
     if (/apigateway|route53|cloudflare|acm\/|:Certificate|:DnsRecord|:DomainName/i.test(type)) return "network";
@@ -27,7 +28,7 @@
     const items = artifacts.map(a => ({
       key:String(a.key), name:String(a.name || a.key), type:String(a.type || "Resource"),
       iconVariant:a.iconVariant, description:String(a.description || ""), action:String(a.action || "unknown"),
-      parent:String(a.parent || ""), category:categoryFor(String(a.type || "")),
+      parent:String(a.parent || ""), category:a.component ? "component" : categoryFor(String(a.type || "")),
       children:[], position:null
     }));
     const byKey = new Map(items.map(a => [a.key,a]));
@@ -261,6 +262,7 @@
       stage.focus({preventScroll:true});
     });
     function pathFor(item) {
+      if (item.category === "component") return "";
       const path=modelPathFor(item.type,window.wizardAWSIconFor,item.iconVariant);
       return path==="/models/aws/acm.glb" && tlsModel.value==="shield" ? "/models/aws/acm-shield.glb" : path;
     }
@@ -330,6 +332,7 @@
       const T=runtime.THREE;
       if(!fallbackGeometry.has(category)) {
         const geometry=category==="compute"?new T.ConeGeometry(.95,1.8,4):
+          category==="component"?new T.SphereGeometry(.85,32,24):
           category==="network"?new T.SphereGeometry(.85,16,10):
           category==="security"?new T.OctahedronGeometry(1):
           category==="message"?new T.ConeGeometry(.85,1.8,16):new T.BoxGeometry(1.7,1.7,1.7);
