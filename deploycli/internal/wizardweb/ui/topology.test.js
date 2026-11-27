@@ -151,9 +151,10 @@ function topologyHarness({failRenderer=false}={}) {
       constructor({canvas}){this.canvas=canvas;this.extensions={has:()=>true};this.capabilities={maxTextureSize:4096};this.shadowMap={};stats.constructs++;if(failRenderer)throw Error("No WebGL");}
       setDrawingBufferSize(w,h,r){this.canvas.width=Math.floor(w*r);this.canvas.height=Math.floor(h*r);}
       getDrawingBufferSize(v){return v.set(this.canvas.width,this.canvas.height);}
+      copyFramebufferToTexture(){}
       getRenderTarget(){return this.target||null;} setRenderTarget(t){this.target=t;}
       getClearColor(c){return c.setHex(0);} getClearAlpha(){return 1;} setClearColor(){} clear(){}
-      render(scene,camera){if(!this.target && scene.name!=="Selection outline overlay")renders.push({scene,camera});}dispose(){stats.disposes++;}
+      render(scene,camera){if(!this.target && !scene.name.endsWith(" overlay"))renders.push({scene,camera});}dispose(){stats.disposes++;}
     },
     PMREMGenerator:class {fromScene(){return {texture:{},dispose(){stats.environmentDisposes++;}};}dispose(){}}
   },RoomEnvironment:class {dispose(){}},GLTFLoader:class {
@@ -161,8 +162,8 @@ function topologyHarness({failRenderer=false}={}) {
   }};
   context.wizardAWSIconFor=awsIconFor;
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,"topology.js"),"utf8"),context);
-  const elements=Object.fromEntries(["stage","canvas","tooltip","message","selectedLabel","list","search","count","fit","tlsModel","arrows","navigation","axes","box"].map(key=>[key,new Element()]));
-  elements.arrows.checked=true;
+  const elements=Object.fromEntries(["stage","canvas","tooltip","message","selectedLabel","list","search","count","fit","tlsModel","arrows","focus","platformOpacity","glassTransparency","navigation","axes","box"].map(key=>[key,new Element()]));
+  elements.arrows.checked=true;elements.focus.checked=true;elements.platformOpacity.value="4.75";elements.glassTransparency.value="50";
   elements.navigation.append(elements.axes);
   const selected=[];
   const topology=context.createArtifactTopology({...elements,onSelect:key=>selected.push(key)});
@@ -564,5 +565,42 @@ test("Arrows toggles both conduit groups and preserves camera, selection and flo
     assert.ok(h.elements.selectedLabel.textContent.includes("permission"));
     assert.ok(camera.position.equals(eye));
   }
+  h.topology.dispose();
+});
+
+test("focus follows one ancestry chain and the selected subtree without including siblings", () => {
+  const {selectionFamily,bottomPerimeters}=require("./topology.js");
+  const nodes=layoutArtifacts([{key:"root",component:true},{key:"fn",parent:"root"},
+    {key:"p",parent:"root",attachment:"fn"},{key:"policy",parent:"p"},
+    {key:"peer",parent:"root"},{key:"other",component:true}]);
+  const byKey=new Map(nodes.map(n=>[n.key,n]));
+  assert.deepEqual([...selectionFamily(byKey.get("p"),byKey)].sort(),["fn","p","policy","root"]);
+  const boundaries=bottomPerimeters(nodes);
+  assert.equal(boundaries.length,2);
+  assert.deepEqual(boundaries.find(p=>p.groups.includes("root")).keys,["policy"]);
+  assert.ok(boundaries.every(p=>p.ring.length===6));
+});
+
+test("sliders restore authored glass, leave metal intact, and scale both shelf faces and rims", async () => {
+  const h=topologyHarness(),T=h.context.WizardTopologyThree.THREE;
+  h.topology.setArtifacts([{key:"root",component:true}]);h.topology.activate();h.flush();
+  const model=h.model();
+  const hardware=new T.Mesh(new T.BoxGeometry(1,1,1),new T.MeshStandardMaterial({metalness:.9}));
+  model.scene.add(hardware);
+  h.loads.get("/models/pulumi/component.glb").resolve(model);await settleModels();h.flush();
+  const {glassTransparency,platformOpacity}=h.elements;
+  const glass=model.material;
+  for(const value of [0,100,50]){
+    glassTransparency.value=String(value);glassTransparency.emit("input");h.flush();
+    assert.equal(glass.visible,value!==100);
+    assert.equal(glass.transmission,value===0?0:.873);
+    assert.equal(hardware.material.opacity,1);
+    assert.equal(hardware.material.visible,true);
+  }
+  const floor=h.renders.at(-1).scene.getObjectByName("Hexagonal root floor");
+  assert.equal(floor.material.opacity,.0475);assert.equal(floor.children[0].material.opacity,.16);
+  platformOpacity.value="0";platformOpacity.emit("input");h.flush();
+  assert.equal(floor.material.opacity,0);
+  assert.equal(h.renders.at(-1).scene.getObjectByName("Group base perimeter").material.opacity,0);
   h.topology.dispose();
 });

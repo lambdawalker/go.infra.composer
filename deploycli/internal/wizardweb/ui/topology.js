@@ -151,6 +151,87 @@
     return items;
   }
 
+  function selectionFamily(item,byKey) {
+    if(!item)return null;
+    const keys=new Set();
+    for(let a=item;a;a=byKey.get(a.parent))keys.add(a.key);
+    const pending=[...item.children];
+    while(pending.length){
+      const child=pending.pop();
+      keys.add(child.key);pending.push(...child.children);
+    }
+    return keys;
+  }
+
+  // A taut outer boundary follows the exposed hex edges and bridges empty
+  // space between bottom tiles. Exclude higher storeys from the footprint.
+  function bottomPerimeters(items) {
+    const result=new Map();
+    for(const group of items.filter(item=>item.category==="component")){
+      const pending=[group];
+      let bottom=Infinity,leaves=[];
+      while(pending.length){
+        const item=pending.pop();
+        pending.push(...item.children);
+        if(item.children.length)continue;
+        if(item.shelf.y<bottom){bottom=item.shelf.y;leaves=[];}
+        if(item.shelf.y===bottom)leaves.push(item);
+      }
+      const keys=leaves.map(item=>item.key).sort(),id=JSON.stringify(keys);
+      if(result.has(id)){result.get(id).groups.push(group.key);continue;}
+      const points=[];
+      for(const shelf of new Set(leaves.map(item=>item.shelf))){
+        const radius=shelf.width/2+.13;
+        for(let i=0;i<6;i++){
+          const angle=i*Math.PI/3;
+          points.push([shelf.x+radius*Math.cos(angle),shelf.z+radius*Math.sin(angle)]);
+        }
+      }
+      points.sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
+      function halfHull(sequence){
+        const hull=[];
+        for(const p of sequence){
+          while(hull.length>=2){
+            const [a,b]=hull.slice(-2);
+            if((b[0]-a[0])*(p[1]-a[1])-(b[1]-a[1])*(p[0]-a[0])>1e-8)break;
+            hull.pop();
+          }
+          hull.push(p);
+        }
+        hull.pop();return hull;
+      }
+      const ring=halfHull(points).concat(halfHull(points.reverse()));
+      result.set(id,{groups:[group.key],keys,ring,y:bottom-1.025});
+    }
+    return [...result.values()];
+  }
+
+  // Fifty is the authored glTF finish. Below it, reduce transmission.
+  // Above it, fade the glass surfaces themselves, including their reflections.
+  function applyGlassTransparency(visual,value,originals) {
+    visual.traverse(object=>{
+      if(!object.isMesh)return;
+      for(const m of Array.isArray(object.material)?object.material:[object.material]){
+        let base=originals.get(m);
+        if(!base){
+          if(!(m.transmission>0))continue;
+          base={transmission:m.transmission,transparent:m.transparent,opacity:m.opacity,
+            depthWrite:m.depthWrite,visible:m.visible};
+          originals.set(m,base);
+        }
+        if(base.value===value)continue;
+        const clear=Math.max(0,(value-50)/50);
+        m.transmission=base.transmission*Math.min(1,value/50);
+        m.opacity=value<50 ? 1-(1-base.opacity)*value/50 : base.opacity*(1-clear);
+        m.transparent=base.transparent||clear>0;
+        m.depthWrite=base.depthWrite && clear===0;
+        m.visible=base.visible && value<100;
+        m.needsUpdate=true;
+        base.value=value;
+      }
+    });
+  }
+
   // Four concentric hexagons give each glass slab a narrow beveled rim.
   function shelfGeometry(T, shelf) {
     const radius=shelf.width/2;
@@ -267,7 +348,7 @@
     return floor;
   }
 
-  function createArtifactTopology({stage,canvas,tooltip,message,selectedLabel,list,search,count,fit,tlsModel,arrows,navigation,axes,box,onSelect}) {
+  function createArtifactTopology({stage,canvas,tooltip,message,selectedLabel,list,search,count,fit,tlsModel,arrows,focus,platformOpacity,glassTransparency,navigation,axes,box,onSelect}) {
     let items=[],byKey=new Map(),selectedKey="",active=false,drawQueued=false,pointer=null;
     const openingYaw=-.18,openingPitch=.24,pitchLimit=Math.PI/2-.00001;
     let mode="orbit",yaw=openingYaw,pitch=openingPitch,distance=30,target=[0,0,0],contextLost=false,disposed=false;
@@ -279,7 +360,9 @@
     const fallbackGeometry=new Map(),fallbackMaterials=new Map();
     const listeners=[];
     let attachmentEdges=null,shelfMaterial=null,rimMaterial=null,shelfSignature="";
-    const shelves=new Map();
+    const shelves=new Map(),perimeters=[];
+    const originalGlass=new WeakMap();
+    let focusBlend=null,family=null,perimeterMaterial=null;
     function listen(element,event,handler,options) {
       element.addEventListener(event,handler,options);
       listeners.push(()=>element.removeEventListener(event,handler,options));
@@ -294,6 +377,20 @@
     themeObserver.observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
 
     listen(arrows,"change",()=>requestDraw());
+    listen(focus,"change",()=>requestDraw());
+    for(const slider of [platformOpacity,glassTransparency]){
+      listen(slider,"input",()=>{
+        if(slider.nextElementSibling)slider.nextElementSibling.value=slider.value+"%";
+        slider.setAttribute("aria-valuetext",slider.value+"%");
+        requestDraw();
+      });
+    }
+    function updateGlass(){
+      for(const node of nodes.values())applyGlassTransparency(node.visual,Number(glassTransparency.value),originalGlass);
+      if(renderer)renderer.shadowMap.needsUpdate=true;
+      requestDraw();
+    }
+    listen(glassTransparency,"input",updateGlass);
 
     const axisTips=[];
     for(const [index,axis] of ["X","Y","Z"].entries()){
@@ -415,6 +512,8 @@
         shelfMaterial=new T.MeshPhysicalMaterial({color:0xb4dded,roughness:.18,metalness:.08,
           clearcoat:.8,transparent:true,opacity:.095,depthWrite:false});
         rimMaterial=new T.LineBasicMaterial({color:0xa0cee4,transparent:true,opacity:.32,depthWrite:false});
+        perimeterMaterial=new T.LineBasicMaterial({color:0x9ecde5,transparent:true,depthWrite:false});
+        focusBlend=new runtime.SelectionFocus(renderer);
         outline=new runtime.SelectionOutline(renderer);
         edgesDirty=true;syncArtifacts();canvas.hidden=false;updateMessage();
         return true;
@@ -426,7 +525,7 @@
       nodes.clear();
       for(const geometry of fallbackGeometry.values())geometry.dispose();fallbackGeometry.clear();
       for(const material of fallbackMaterials.values())material.dispose();fallbackMaterials.clear();
-      clearShelves();shelfMaterial?.dispose();rimMaterial?.dispose();shelfSignature="";
+      clearShelves();perimeterMaterial?.dispose();focusBlend?.dispose();focusBlend=null;shelfMaterial?.dispose();rimMaterial?.dispose();shelfSignature="";
       attachmentEdges?.dispose();attachmentEdges=null;edges?.dispose();outline?.dispose();
       floor?.geometry.dispose();floor?.material.dispose();floor=null;
       keyLight?.shadow.dispose();keyLight=null;
@@ -481,6 +580,8 @@
         scene.remove(mesh);mesh.geometry.dispose();outline.geometry.dispose();
       }
       shelves.clear();
+      for(const {line} of perimeters){scene.remove(line);line.geometry.dispose();}
+      perimeters.length=0;
     }
     function syncShelves() {
       const levels=new Map();
@@ -488,11 +589,23 @@
         if(!levels.has(item.shelf)) levels.set(item.shelf,[]);
         levels.get(item.shelf).push(item.key);
       }
-      const signature=JSON.stringify([...levels]);
+      const signature=JSON.stringify([[...levels],items.map(a=>[a.key,a.parent,a.category])]);
       if(signature===shelfSignature)return;
       shelfSignature=signature;
       clearShelves();
       const T=runtime.THREE;
+      for(const boundary of bottomPerimeters(items)){
+        const points=[];
+        boundary.ring.forEach(([x,z],i)=>{
+          const next=boundary.ring[(i+1)%boundary.ring.length];
+          points.push(x,boundary.y,z,next[0],boundary.y,next[1]);
+        });
+        const geometry=new T.BufferGeometry();
+        geometry.setAttribute("position",new T.Float32BufferAttribute(points,3));
+        const line=new T.LineSegments(geometry,perimeterMaterial);
+        line.name="Group base perimeter";
+        scene.add(line);perimeters.push({...boundary,line});
+      }
       for(const [level,keys] of levels){
         const geometry=shelfGeometry(T,level),mesh=new T.Mesh(geometry,shelfMaterial);
         const outline=new T.LineSegments(new T.EdgesGeometry(geometry,20),rimMaterial);
@@ -513,7 +626,7 @@
         }
         if(!node) {
           const group=new T.Group();group.userData.artifactKey=item.key;
-          const visual=fallbackFor(item.category);group.add(visual);scene.add(group);
+          const visual=fallbackFor(item.category);applyGlassTransparency(visual,Number(glassTransparency.value),originalGlass);group.add(visual);scene.add(group);
           edgesDirty=true;node={group,visual,path,category:item.category};nodes.set(item.key,node);
           if(path) {
             const current=node;
@@ -521,7 +634,7 @@
               // A refreshed inventory or restored WebGL context may have replaced this node.
               if(!template||disposed||nodes.get(item.key)!==current)return;
               current.group.remove(current.visual);
-              current.visual=template.clone(true);current.group.add(current.visual); edgesDirty=true;
+              current.visual=template.clone(true);applyGlassTransparency(current.visual,Number(glassTransparency.value),originalGlass);current.group.add(current.visual); edgesDirty=true;
               renderer.shadowMap.needsUpdate=true;requestDraw();
             });
           }
@@ -547,6 +660,7 @@
     function updateVisibility() {
       if(!scene)return;
       const query=search.value.trim().toLowerCase();
+      for(const {line,keys,groups} of perimeters)line.visible=[...keys,...groups].some(key=>matchesArtifact(byKey.get(key),query));
       for (const {mesh,keys} of shelves.values()) mesh.visible=keys.some(key=>matchesArtifact(byKey.get(key),query));
       for(const item of items){
         const node=nodes.get(item.key),visible=matchesArtifact(item,query);
@@ -583,6 +697,10 @@
       uniforms.backdrop.value.copy(scene.background);
       uniforms.surface.value.setHex(lightTheme?0xc2cfda:0x415061);
       uniforms.grid.value.setHex(lightTheme?0xa6b5c3:0x516174);
+      const opacity=Number(platformOpacity.value)/100;
+      shelfMaterial.opacity=opacity;
+      rimMaterial.opacity=Math.min(1,opacity*.32/.095);
+      perimeterMaterial.opacity=Math.min(1,opacity*8);
       edges.group.visible=attachmentEdges.group.visible=arrows.checked;
       if (arrows.checked && edgesDirty) {
         const links=visibleEdges(items,search.value.trim().toLowerCase());
@@ -603,7 +721,20 @@
       const span=2*distance*Math.tan(camera.fov*Math.PI/360);
       camera.translateX(-cropX*span*camera.aspect);camera.translateY(cropY*span);
       camera.updateMatrixWorld();
-      orientAxes();layeredGlass.render(scene,camera,nodes.values());
+      orientAxes();
+      const context=[];
+      if(focus.checked && family){
+        for(const [key,node] of nodes)if(node.group.visible && !family.has(key))context.push(node.group);
+        for(const {mesh,keys} of shelves.values())if(mesh.visible && !keys.some(k=>family.has(k)))context.push(mesh);
+        for(const {line,groups} of perimeters)if(line.visible && !groups.some(k=>family.has(k)))context.push(line);
+        for(const conduits of [edges,attachmentEdges]){
+          if(!conduits.group.visible)continue;
+          for(const edge of conduits.group.children){
+            if(!family.has(edge.userData.source)||!family.has(edge.userData.destination))context.push(edge);
+          }
+        }
+      }
+      focusBlend.render(context,()=>layeredGlass.render(scene,camera,nodes.values()));
       const selected=nodes.get(selectedKey);
       if(selected?.group.visible)outline.render(scene,camera,selected.visual,bounds.width,bounds.height);
     }
@@ -612,7 +743,7 @@
       drawQueued=true;requestAnimationFrame(draw);
     }
     function updateSelection() {
-      const selected=byKey.get(selectedKey);selectedLabel.hidden=!selected;
+      const selected=byKey.get(selectedKey);family=selectionFamily(selected,byKey);selectedLabel.hidden=!selected;
       if(selected)selectedLabel.textContent=`${selected.name} · ${categories[selected.category].label}`;
       for(const button of list.querySelectorAll("button"))button.setAttribute("aria-current",String(button.dataset.key===selectedKey));
       updateVisibility();requestDraw();
@@ -785,5 +916,5 @@
     window.createArtifactTopology=createArtifactTopology;
     window.artifactHierarchy=hierarchy;
   }
-  if(typeof module!=="undefined"&&module.exports)module.exports={categoryFor,layoutArtifacts,perspective,lookAt,multiply,project,modelPathFor,matchesArtifact,visibleEdges};
+  if(typeof module!=="undefined"&&module.exports)module.exports={categoryFor,layoutArtifacts,perspective,lookAt,multiply,project,modelPathFor,matchesArtifact,visibleEdges,selectionFamily,bottomPerimeters};
 })();

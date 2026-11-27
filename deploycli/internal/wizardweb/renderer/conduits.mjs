@@ -99,15 +99,32 @@ function rounded(points,boxes) {
 }
 
 function route(source,destination,boxes) {
-  const a=port(source,destination.getCenter(new Vector3()));
-  const b=port(destination,source.getCenter(new Vector3()));
+  const start=source.getCenter(new Vector3()), end=destination.getCenter(new Vector3());
+  const a=port(source,end), b=port(destination,start);
+  const descending=source.min.y>destination.max.y+.15;
+  if(descending){
+    b.point.copy(end);
+    b.point.y=destination.max.y+.012;
+    b.normal.copy(up);
+  }
   const length=Math.min(headLength,a.point.distanceTo(b.point)*.22);
   const base=b.point.clone().addScaledVector(b.normal,length);
   if (!clear([base,b.point],boxes)) return null;
   const bend=Math.min(.64,a.point.distanceTo(base)*.36);
   const lead=base.clone().addScaledVector(b.normal,Math.min(.06,bend*.22));
-  const curve=new CubicBezierCurve3(a.point,a.point.clone().addScaledVector(a.normal,bend),
-    lead.clone().addScaledVector(b.normal,bend),lead);
+  const first=a.point.clone().addScaledVector(a.normal,bend);
+  const last=lead.clone().addScaledVector(b.normal,bend);
+  if(descending){
+    const run=new Vector3(end.x-start.x,0,end.z-start.z);
+    if(run.lengthSq()<1e-6)run.set(1,0,0);
+    run.normalize();
+    // Leave the source on a gentle outward arc, then curl vertically down
+    // onto the destination. Even directly stacked resources get a small bow.
+    first.copy(a.point).addScaledVector(run,Math.min(1.25,a.point.distanceTo(base)*.35));
+    first.y-=.08;
+    last.y=lead.y+Math.min(1.3,(a.point.y-lead.y)*.65);
+  }
+  const curve=new CubicBezierCurve3(a.point,first,last,lead);
   let points=[...curve.getPoints(32),base];
   if (!clear(points,boxes)) {
     // A straight terminal run makes the arrow axis exactly the final tangent.

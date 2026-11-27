@@ -6,12 +6,15 @@
 .preview-workspace .topology-toolbar select {margin-left:auto}
 .preview-workspace .topology-toolbar select,.preview-workspace .topology-toolbar button {flex:none;padding:5px 10px;border:1px solid var(--line);border-radius:5px;background:var(--elevated);color:var(--text);font-size:11px}
 .preview-workspace .topology-toolbar button:hover {border-color:var(--blue)}
-.preview-workspace .topology-arrows {display:inline-flex;align-items:center;gap:6px;color:var(--text);font-size:12px;cursor:pointer}
-.preview-workspace #topology-arrows {appearance:none;box-sizing:border-box;width:27px;height:16px;min-height:0;margin:0;padding:0;border:1px solid var(--muted);border-radius:10px;background:var(--surface);cursor:pointer}
-.preview-workspace #topology-arrows::before {content:"";display:block;width:10px;height:10px;margin:2px;border-radius:50%;background:var(--muted)}
-.preview-workspace #topology-arrows:checked {background:var(--blue);border-color:var(--blue)}
-.preview-workspace #topology-arrows:checked::before {transform:translateX(11px);background:var(--editor)}
-.preview-workspace #topology-arrows:focus-visible {outline:2px solid var(--focus);outline-offset:2px}
+.preview-workspace .topology-switch {display:inline-flex;align-items:center;gap:6px;color:var(--text);font-size:12px;cursor:pointer}
+.preview-workspace .topology-switch input {appearance:none;box-sizing:border-box;width:27px;height:16px;min-height:0;margin:0;padding:0;border:1px solid var(--muted);border-radius:10px;background:var(--surface);cursor:pointer}
+.preview-workspace .topology-switch input::before {content:"";display:block;width:10px;height:10px;margin:2px;border-radius:50%;background:var(--muted)}
+.preview-workspace .topology-switch input:checked {background:var(--blue);border-color:var(--blue)}
+.preview-workspace .topology-switch input:checked::before {transform:translateX(11px);background:var(--editor)}
+.preview-workspace .topology-switch input:focus-visible {outline:2px solid var(--focus);outline-offset:2px}
+.preview-workspace .topology-slider {display:inline-flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap}
+.preview-workspace .topology-slider output {min-width:4ch;color:var(--muted);font-variant-numeric:tabular-nums}
+.preview-workspace .topology-slider input {width:76px;height:18px;min-height:0;padding:0;margin:0;accent-color:var(--blue);cursor:pointer}
 .preview-workspace .topology-stage {position:relative;height:clamp(280px,50vh,570px);overflow:hidden;border:1px solid var(--line);border-radius:6px;background:var(--editor);touch-action:none;cursor:grab}
 .preview-workspace .topology-stage.dragging {cursor:grabbing}
 .preview-workspace .topology-stage:focus-visible {outline:2px solid var(--focus);outline-offset:1px}
