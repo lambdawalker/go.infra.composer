@@ -1,3 +1,4 @@
+export { SelectionOutline } from "./selection-outline.mjs";
 export { DirectedConduits } from "./conduits.mjs";
 export { LayeredGlass } from "./layered-glass.mjs";
 import {

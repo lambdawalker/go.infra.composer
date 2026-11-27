@@ -3,6 +3,7 @@
 The Route 53 signpost is custom artwork shared with the Cloudflare DNS visual.
 The Lambda Permission certificate is custom artwork for invocation permissions.
 The IAM role, ACM validation, and JWT authorizer plaques are custom certificate artwork.
+The hanging www sign represents an API Gateway v2 custom domain.
 The three-port lever valve is custom artwork for API Gateway v2 API mappings.
 The clevis and pin is custom artwork for API Gateway integrations.
 The sealed manuscript is custom artwork for Secrets Manager secret versions.

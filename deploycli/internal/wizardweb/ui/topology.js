@@ -180,7 +180,7 @@
     let mode="orbit",yaw=openingYaw,pitch=openingPitch,distance=30,target=[0,0,0],contextLost=false,disposed=false;
     // Normalized size and center offset of the viewport inside the full perspective frame.
     let cropSize=1,cropX=0,cropY=0;
-    let layeredGlass=null,renderer=null,scene=null,camera=null,runtime=null,edges=null,halo=null,environment=null;
+    let layeredGlass=null,renderer=null,scene=null,camera=null,runtime=null,edges=null,outline=null,environment=null;
     let keyLight=null,floor=null,raycaster=null,mouse=null,edgesDirty=true;
     const nodes=new Map(),modelCache=new Map(),loadingModels=new Set(),failedModels=new Set();
     const fallbackGeometry=new Map(),fallbackMaterials=new Map();
@@ -308,9 +308,7 @@
         scene.add(keyLight,rim,floor);
         edges=new runtime.DirectedConduits();
         scene.add(edges.group);
-        const haloBox=new T.BoxGeometry(1.95,1.95,1.95),haloEdges=new T.EdgesGeometry(haloBox);haloBox.dispose();
-        halo=new T.LineSegments(haloEdges,new T.LineBasicMaterial({color:0xa6c8ff,depthTest:false,transparent:true,opacity:.9}));
-        halo.renderOrder=10;halo.visible=false;scene.add(halo);
+        outline=new runtime.SelectionOutline(renderer);
         edgesDirty=true;syncArtifacts();canvas.hidden=false;updateMessage();
         return true;
       } catch {
@@ -321,12 +319,12 @@
       nodes.clear();
       for(const geometry of fallbackGeometry.values())geometry.dispose();fallbackGeometry.clear();
       for(const material of fallbackMaterials.values())material.dispose();fallbackMaterials.clear();
-      edges?.dispose();halo?.geometry.dispose();halo?.material.dispose();
+      edges?.dispose();outline?.dispose();
       floor?.geometry.dispose();floor?.material.dispose();floor=null;
       keyLight?.shadow.dispose();keyLight=null;
       layeredGlass?.dispose();layeredGlass=null;
       environment?.dispose();renderer?.dispose();
-      renderer=null;scene=null;camera=null;edges=null;halo=null;environment=null;raycaster=null;mouse=null;
+      renderer=null;scene=null;camera=null;edges=null;outline=null;environment=null;raycaster=null;mouse=null;
     }
     function fallbackFor(category) {
       const T=runtime.THREE;
@@ -418,9 +416,6 @@
         const node=nodes.get(item.key),visible=matchesArtifact(item,query);
         if(node && node.group.visible!==visible){node.group.visible=visible;edgesDirty=true;renderer.shadowMap.needsUpdate=true;}
       }
-      const selected=byKey.get(selectedKey);
-      halo.visible=!!selected&&matchesArtifact(selected,query);
-      if(selected)halo.position.set(...selected.position);
     }
     function fitView() {
       frame(items.filter(item=>matchesArtifact(item,search.value.trim().toLowerCase())));
@@ -470,6 +465,8 @@
       camera.translateX(-cropX*span*camera.aspect);camera.translateY(cropY*span);
       camera.updateMatrixWorld();
       orientAxes();layeredGlass.render(scene,camera,nodes.values());
+      const selected=nodes.get(selectedKey);
+      if(selected?.group.visible)outline.render(scene,camera,selected.visual,bounds.width,bounds.height);
     }
     function requestDraw() {
       if(disposed||!active||drawQueued||contextLost)return;

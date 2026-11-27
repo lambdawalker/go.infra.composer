@@ -22,7 +22,7 @@
 .preview-workspace .topology-key.glass {background:linear-gradient(135deg,#e89b4177,#e89b4122);border:1px solid #e8cba5;border-radius:2px}
 .preview-workspace .topology-key.connection {width:auto;height:auto;background:none;border:0;color:#cb985f;font-style:normal}
 .preview-workspace .topology-key.connection::before {content:"→"}
-.preview-workspace .topology-key.selected {border:1px solid var(--blue);background:transparent;border-radius:2px}
+.preview-workspace .topology-key.selected {border:1px solid #bbdfff;background:transparent;border-radius:50%;box-shadow:0 0 3px #8cc8ff}
 .preview-workspace .topology-key.compute {background:#80adff;clip-path:polygon(50% 0,100% 100%,0 100%)}
 .preview-workspace .topology-key.storage {background:#70c6bb;border-radius:2px}
 .preview-workspace .topology-key.network {background:#a998ef;border-radius:50%}
