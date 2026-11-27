@@ -106,5 +106,6 @@ document.getElementById('collapse').addEventListener('click',()=>document.queryS
 })();
 </script>
 {{if .Nodes}}<script id="topology-runtime">{{runtime}}</script>{{end}}
+<script id="attachments" type="application/json">{{.Attachments}}</script>
 <script id="artwork" type="application/json">{{.Artwork}}</script>
 <script id="report-controller">{{controller}}</script></body></html>

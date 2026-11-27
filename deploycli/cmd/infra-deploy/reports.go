@@ -240,14 +240,16 @@ func (r *featureReport) finish(ctx context.Context, runErr error, refresh bool) 
 	wizard(ctx).detail("JSON / MD", r.output)
 	return nil
 }
-func writeFeatureBundle(dir string, r reporting.Report) error {
+func writeFeatureBundle(dir string, r reporting.Report, hints map[string]string) error {
 	if e := os.MkdirAll(dir, 0700); e != nil {
 		return e
 	}
 	for _, f := range []struct {
 		ext   string
 		write func(io.Writer, reporting.Report) error
-	}{{"json", reporting.WriteJSON}, {"md", reporting.WriteMarkdown}, {"html", reporting.WriteHTML}} {
+	}{{"json", reporting.WriteJSON}, {"md", reporting.WriteMarkdown}, {"html", func(w io.Writer, report reporting.Report) error {
+		return reporting.WriteHTMLWithAttachmentHints(w, report, hints)
+	}}} {
 		var b bytes.Buffer
 		if e := f.write(&b, r); e != nil {
 			return fmt.Errorf("render report: %w", e)

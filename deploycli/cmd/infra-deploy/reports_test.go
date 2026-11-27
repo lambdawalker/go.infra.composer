@@ -25,7 +25,7 @@ func TestFeatureStateSafeAndOwned(t *testing.T) {
 		t.Fatal(a)
 	}
 	dir := t.TempDir()
-	if e := writeFeatureBundle(dir, r.report); e != nil {
+	if e := writeFeatureBundle(dir, r.report, nil); e != nil {
 		t.Fatal(e)
 	}
 	for _, ext := range []string{"json", "md", "html"} {
