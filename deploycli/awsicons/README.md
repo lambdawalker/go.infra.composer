@@ -14,7 +14,7 @@ model, err := catalog.ReadFile("models/aws/lambda.glb")
 // Handle err before using model.
 ```
 
-Each service has an [SVG](icons/aws/) and a matching [GLB](models/aws/).
+Each service has an [SVG](../../internal/reportui/icons/aws/) and a matching [GLB](../../internal/reportui/models/aws/).
 For browser projects, serve `aws-icons.js`, `/icons/aws/`, and `/models/aws/`
 from this filesystem. Serve `/icons/cloudflare/` and `/models/cloudflare/` as well for Cloudflare DNS records.
 The script exposes `window.wizardAWSIconFor(type)` and
@@ -22,5 +22,5 @@ the CommonJS export `awsIconFor`. For example, `aws:s3/bucket:Bucket` resolves
 to `/icons/aws/s3.svg`, with its model at `/models/aws/s3.glb`. An unknown
 resource type returns an empty string so the caller can choose a fallback.
 
-See the [icon attribution](icons/aws/README.md) and
-[model provenance](models/aws/README.md) when redistributing artwork.
+See the [icon attribution](../../internal/reportui/icons/aws/README.md) and
+[model provenance](../../internal/reportui/models/aws/README.md) when redistributing artwork.

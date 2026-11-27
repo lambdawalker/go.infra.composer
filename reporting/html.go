@@ -2,13 +2,14 @@ package reporting
 
 import (
 	"embed"
+	"github.com/lambdawalker/go.infra.composer/internal/reportui"
 	"html/template"
 	"io"
 	"sort"
 	"strings"
 )
 
-//go:embed report.html
+//go:embed report.html report.css workspace.js
 var reportTemplates embed.FS
 
 type repositoryRow struct{ Name, Repository string }
@@ -86,8 +87,10 @@ func artifactIcon(a Artifact) string {
 	}
 }
 
-var page = template.Must(template.New("report.html").Funcs(template.FuncMap{
-	"fields": artifactFields, "display": display, "shortOwner": shortOwner,
+var page = template.Must(template.Must(template.New("report.html").Funcs(template.FuncMap{
+	"style": func() template.CSS { return workspaceStyle }, "runtime": func() template.JS { return workspaceRuntime },
+	"controller": func() template.JS { return template.JS(staticText(reportTemplates, "workspace.js")) },
+	"duration":   duration, "fields": artifactFields, "display": display, "shortOwner": shortOwner,
 	"ownerRepository": ownerRepository, "icon": artifactIcon,
 	"dict": func(nodes []Node, repository string) any {
 		return struct {
@@ -95,10 +98,18 @@ var page = template.Must(template.New("report.html").Funcs(template.FuncMap{
 			Repository string
 		}{nodes, repository}
 	},
-}).ParseFS(reportTemplates, "report.html"))
+}).ParseFS(reportTemplates, "report.html")).ParseFS(reportui.UI, "topology.html"))
 
 func WriteHTML(w io.Writer, r Report) error {
 	r = Normalize(r)
+	artwork, err := snapshotArtwork(r.Artifacts)
+	if err != nil {
+		return err
+	}
+	counts := map[Status]int{Present: 0, Recorded: 0, Unknown: 0, Absent: 0}
+	for _, a := range r.Artifacts {
+		counts[a.Observation.Status]++
+	}
 	return page.Execute(w, struct {
 		Report
 		Nodes    []Node
@@ -106,5 +117,7 @@ func WriteHTML(w io.Writer, r Report) error {
 		Summary  string
 		Issues   []Artifact
 		Features []repositoryRow
-	}{r, Hierarchy(r.Artifacts), contextFields(r)[2:], summary(r), issues(r), featureRows(r)})
+		Artwork  map[string]string
+		Counts   map[Status]int
+	}{r, Hierarchy(r.Artifacts), contextFields(r)[2:], summary(r), issues(r), featureRows(r), artwork, counts})
 }

@@ -157,9 +157,9 @@ test("the shipped renderer loads every embedded service model without external r
       return {width:png.readUInt32BE(16), height:png.readUInt32BE(20)};
     }
   };
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "vendor/topology-three.js"), "utf8"), context);
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../../../../internal/reportui/vendor/topology-three.js"), "utf8"), context);
   const {GLTFLoader, THREE} = context.WizardTopologyThree;
-  const directory = path.join(__dirname, "../../../awsicons/models");
+  const directory = path.join(__dirname, "../../../../internal/reportui/models");
   const files = fs.readdirSync(directory).flatMap(provider =>
     fs.readdirSync(path.join(directory, provider)).filter(name => name.endsWith(".glb")).map(name => provider + "/" + name));
   for (const file of Object.keys(customLandmarks)) assert.ok(files.includes(file), file);
@@ -267,7 +267,7 @@ test("the shipped renderer loads every embedded service model without external r
 });
 
 test("catalog hardware shares the domain sign bracket material", () => {
-  const directory = path.join(__dirname, "../../../awsicons/models");
+  const directory = path.join(__dirname, "../../../../internal/reportui/models");
   function readModel(file) {
     const bytes = fs.readFileSync(file);
     return JSON.parse(bytes.subarray(20, 20 + bytes.readUInt32LE(12)).toString());

@@ -1,20 +1,3 @@
-/* Scoped layout from the attached preview concept. */
-.preview-workspace {
-  color-scheme:dark;
-  --chrome:#25272b;--header:#242629;--surface:#191a1c;--editor:#1e1f22;
-  --elevated:#2b2d30;--selected:#2d3c52;--line:#36383c;
-  --text:#dfe1e5;--muted:#969aa3;--blue:#79aaff;--focus:#85b8ff;
-  --mint:#80c491;--amber:#d7b77c;--rose:#d98787;--tree-line:#575d66;
-  --font:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;
-  font:13px/1.45 var(--font);
-}
-:root[data-theme="light"] .preview-workspace {
-  color-scheme:light;
-  --chrome:#e7e9ed;--header:#f0f1f4;--surface:#fafbfc;--editor:#fff;
-  --elevated:#e9edf2;--selected:#dce9fa;--line:#cfd4dc;
-  --text:#24272d;--muted:#68727f;--blue:#1e65c6;--focus:#2c70d5;
-  --mint:#238057;--amber:#976718;--rose:#b5414b;--tree-line:#a5afbc;
-}
 .preview-workspace * {box-sizing:border-box}
 .preview-workspace [hidden] {display:none!important}
 .preview-workspace {margin:0;background:var(--chrome);color:var(--text)}
