@@ -645,7 +645,7 @@ test("collapsing a selected branch hides its descendants and preserves their wor
 });
 
 test("traces recorded dependencies across roots and retains change ancestors", () => {
-  const {tracePairs,previewKeys}=require("./topology.js");
+  const {tracePairs,previewKeys}=require("../../../../internal/reportui/topology.js");
   const items=layoutArtifacts([{key:"app"},{key:"worker",parent:"app",action:"replace",dependencies:["key","key","missing"]},
     {key:"backend"},{key:"key",parent:"backend"},{key:"other",action:"same"}]);
   const byKey=new Map(items.map(item=>[item.key,item]));
