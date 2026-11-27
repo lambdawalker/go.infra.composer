@@ -9,6 +9,7 @@
   const symbolFor = type => /route53|cloudflare|acm|domain|apiGateway/i.test(type) ? "globe" : /dynamodb|s3|storage/i.test(type) ? "database" : /iam|secret|cognito|kms|authorizer/i.test(type) ? "shield" : /ses|email/i.test(type) ? "mail" : /lambda|eventRule|eventTarget/i.test(type) ? "bolt" : "layers";
   const awsIconFor = window.wizardAWSIconFor || (() => "");
   const artifactIcon = a => {
+    if (a.component) return icon("layers");
     const source = awsIconFor(a.type || "", a.iconVariant);
     if (!source) return icon(a.symbol || symbolFor(a.type || ""));
     const img = document.createElement("img");
@@ -189,7 +190,7 @@
     if (!a) { box.append(el("p", "No artifacts loaded. Connect to a deployment stack to check.", "muted")); return; }
     const identity = el("div", "", "detail-identity"), glyph = el("span", "", "detail-symbol"), names = el("div", "", "detail-heading");
     glyph.append(artifactIcon(a));
-    names.append(el("div", a.name || a.key, "detail-name"), el("span", typeLabelFor(a.type || ""), "resource-type"));
+    names.append(el("div", a.name || a.key, "detail-name"), el("span", a.component ? "Component group" : typeLabelFor(a.type || ""), "resource-type"));
     identity.append(glyph, names);
     box.append(identity, el("div", a.type || "Resource", "kind"), el("p", a.description || purposeFor(a.type || ""), "artifact-description"));
     const tags = el("div", "", "detail-actions"); tags.append(badge(a.action), artifactOwnerBadge(a, "depth-label")); box.append(tags);

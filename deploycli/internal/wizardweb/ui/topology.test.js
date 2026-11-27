@@ -33,6 +33,18 @@ test("lays out every artifact, retaining hierarchy and surviving malformed cycle
   assert.notDeepEqual(byKey.get("orphan").position,byKey.get("root").position);
 });
 
+test("component groups own their resources regardless of input order or provider name", () => {
+  const nodes = layoutArtifacts([
+    {key:"signing", type:"aws:kms/key:Key", parent:"backend"},
+    {key:"backend", type:"example:verification:Backend", component:true},
+    {key:"transactions", type:"aws:dynamodb/table:Table", parent:"backend"}
+  ]);
+  const group = nodes.find(item => item.key === "backend");
+  assert.equal(group.category, "component");
+  assert.deepEqual(group.children.map(item => item.key), ["signing","transactions"]);
+  assert.deepEqual(visibleEdges(nodes,""), [["backend","signing"],["backend","transactions"]]);
+});
+
 test("projects the camera target to canvas center for picking", () => {
   const camera=multiply(perspective(2),lookAt([0,4,15],[0,0,0]));
   const point=project([0,0,0],camera,800,400);

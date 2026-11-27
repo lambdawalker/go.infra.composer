@@ -38,6 +38,9 @@ func (s *Session) setDrift(report reporting.Report) {
 		CheckedAt: report.Metadata.FinishedAt, Incomplete: report.Metadata.Outcome != "succeeded",
 	}
 	for _, artifact := range report.Artifacts {
+		if artifact.Component {
+			continue
+		}
 		item := DriftArtifact{Key: s.redact(artifact.Key), Name: s.redact(artifact.Name)}
 		switch {
 		case artifact.Observation.Status == reporting.Present && artifact.Observation.Reason == reporting.ExternalChange:

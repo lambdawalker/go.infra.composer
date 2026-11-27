@@ -59,6 +59,7 @@ func TestDriftResultUsesSafeEvidenceAndEnvironment(t *testing.T) {
 	report := reporting.Report{Scope: reporting.Scope{Environment: "qa"},
 		Metadata: reporting.Metadata{FinishedAt: at, Outcome: "incomplete"},
 		Artifacts: []reporting.Artifact{
+			{Key: "group", Component: true},
 			{Key: "changed", Name: "hidden-fixture", Observation: reporting.Observation{Status: reporting.Present, Reason: reporting.ExternalChange}},
 			{Key: "gone", Observation: reporting.Observation{Status: reporting.Absent}},
 			{Key: "unverified", Observation: reporting.Observation{Status: reporting.Unknown}},

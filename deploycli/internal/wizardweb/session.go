@@ -74,6 +74,7 @@ type ArtifactView struct {
 	Type         string   `json:"type"`
 	Description  string   `json:"description,omitempty"`
 	Parent       string   `json:"parent,omitempty"`
+	Component    bool     `json:"component,omitempty"`
 	Dependencies []string `json:"dependencies,omitempty"`
 	Owner        string   `json:"owner,omitempty"`
 	Feature      string   `json:"feature,omitempty"`
@@ -555,7 +556,7 @@ func (s *Session) setInventory(report reporting.Report, source string) {
 			Key: s.redact(a.Key), Name: s.redact(a.Name), Type: a.Type,
 			Description: s.redact(a.Description),
 			IconVariant: s.artifactIconVariants[a.Name],
-			Parent:      s.redact(a.Parent), Owner: s.redact(a.Owner), Feature: s.redact(a.Feature),
+			Component:   a.Component, Parent: s.redact(a.Parent), Owner: s.redact(a.Owner), Feature: s.redact(a.Feature),
 			Dependencies: dependencies,
 			Action:       a.PlannedAction, Presence: string(a.Observation.Status),
 		})

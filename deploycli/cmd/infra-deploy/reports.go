@@ -115,7 +115,7 @@ func (r *featureReport) publish(ctx context.Context, includePreview bool, plans 
 	}
 	if len(plans) > 0 {
 		if artifacts, err := cli.ApplyPlanDependencies(report.Artifacts, bytes.NewReader(plans[0])); err == nil {
-			report.Artifacts = artifacts
+			report.Artifacts = r.cli.ownFeature(artifacts)
 		}
 	}
 	if r.bootstrap != nil {
