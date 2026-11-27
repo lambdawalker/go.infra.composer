@@ -43,6 +43,8 @@ type manifest struct {
 	ConfigDefaults       map[string]string
 	ArtifactDescriptions map[string]string
 	ArtifactIconVariants map[string]string
+	// Type to logical name for singleton root components in pre-hierarchy reports.
+	LegacyComponentNames map[string]string
 	GitHub               githubSpec
 	Discovery            *discoverySpec
 	DiscoveryStack       *discoveryStackSpec
@@ -197,6 +199,11 @@ func (m *manifest) validate() error {
 		if !pattern(`^[A-Za-z0-9_.-]{1,128}$`, name) || strings.TrimSpace(description) == "" ||
 			len(description) > 300 || strings.ContainsAny(description, "\r\n\t") {
 			return fmt.Errorf("invalid artifact description for %q", name)
+		}
+	}
+	for typ, name := range m.LegacyComponentNames {
+		if !pattern(`^[A-Za-z0-9_.-]+:[A-Za-z0-9_./-]*:[A-Za-z0-9_.-]+$`, typ) || !pattern(`^[A-Za-z0-9_.-]{1,128}$`, name) {
+			return fmt.Errorf("invalid legacy component mapping for %q", typ)
 		}
 	}
 	for name, variant := range m.ArtifactIconVariants {

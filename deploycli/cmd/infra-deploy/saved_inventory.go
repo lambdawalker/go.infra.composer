@@ -3,8 +3,11 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	"github.com/lambdawalker/go.infra.composer/deploycli/internal/wizardweb"
 	"github.com/lambdawalker/go.infra.composer/reporting"
@@ -59,7 +62,8 @@ func (cli deployCLI) savedInventory(root, requestedProject, requestedEnv string)
 	if err != nil {
 		return report, "saved-target"
 	}
-	if len(cli.spec.ArtifactFeaturePrefixes) > 0 {
+	cli.spec.restoreCachedGroups(&previous)
+	if len(cli.spec.ArtifactFeaturePrefixes) > 0 || len(cli.spec.LegacyComponentNames) > 0 {
 		previous.Artifacts = cli.ownFeature(previous.Artifacts)
 	}
 	// A previous report describes a known inventory, not present cloud state or
@@ -70,6 +74,54 @@ func (cli deployCLI) savedInventory(root, requestedProject, requestedEnv string)
 	}
 	previous.Metadata.Revision = ""
 	return previous, "saved-report"
+}
+
+// Legacy reports discarded component flags and parent links. A child URN keeps
+// its parent's qualified type, but not its name. A manifest may supply the name
+// for singleton root components. Never infer ownership from a name prefix.
+func (m manifest) restoreCachedGroups(report *reporting.Report) {
+	scope := "urn:pulumi:" + report.Scope.Stack + "::" + report.Scope.Project + "::"
+	for _, typ := range slices.Sorted(maps.Keys(m.LegacyComponentNames)) {
+		name := m.LegacyComponentNames[typ]
+		key := scope + typ + "::" + name
+		group := -1
+		var children []int
+		ambiguous := false
+		for i, a := range report.Artifacts {
+			if !strings.HasPrefix(a.Key, scope) || strings.Contains(a.Key, "#previous-physical-id:") {
+				continue
+			}
+			path, _, ok := strings.Cut(strings.TrimPrefix(a.Key, scope), "::")
+			if !ok {
+				continue
+			}
+			switch path {
+			case typ:
+				if a.Key != key || a.Type != typ {
+					ambiguous = true
+				} else {
+					group = i
+				}
+			case typ + "$" + a.Type:
+				children = append(children, i)
+			}
+		}
+		if ambiguous || (group < 0 && len(children) == 0) {
+			continue
+		}
+		legacy := group < 0 || !report.Artifacts[group].Component
+		if group < 0 {
+			report.Artifacts = append(report.Artifacts, reporting.Artifact{Key: key, Name: name, Type: typ, Component: true,
+				Observation: reporting.Observation{Status: reporting.Unknown, Reason: reporting.Unchecked}})
+		} else {
+			report.Artifacts[group].Component = true
+		}
+		for _, i := range children {
+			if legacy || report.Artifacts[i].Parent == "" {
+				report.Artifacts[i].Parent = key
+			}
+		}
+	}
 }
 
 func (cli deployCLI) publishSavedInventory(session *wizardweb.Session, root, project, env string) {
