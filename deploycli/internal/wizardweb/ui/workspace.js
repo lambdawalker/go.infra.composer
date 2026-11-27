@@ -52,7 +52,7 @@
     navigation:$("topology-navigation"),axes:$("topology-axes"),box:$("topology-box"),
     stage:$("topology-stage"),canvas:$("topology-canvas"),tooltip:$("topology-tooltip"),
     message:$("topology-message"),selectedLabel:$("topology-selected"),
-    list:$("topology-list"),search:$("topology-search"),count:$("topology-count"),fit:$("topology-fit"),arrows:$("topology-arrows"),tlsModel:$("topology-tls-model"),
+    list:$("topology-list"),search:$("topology-search"),count:$("topology-count"),fit:$("topology-fit"),arrows:$("topology-arrows"),focus:$("topology-focus"),platformOpacity:$("topology-opacity"),glassTransparency:$("topology-glass"),tlsModel:$("topology-tls-model"),
     onSelect:key=>{const artifact=state.nodes.find(a=>a.key===key);if(artifact)select(artifact,true);}
   });
   const dialog = $("workspace-dialog"), dialogContent = $("dialog-content"), promptActions = $("prompt-actions"), signInActions = $("sign-in-actions"), countdown = $("countdown"), stop = $("stop"), lockPanel = document.querySelector("#vault-lock .lock-panel");

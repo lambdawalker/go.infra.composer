@@ -58,7 +58,7 @@ export class LayeredGlass {
       group.updateWorldMatrix(true,true);
       const depth=-this.point.setFromMatrixPosition(group.matrixWorld).applyMatrix4(camera.matrixWorldInverse).z;
       visual.traverseVisible(mesh=>{
-        if (!mesh.isMesh || !(mesh.material.transmission>0)) return;
+        if (!mesh.isMesh || mesh.material.visible===false || !(mesh.material.transmission>0)) return;
         const bounds=this.footprint(mesh,camera);
         if (bounds) pieces.push({...bounds,group,depth,mesh,material:mesh.material,
           transmissionLayer:mesh.userData.transmissionLayer ?? 0,layer:0});

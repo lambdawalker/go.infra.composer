@@ -61,7 +61,7 @@ export class SelectionOutline {
     renderer.getClearColor(this.clearColor);
     const cameraMask = camera.layers.mask;
     const selected = new Set();
-    visual.traverseVisible(object => { if (object.isMesh) selected.add(object); });
+    visual.traverseVisible(object => { if (object.isMesh && object.material.visible!==false) selected.add(object); });
     if (!selected.size) return;
     const originals = [];
     renderer.getDrawingBufferSize(this.size);
@@ -70,7 +70,7 @@ export class SelectionOutline {
       // Substitute cheap solid materials so transmissive glass counts as a
       // continuous silhouette and does not trigger another refraction pass.
       scene.traverseVisible(object => {
-        if (!object.isMesh) return;
+        if (!object.isMesh || object.material.visible===false) return;
         originals.push([object, object.material, object.layers.mask]);
         if (selected.has(object)) {
           object.layers.set(maskLayer);
