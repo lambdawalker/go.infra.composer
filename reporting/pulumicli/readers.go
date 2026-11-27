@@ -256,6 +256,8 @@ func ApplyPreview(as []r.Artifact, rd io.Reader) ([]r.Artifact, error) {
 		resources = append(resources, resource{Custom: &custom, URN: a.Key, Type: a.Type, ID: a.ProviderID, Parent: a.Parent})
 	}
 	actions := map[string]string{}
+	moves := identityMoves{}
+	stateParents := map[string]bool{}
 	parseErr := events(rd, func(e event) {
 		if e.Pre == nil {
 			return
@@ -294,6 +296,12 @@ func ApplyPreview(as []r.Artifact, rd io.Reader) ([]r.Artifact, error) {
 		if !inventoryResource(s) {
 			return
 		}
+		stateParents[s.URN] = hasStateIdentity
+		// Pulumi explicitly links the recorded and desired URNs when an alias
+		// matches. Names alone cannot distinguish a move from distinct resources.
+		if m.Old != nil && m.New != nil && m.Old.URN != "" && m.New.URN == m.URN && m.Old.URN != m.URN {
+			moves[m.Old.URN] = m.URN
+		}
 		if i, ok := resourceIndex[s.URN]; ok {
 			if s.Parent == "" && m.New == nil && m.Old == nil {
 				s.Parent = resources[i].Parent
@@ -305,6 +313,30 @@ func ApplyPreview(as []r.Artifact, rd io.Reader) ([]r.Artifact, error) {
 		}
 		actions[m.URN] = action
 	})
+	if len(moves) > 0 {
+		out = moves.artifacts(out)
+		index = map[string]int{}
+		for i, a := range out {
+			index[a.Key] = i
+		}
+		// Discard the superseded state rows, keeping desired event metadata.
+		// Resolve all links together so child-first event order is harmless.
+		kept := resources[:0]
+		resourceIndex = map[string]int{}
+		for _, s := range resources {
+			if moves.key(s.URN) != s.URN {
+				continue
+			}
+			s.Parent = moves.key(s.Parent)
+			s.Dependencies = moves.keys(s.Dependencies)
+			for property, dependencies := range s.PropertyDependencies {
+				s.PropertyDependencies[property] = moves.keys(dependencies)
+			}
+			resourceIndex[s.URN] = len(kept)
+			kept = append(kept, s)
+		}
+		resources = kept
+	}
 	// Resolve after the entire (possibly partial) stream so children may precede parents.
 	for _, a := range safeArtifacts(resources, r.Observation{Status: r.Unknown, Reason: r.Unchecked}) {
 		action, changed := actions[a.Key]
@@ -314,7 +346,7 @@ func ApplyPreview(as []r.Artifact, rd io.Reader) ([]r.Artifact, error) {
 		if i, ok := index[a.Key]; ok {
 			out[i].PlannedAction = action
 			out[i].Component = a.Component
-			if source := resources[resourceIndex[a.Key]]; source.Parent != "" || a.Parent != "" {
+			if source := resources[resourceIndex[a.Key]]; stateParents[a.Key] || source.Parent != "" || a.Parent != "" {
 				out[i].Parent = a.Parent
 			}
 			if source := resources[resourceIndex[a.Key]]; source.Dependencies != nil || source.PropertyDependencies != nil {
