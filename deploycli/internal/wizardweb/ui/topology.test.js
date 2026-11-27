@@ -164,7 +164,7 @@ function topologyHarness({failRenderer=false}={}) {
   }};
   context.wizardAWSIconFor=awsIconFor;
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,"topology.js"),"utf8"),context);
-  const elements=Object.fromEntries(["stage","canvas","tooltip","message","selectedLabel","list","search","count","fit","frameButton","branchButton","iconSettings","iconDialog","iconRows","arrows","focus","platformOpacity","glassTransparency","navigation","axes","box"].map(key=>[key,new Element()]));
+  const elements=Object.fromEntries(["stage","canvas","tooltip","message","selectedLabel","list","search","count","fit","changesOnly","trace","relationship","frameButton","branchButton","iconSettings","iconDialog","iconRows","arrows","focus","platformOpacity","glassTransparency","navigation","axes","box"].map(key=>[key,new Element()]));
   elements.arrows.checked=true;elements.focus.checked=true;elements.platformOpacity.value="4.75";elements.glassTransparency.value="50";
   elements.navigation.append(elements.axes);
   const selected=[];
@@ -642,4 +642,14 @@ test("collapsing a selected branch hides its descendants and preserves their wor
   h.topology.setSelection("permission");h.flush();
   assert.ok(child.visible && child.position.equals(position));
   h.topology.dispose();
+});
+
+test("traces recorded dependencies across roots and retains change ancestors", () => {
+  const {tracePairs,previewKeys}=require("./topology.js");
+  const items=layoutArtifacts([{key:"app"},{key:"worker",parent:"app",action:"replace",dependencies:["key","key","missing"]},
+    {key:"backend"},{key:"key",parent:"backend"},{key:"other",action:"same"}]);
+  const byKey=new Map(items.map(item=>[item.key,item]));
+  assert.deepEqual(tracePairs(items,byKey.get("worker"),"out"),[["worker","key"]]);
+  assert.deepEqual(tracePairs(items,byKey.get("key"),"in"),[["worker","key"]]);
+  assert.deepEqual([...previewKeys(items,byKey)],["worker","app"]);
 });
