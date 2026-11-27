@@ -112,6 +112,7 @@ const certificateEmblems = {
 };
 
 const customLandmarks = {
+  "pulumi/component.glb": ["Orbital glass", "Orbital nickel seam", "Socket foot", "Orb seat"],
   ...Object.fromEntries(Object.entries(certificateEmblems).map(([file, emblem]) =>
     ["aws/" + file, [emblem, "Engraved glass plaque", "Scalloped ribbon seal"]])),
   "cloudflare/dns.glb": ["Violet cloud", "Hexagonal post", "Left collar", "Right collar"],

@@ -20,8 +20,9 @@
 .preview-workspace .topology-legend span {display:inline-flex;align-items:center;gap:7px}
 .preview-workspace .topology-key {width:10px;height:10px;display:inline-block;flex:none;background:#85acff}
 .preview-workspace .topology-key.glass {background:linear-gradient(135deg,#e89b4177,#e89b4122);border:1px solid #e8cba5;border-radius:2px}
-.preview-workspace .topology-key.connection {width:auto;height:auto;background:none;border:0;color:#cb985f;font-style:normal}
-.preview-workspace .topology-key.connection::before {content:"→"}
+.preview-workspace .topology-key:is(.membership,.attachment) {width:auto;height:auto;background:none;border:0;color:#cb985f;font-style:normal}
+.preview-workspace .topology-key:is(.membership,.attachment)::before {content:"→"}
+.preview-workspace .topology-key.attachment {color:#64cdda}
 .preview-workspace .topology-key.selected {border:1px solid #bbdfff;background:transparent;border-radius:50%;box-shadow:0 0 3px #8cc8ff}
 .preview-workspace .topology-key.component {background:#73b6ce;border-radius:50%}
 .preview-workspace .topology-key.compute {background:#80adff;clip-path:polygon(50% 0,100% 100%,0 100%)}

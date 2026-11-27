@@ -22,65 +22,104 @@
     return "other";
   }
 
-  // A stable grid of clusters keeps siblings near their parent while using a
-  // vertical axis for dependency depth. Cyclic or missing parents become roots.
+  // Both views consume this forest. Keep the original Pulumi parent available
+  // for details even when an AWS attachment introduces another display level.
+  function hierarchy(artifacts) {
+    const byKey = new Map(artifacts.map(a => [a.key,a]));
+    const parents = new Map();
+    for (const a of artifacts) {
+      const key = byKey.has(a.attachment) ? a.attachment : a.parent;
+      if (key && key !== a.key && byKey.has(key)) parents.set(a.key,key);
+    }
+    const done = new Set();
+    for (const a of artifacts) {
+      const path = new Set();
+      let key = a.key;
+      while (key && !done.has(key)) {
+        if (path.has(key)) { parents.delete(key); break; }
+        path.add(key);
+        key = parents.get(key);
+      }
+      for (const visited of path) done.add(visited);
+    }
+    return parents;
+  }
+
+  // Size each tower from its widest shelf before reserving aisles. The lowest
+  // occupied storey is at zero even when adjacent towers have different depths.
   function layoutArtifacts(artifacts) {
+    const parents = hierarchy(artifacts);
     const items = artifacts.map(a => ({
-      key:String(a.key), name:String(a.name || a.key), type:String(a.type || "Resource"),
+      key:a.key, name:String(a.name || a.key), type:String(a.type || "Resource"),
       iconVariant:a.iconVariant, description:String(a.description || ""), action:String(a.action || "unknown"),
-      parent:String(a.parent || ""), category:a.component ? "component" : categoryFor(String(a.type || "")),
-      children:[], position:null
+      parent:parents.get(a.key) || "", attachment:!!a.attachment && parents.get(a.key)===a.attachment,
+      category:a.component ? "component" : categoryFor(String(a.type || "")), children:[]
     }));
     const byKey = new Map(items.map(a => [a.key,a]));
-    for (const item of items) {
-      const parent = byKey.get(item.parent);
-      if (parent && parent !== item) parent.children.push(item);
-    }
-    const placed = new Set();
-    let roots = items.filter(a => !byKey.has(a.parent) || a.parent === a.key);
-    // A malformed cycle may have no root. It still needs a visible node.
-    if (!roots.length && items.length) roots = [items[0]];
-    const columns = Math.ceil(Math.sqrt(roots.length || 1));
-    let nextRoot = 0;
-    // Cousins can otherwise land in exactly the same place. Reserve enough
-    // space for full-size fallback models, their air gaps, and an arrowhead.
-    const levels=new Map();
-    function reserve(position) {
-      const [x,y,z]=position, level=levels.get(y)||[];
-      levels.set(y,level);
-      for (let ring=0;;ring++) {
-        for(let dx=-ring;dx<=ring;dx++) for(let dz=-ring;dz<=ring;dz++) {
-          if (Math.max(Math.abs(dx),Math.abs(dz))!==ring) continue;
-          const candidate=[x+dx*.75,y,z+dz*.75];
-          if (level.every(p=>Math.abs(candidate[0]-p[0])>=2.8 || Math.abs(candidate[2]-p[2])>=2.8)) {
-            level.push(candidate);return candidate;
-          }
-        }
+    for (const a of items) byKey.get(a.parent)?.children.push(a);
+    const byName = (a,b) => a.key.localeCompare(b.key);
+    const towers = items.filter(a => !a.parent).sort(byName).map(root => {
+      const levels = [];
+      let members = [root];
+      while (members.length) {
+        const cols = Math.min(members.length,Math.ceil(Math.sqrt(members.length*1.7)));
+        const rows = Math.ceil(members.length/cols);
+        levels.push({members,cols,rows,width:(cols-1)*3.2+3.6,length:(rows-1)*3.2+3.6});
+        members = members.flatMap(a => a.children.slice().sort(byName));
       }
-    }
-    function place(root) {
-      const row = Math.floor(nextRoot / columns), column = nextRoot % columns;
-      root.position = reserve([(column-(columns-1)/2)*8.5,0,(row-(columns-1)/2)*8.5]);
-      nextRoot++;
-      function childrenOf(parent, depth) {
-        placed.add(parent.key);
-        for (const [index,child] of parent.children.entries()) {
-          if (placed.has(child.key) || child.position) continue;
-          const count = parent.children.length;
-          const angle = index*2*Math.PI/count - Math.PI/2 + depth*.25;
-          const radius = count === 1 ? 1.3 : Math.max(1.7, Math.min(3.2, count*.42));
-          child.position = reserve([parent.position[0]+radius*Math.cos(angle), depth*2.85,
-            parent.position[2]+radius*Math.sin(angle)]);
-          childrenOf(child,depth+1);
-        }
+      return {levels,width:Math.max(...levels.map(l=>l.width)),length:Math.max(...levels.map(l=>l.length))};
+    });
+    const columns = Math.ceil(Math.sqrt(towers.length));
+    let z = 0;
+    for (let i=0;i<towers.length;i+=columns) {
+      const row = towers.slice(i,i+columns);
+      const length = Math.max(...row.map(t=>t.length));
+      let x = -(.5*row.reduce((sum,t)=>sum+t.width,0) + (row.length-1)*2.6);
+      for (const tower of row) {
+        const cx=x+tower.width/2, cz=z+length/2;
+        tower.levels.forEach((level,depth) => {
+          const y=(tower.levels.length-1-depth)*3.6;
+          const shelf={x:cx,y,z:cz,width:level.width,length:level.length,root:depth===0};
+          level.members.forEach((item,index) => {
+            const r=Math.floor(index/level.cols), rowSize=Math.min(level.cols,level.members.length-r*level.cols);
+            item.shelf=shelf;
+            item.position=[cx+(index%level.cols-(rowSize-1)/2)*3.2,y,cz+(r-(level.rows-1)/2)*3.2];
+          });
+        });
+        x+=tower.width+5.2;
       }
-      childrenOf(root,1);
+      z+=length+5.2;
     }
-    roots.forEach(root => {if (!placed.has(root.key)) place(root);});
-    items.forEach(item => {if (!placed.has(item.key)) place(item);});
+    // Keep the complete grid centered on the ground and its shadow camera.
+    const offset=(z-5.2)/2;
+    for (const shelf of new Set(items.map(item=>item.shelf))) shelf.z-=offset;
+    for (const item of items) item.position[2]-=offset;
     return items;
   }
 
+  // Four rings bevel a thin solid slab. The top shelf has six equal sides.
+  function shelfGeometry(T, shelf) {
+    const x=shelf.width/2, z=shelf.length/2, corner=.25;
+    const perimeter=shelf.root ? Array.from({length:6},(_,i)=>{
+      const angle=Math.PI*i/3;
+      return [x*Math.cos(angle),x*Math.sin(angle)];
+    }) : [[x,z-corner],[x-corner,z],[-x+corner,z],[-x,z-corner],
+      [-x,-z+corner],[-x+corner,-z],[x-corner,-z],[x,-z+corner]];
+    const positions=[],indices=[],n=perimeter.length;
+    for (const [y,inset] of [[0,.045],[.035,0],[.12,0],[.155,.045]]) {
+      for (const [px,pz] of perimeter) positions.push(px*(1-inset/x),y,pz*(1-inset/z));
+    }
+    for(let ring=0;ring<3;ring++) for(let i=0;i<n;i++) {
+      const a=ring*n+i,b=ring*n+(i+1)%n;
+      indices.push(a,a+n,b,b,a+n,b+n);
+    }
+    for(let i=1;i<n-1;i++) indices.push(0,i,i+1,3*n,3*n+i+1,3*n+i);
+    const geometry=new T.BufferGeometry();
+    geometry.setAttribute("position",new T.Float32BufferAttribute(positions,3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    return geometry;
+  }
   const dot = (a,b) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
   const cross = (a,b) => [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
   const normal = a => {const length=Math.hypot(...a)||1;return a.map(v=>v/length);};
@@ -177,7 +216,7 @@
 
   function createArtifactTopology({stage,canvas,tooltip,message,selectedLabel,list,search,count,fit,tlsModel,navigation,axes,box,onSelect}) {
     let items=[],byKey=new Map(),selectedKey="",active=false,drawQueued=false,pointer=null;
-    const openingYaw=-.46,openingPitch=.45,pitchLimit=Math.PI/2-.00001;
+    const openingYaw=-.18,openingPitch=.24,pitchLimit=Math.PI/2-.00001;
     let mode="orbit",yaw=openingYaw,pitch=openingPitch,distance=30,target=[0,0,0],contextLost=false,disposed=false;
     // Normalized size and center offset of the viewport inside the full perspective frame.
     let cropSize=1,cropX=0,cropY=0;
@@ -186,6 +225,8 @@
     const nodes=new Map(),modelCache=new Map(),loadingModels=new Set(),failedModels=new Set();
     const fallbackGeometry=new Map(),fallbackMaterials=new Map();
     const listeners=[];
+    let attachmentEdges=null,shelfMaterial=null,rimMaterial=null,shelfSignature="";
+    const shelves=new Map();
     function listen(element,event,handler,options) {
       element.addEventListener(event,handler,options);
       listeners.push(()=>element.removeEventListener(event,handler,options));
@@ -262,7 +303,7 @@
       stage.focus({preventScroll:true});
     });
     function pathFor(item) {
-      if (item.category === "component") return "";
+      if (item.category === "component") return "/models/pulumi/component.glb";
       const path=modelPathFor(item.type,window.wizardAWSIconFor,item.iconVariant);
       return path==="/models/aws/acm.glb" && tlsModel.value==="shield" ? "/models/aws/acm-shield.glb" : path;
     }
@@ -309,7 +350,16 @@
         floor=createFloor(T);
         scene.add(keyLight,rim,floor);
         edges=new runtime.DirectedConduits();
-        scene.add(edges.group);
+        attachmentEdges=new runtime.DirectedConduits();
+        attachmentEdges.group.name="AWS attachment conduits";
+        attachmentEdges.material.color.setHex(0xd5fbff);
+        attachmentEdges.material.attenuationColor.setHex(0x62dbeb);
+        attachmentEdges.material.attenuationDistance=.055;
+        edges.material.attenuationDistance=.07;
+        scene.add(edges.group,attachmentEdges.group);
+        shelfMaterial=new T.MeshPhysicalMaterial({color:0xb4dded,roughness:.18,metalness:.08,
+          clearcoat:.8,transparent:true,opacity:.095,depthWrite:false});
+        rimMaterial=new T.LineBasicMaterial({color:0xa0cee4,transparent:true,opacity:.32,depthWrite:false});
         outline=new runtime.SelectionOutline(renderer);
         edgesDirty=true;syncArtifacts();canvas.hidden=false;updateMessage();
         return true;
@@ -321,7 +371,8 @@
       nodes.clear();
       for(const geometry of fallbackGeometry.values())geometry.dispose();fallbackGeometry.clear();
       for(const material of fallbackMaterials.values())material.dispose();fallbackMaterials.clear();
-      edges?.dispose();outline?.dispose();
+      clearShelves();shelfMaterial?.dispose();rimMaterial?.dispose();shelfSignature="";
+      attachmentEdges?.dispose();attachmentEdges=null;edges?.dispose();outline?.dispose();
       floor?.geometry.dispose();floor?.material.dispose();floor=null;
       keyLight?.shadow.dispose();keyLight=null;
       layeredGlass?.dispose();layeredGlass=null;
@@ -359,6 +410,7 @@
           centered.position.copy(bounds.getCenter(new T.Vector3())).multiplyScalar(-1);
           gltf.scene.traverse(object=>{if(object.isMesh)object.castShadow=true;});
           centered.add(gltf.scene);template.add(centered);template.scale.setScalar(1.7/extent);
+          template.position.y=-.895+size.y*1.7/(2*extent);
           if(disposed){disposeTemplate(template);return null;}
           return template;
         }).catch(()=>{if(!disposed)failedModels.add(path);return null;}).finally(()=>{
@@ -368,6 +420,31 @@
         modelCache.set(path,pending);
       }
       return modelCache.get(path);
+    }
+    function clearShelves() {
+      for (const {mesh,outline} of shelves.values()) {
+        scene.remove(mesh);mesh.geometry.dispose();outline.geometry.dispose();
+      }
+      shelves.clear();
+    }
+    function syncShelves() {
+      const levels=new Map();
+      for(const item of items){
+        if(!levels.has(item.shelf)) levels.set(item.shelf,[]);
+        levels.get(item.shelf).push(item.key);
+      }
+      const signature=JSON.stringify([...levels]);
+      if(signature===shelfSignature)return;
+      shelfSignature=signature;
+      clearShelves();
+      const T=runtime.THREE;
+      for(const [level,keys] of levels){
+        const geometry=shelfGeometry(T,level),mesh=new T.Mesh(geometry,shelfMaterial);
+        const outline=new T.LineSegments(new T.EdgesGeometry(geometry,20),rimMaterial);
+        mesh.name=level.root ? "Hexagonal root floor" : "Resource floor";
+        mesh.position.set(level.x,level.y-1.05,level.z);
+        mesh.add(outline);scene.add(mesh);shelves.set(level,{mesh,outline,keys});
+      }
     }
     function syncArtifacts() {
       if(!scene)return;
@@ -395,11 +472,11 @@
           }
         }
         const p=node.group.position;
-        if (node.parent!==item.parent || p.x!==item.position[0] || p.y!==item.position[1] || p.z!==item.position[2]) {
-          p.set(...item.position);node.parent=item.parent;edgesDirty=true;
+        if (node.attachment!==item.attachment || node.parent!==item.parent || p.x!==item.position[0] || p.y!==item.position[1] || p.z!==item.position[2]) {
+          p.set(...item.position);node.parent=item.parent;node.attachment=item.attachment;edgesDirty=true;
         }
       }
-      // The layout places roots at ground level and descendants above them.
+      syncShelves();
       const extent=items.reduce((r,item)=>Math.max(r,Math.hypot(...item.position)),0)*1.5+3;
       const radius=extent*1.1+18;
       floor.scale.set(radius,radius,1);
@@ -415,6 +492,7 @@
     function updateVisibility() {
       if(!scene)return;
       const query=search.value.trim().toLowerCase();
+      for (const {mesh,keys} of shelves.values()) mesh.visible=keys.some(key=>matchesArtifact(byKey.get(key),query));
       for(const item of items){
         const node=nodes.get(item.key),visible=matchesArtifact(item,query);
         if(node && node.group.visible!==visible){node.group.visible=visible;edgesDirty=true;renderer.shadowMap.needsUpdate=true;}
@@ -451,7 +529,9 @@
       uniforms.surface.value.setHex(lightTheme?0xc2cfda:0x415061);
       uniforms.grid.value.setHex(lightTheme?0xa6b5c3:0x516174);
       if (edgesDirty) {
-        edges.update(nodes,visibleEdges(items,search.value.trim().toLowerCase()));
+        const links=visibleEdges(items,search.value.trim().toLowerCase());
+        edges.update(nodes,links.filter(([,key])=>!byKey.get(key).attachment));
+        attachmentEdges.update(nodes,links.filter(([,key])=>byKey.get(key).attachment));
         edgesDirty=false;
       }
       camera.aspect=bounds.width/bounds.height;
@@ -645,6 +725,9 @@
     return {setArtifacts,setSelection,activate,deactivate,fitView,dispose};
   }
 
-  if(typeof window!=="undefined")window.createArtifactTopology=createArtifactTopology;
+  if(typeof window!=="undefined"){
+    window.createArtifactTopology=createArtifactTopology;
+    window.artifactHierarchy=hierarchy;
+  }
   if(typeof module!=="undefined"&&module.exports)module.exports={categoryFor,layoutArtifacts,perspective,lookAt,multiply,project,modelPathFor,matchesArtifact,visibleEdges};
 })();

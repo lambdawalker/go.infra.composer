@@ -9,8 +9,7 @@
   const symbolFor = type => /route53|cloudflare|acm|domain|apiGateway/i.test(type) ? "globe" : /dynamodb|s3|storage/i.test(type) ? "database" : /iam|secret|cognito|kms|authorizer/i.test(type) ? "shield" : /ses|email/i.test(type) ? "mail" : /lambda|eventRule|eventTarget/i.test(type) ? "bolt" : "layers";
   const awsIconFor = window.wizardAWSIconFor || (() => "");
   const artifactIcon = a => {
-    if (a.component) return icon("layers");
-    const source = awsIconFor(a.type || "", a.iconVariant);
+    const source = a.component ? "/icons/pulumi/component.svg" : awsIconFor(a.type || "", a.iconVariant);
     if (!source) return icon(a.symbol || symbolFor(a.type || ""));
     const img = document.createElement("img");
     img.className = "service-icon";
@@ -109,19 +108,25 @@
     const resources = new Map();
     const nodes = (inventory.artifacts || []).map((raw, id) => ({...raw, id, children:[], parentNode:null, action:view.reviewed ? "same" : operation(raw.action), symbol:symbolFor(raw.type || "")}));
     for (const a of nodes) resources.set(a.key, a);
-    for (const a of nodes) { const parent = resources.get(a.parent); if (parent && parent !== a) { a.parentNode = parent; parent.children.push(a); } }
+
     state.inventory = inventory;
     state.filterKey = null;
     state.nodes = nodes;
-    state.roots = nodes.filter(a => !a.parentNode);
+
     state.plan = (view.changes || []).map(change => ({...change, node:resources.get(change.resource)}));
     for (const change of state.plan) if (!change.node) { // Some Pulumi plan entries are not managed artifacts in the report.
       const resource = change.resource, name = resource.split("::").at(-1);
       const type = resource.split("::").at(-2)?.split("$").at(-1) || "Resource";
       const a = resources.get(resource) || {key:resource, name, type, id:nodes.length, parent:"", children:[], parentNode:null, owner:inventory.repository, feature:change.feature, description:purposeFor(type), presence:"unknown", action:operation(change.operation), symbol:symbolFor(type)};
-      if (!resources.has(resource)) { nodes.push(a); state.roots.push(a); resources.set(resource,a); }
+      if (!resources.has(resource)) { nodes.push(a); resources.set(resource,a); }
       change.node = a;
     }
+    const hierarchy = window.artifactHierarchy(nodes);
+    for (const a of nodes) {
+      a.parentNode = resources.get(hierarchy.get(a.key)) || null;
+      if (a.parentNode) a.parentNode.children.push(a);
+    }
+    state.roots = nodes.filter(a => !a.parentNode);
     // Prefer the saved plan's operation when its event log was not available.
     for (const change of state.plan) change.node.action = operation(change.operation);
     ownerCounts = new Map();
@@ -197,6 +202,14 @@
     const dl = el("dl", "", "data-grid");
     for (const [label, value] of [["Presence", ({present:"Live check: present",recorded:"Recorded in Pulumi state",absent:"Live check: absent",unknown:"Not checked"})[a.presence] || "Not checked"], ["Pulumi identity",a.key], ["Repository",a.owner || state.inventory?.repository || "Unknown"]]) {
       dl.append(el("dt",label),el("dd",value));
+    }
+    for (const [label,key] of [["Pulumi group",a.parent],["AWS attachment",a.attachment]]) {
+      const owner=state.nodes.find(node=>node.key===key);
+      if (owner && (label!=="Pulumi group" || owner.component)) {
+        const value=el("dd"),button=el("button",owner.name || owner.key,"detail-tree-entry");
+        button.type="button";button.onclick=()=>select(owner);
+        value.append(button);dl.append(el("dt",label),value);
+      }
     }
     box.append(dl);
     window.renderWizardPreviewChange?.(box, state.plan.find(change => change.resource === a.key));
