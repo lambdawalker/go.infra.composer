@@ -161,7 +161,8 @@ function topologyHarness({failRenderer=false}={}) {
   }};
   context.wizardAWSIconFor=awsIconFor;
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,"topology.js"),"utf8"),context);
-  const elements=Object.fromEntries(["stage","canvas","tooltip","message","selectedLabel","list","search","count","fit","tlsModel","navigation","axes","box"].map(key=>[key,new Element()]));
+  const elements=Object.fromEntries(["stage","canvas","tooltip","message","selectedLabel","list","search","count","fit","tlsModel","arrows","navigation","axes","box"].map(key=>[key,new Element()]));
+  elements.arrows.checked=true;
   elements.navigation.append(elements.axes);
   const selected=[];
   const topology=context.createArtifactTopology({...elements,onSelect:key=>selected.push(key)});
@@ -519,5 +520,49 @@ test("separate towers share a ground plane and support their roots on hexagons",
   assert.equal(scene.getObjectByName("Directed glass conduits").children.length,3);
   h.elements.search.value="permit";h.elements.search.emit("input");h.flush();
   assert.equal(floors.filter(o=>o.visible).length,1);
+  h.topology.dispose();
+});
+
+test("each parent centers over its children's split hexagons even with uneven branch sizes", () => {
+  const inventory=[{key:"group",component:true},...["lambda","role","api","table","bucket"].map(key=>({key,parent:"group"}))];
+  for (const [parent,count] of [["lambda",4],["role",1],["api",2]]) {
+    for(let i=0;i<count;i++) inventory.push({key:parent+i,parent:"group",attachment:parent});
+  }
+  const nodes=layoutArtifacts(inventory),byKey=new Map(nodes.map(a=>[a.key,a]));
+  for (const parent of nodes.filter(a=>a.children.length)) {
+    const floors=[...new Set(parent.children.map(a=>a.shelf))];
+    for(const [axis,size,index] of [["x","width",0],["z","length",2]]) {
+      const min=Math.min(...floors.map(f=>f[axis]-f[size]/2));
+      const max=Math.max(...floors.map(f=>f[axis]+f[size]/2));
+      assert.ok(Math.abs((min+max)/2-parent.position[index])<1e-9,parent.key);
+    }
+    assert.ok(parent.children.every(c=>c.position[1]<parent.position[1]));
+  }
+  const central=byKey.get("table").shelf;
+  assert.equal(central,byKey.get("bucket").shelf);
+  for(const key of ["lambda","role","api"]) assert.notEqual(byKey.get(key).shelf,central);
+  const floors=[...new Set(nodes.map(a=>a.shelf))];
+  for(const [i,f] of floors.entries()) for(const g of floors.slice(i+1).filter(g=>g.y===f.y)) {
+    assert.ok(Math.hypot(f.x-g.x,f.z-g.z)>(f.width+g.width)/2);
+  }
+  const reversed=layoutArtifacts(inventory.slice().reverse());
+  for(const item of reversed) assert.deepEqual(item.position,byKey.get(item.key).position);
+});
+
+test("Arrows toggles both conduit groups and preserves camera, selection and floors", () => {
+  const h=topologyHarness();
+  h.topology.setArtifacts([{key:"root",component:true},{key:"fn",parent:"root"},
+    {key:"permission",parent:"root",attachment:"fn"}]);
+  h.topology.activate();h.topology.setSelection("permission");h.flush();
+  const {scene,camera}=h.renders.at(-1),eye=camera.position.clone();
+  const groups=["Directed glass conduits","AWS attachment conduits"].map(name=>scene.getObjectByName(name));
+  const floors=scene.children.filter(o=>o.name.endsWith(" floor"));
+  for(const shown of [false,true]) {
+    h.elements.arrows.checked=shown;h.elements.arrows.emit("change");h.flush();
+    assert.ok(groups.every(g=>g.visible===shown && g.children.length===1));
+    assert.ok(floors.every(f=>f.visible && f.geometry.attributes.position.count===24));
+    assert.ok(h.elements.selectedLabel.textContent.includes("permission"));
+    assert.ok(camera.position.equals(eye));
+  }
   h.topology.dispose();
 });

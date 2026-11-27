@@ -45,6 +45,74 @@
     return parents;
   }
 
+  const tileRadius = 1.8;
+  const hexApothem = Math.sqrt(3)/2;
+  const branchGap = .8;
+
+  // Siblings without descendants share one central tile. Pack large families
+  // in concentric rings so a long list of permissions stays compact.
+  function leafTile(members) {
+    const offsets = [];
+    const spacing = 2.7;
+    if (members.length === 1 || members.length > 6) offsets.push([0,0]);
+    let extent = 0;
+    for (let ring=1; offsets.length<members.length; ring++) {
+      const count = Math.min(6*ring,members.length-offsets.length);
+      extent = members.length<=6 ? spacing/(2*Math.sin(Math.PI/count)) : spacing*ring;
+      for (let i=0;i<count;i++) {
+        const angle = Math.PI + i*2*Math.PI/count;
+        offsets.push([extent*Math.cos(angle),extent*Math.sin(angle)]);
+      }
+    }
+    // The apothem must enclose the outermost model and its edge clearance.
+    const radius = Math.max(tileRadius,(extent+1.3)/hexApothem);
+    return {members,offsets,radius,x:0,z:0};
+  }
+
+  // Measure descendants first. Each branch has an angular sector wide enough
+  // for its entire subtree, so a wider landing can move its parent outwards.
+  function planBranch(item) {
+    const children = item.children.slice().sort((a,b)=>a.key.localeCompare(b.key));
+    const leaves = children.filter(child=>!child.children.length);
+    const branches = children.filter(child=>child.children.length);
+    const center = leaves.length ? leafTile(leaves) : null;
+    const tiles = center ? [center] : [];
+    let height = leaves.length ? 1 : 0;
+    for (const [index,child] of branches.entries()) {
+      const plan = planBranch(child);
+      const angle = Math.PI + 2*Math.PI*index/branches.length;
+      const inner = center ? center.radius+branchGap+plan.radius : 0;
+      const outer = branches.length>1 ? (plan.radius+branchGap/2)/Math.sin(Math.PI/branches.length) : 0;
+      const distance = Math.max(inner,outer);
+      tiles.push({members:[child],offsets:[[0,0]],radius:tileRadius,
+        x:distance*Math.cos(angle),z:distance*Math.sin(angle),plan});
+      height = Math.max(height,1+plan.height);
+    }
+    let radius = tileRadius;
+    if (tiles.length) {
+      // Center the parent over the actual outline of its immediate children's
+      // floor, including split tiles of different sizes, in both ground axes.
+      const cx=(Math.min(...tiles.map(t=>t.x-t.radius))+Math.max(...tiles.map(t=>t.x+t.radius)))/2;
+      const cz=(Math.min(...tiles.map(t=>t.z-t.radius*hexApothem))+Math.max(...tiles.map(t=>t.z+t.radius*hexApothem)))/2;
+      for (const t of tiles) {
+        t.x-=cx; t.z-=cz;
+        radius=Math.max(radius,Math.hypot(t.x,t.z)+(t.plan?.radius ?? t.radius));
+      }
+    }
+    return {tiles,radius,height};
+  }
+
+  function placeTile(tile,x,storey,z,root=false) {
+    const y=storey*3.6;
+    const shelf={x,y,z,width:2*tile.radius,length:2*tile.radius*hexApothem,root};
+    tile.members.forEach((item,i)=>{
+      const [dx,dz]=tile.offsets[i];
+      item.shelf=shelf;
+      item.position=[x+dx,y,z+dz];
+    });
+    for(const child of tile.plan?.tiles ?? []) placeTile(child,x+child.x,storey-1,z+child.z);
+  }
+
   // Size each tower from its widest shelf before reserving aisles. The lowest
   // occupied storey is at zero even when adjacent towers have different depths.
   function layoutArtifacts(artifacts) {
@@ -59,15 +127,8 @@
     for (const a of items) byKey.get(a.parent)?.children.push(a);
     const byName = (a,b) => a.key.localeCompare(b.key);
     const towers = items.filter(a => !a.parent).sort(byName).map(root => {
-      const levels = [];
-      let members = [root];
-      while (members.length) {
-        const cols = Math.min(members.length,Math.ceil(Math.sqrt(members.length*1.7)));
-        const rows = Math.ceil(members.length/cols);
-        levels.push({members,cols,rows,width:(cols-1)*3.2+3.6,length:(rows-1)*3.2+3.6});
-        members = members.flatMap(a => a.children.slice().sort(byName));
-      }
-      return {levels,width:Math.max(...levels.map(l=>l.width)),length:Math.max(...levels.map(l=>l.length))};
+      const plan=planBranch(root);
+      return {root,plan,width:2*plan.radius,length:2*plan.radius};
     });
     const columns = Math.ceil(Math.sqrt(towers.length));
     let z = 0;
@@ -77,15 +138,8 @@
       let x = -(.5*row.reduce((sum,t)=>sum+t.width,0) + (row.length-1)*2.6);
       for (const tower of row) {
         const cx=x+tower.width/2, cz=z+length/2;
-        tower.levels.forEach((level,depth) => {
-          const y=(tower.levels.length-1-depth)*3.6;
-          const shelf={x:cx,y,z:cz,width:level.width,length:level.length,root:depth===0};
-          level.members.forEach((item,index) => {
-            const r=Math.floor(index/level.cols), rowSize=Math.min(level.cols,level.members.length-r*level.cols);
-            item.shelf=shelf;
-            item.position=[cx+(index%level.cols-(rowSize-1)/2)*3.2,y,cz+(r-(level.rows-1)/2)*3.2];
-          });
-        });
+        placeTile({members:[tower.root],offsets:[[0,0]],radius:tileRadius,plan:tower.plan},
+          cx,tower.plan.height,cz,true);
         x+=tower.width+5.2;
       }
       z+=length+5.2;
@@ -97,17 +151,16 @@
     return items;
   }
 
-  // Four rings bevel a thin solid slab. The top shelf has six equal sides.
+  // Four concentric hexagons give each glass slab a narrow beveled rim.
   function shelfGeometry(T, shelf) {
-    const x=shelf.width/2, z=shelf.length/2, corner=.25;
-    const perimeter=shelf.root ? Array.from({length:6},(_,i)=>{
+    const radius=shelf.width/2;
+    const perimeter=Array.from({length:6},(_,i)=>{
       const angle=Math.PI*i/3;
-      return [x*Math.cos(angle),x*Math.sin(angle)];
-    }) : [[x,z-corner],[x-corner,z],[-x+corner,z],[-x,z-corner],
-      [-x,-z+corner],[-x+corner,-z],[x-corner,-z],[x,-z+corner]];
+      return [radius*Math.cos(angle),radius*Math.sin(angle)];
+    });
     const positions=[],indices=[],n=perimeter.length;
     for (const [y,inset] of [[0,.045],[.035,0],[.12,0],[.155,.045]]) {
-      for (const [px,pz] of perimeter) positions.push(px*(1-inset/x),y,pz*(1-inset/z));
+      for (const [px,pz] of perimeter) positions.push(px*(1-inset/radius),y,pz*(1-inset/radius));
     }
     for(let ring=0;ring<3;ring++) for(let i=0;i<n;i++) {
       const a=ring*n+i,b=ring*n+(i+1)%n;
@@ -214,7 +267,7 @@
     return floor;
   }
 
-  function createArtifactTopology({stage,canvas,tooltip,message,selectedLabel,list,search,count,fit,tlsModel,navigation,axes,box,onSelect}) {
+  function createArtifactTopology({stage,canvas,tooltip,message,selectedLabel,list,search,count,fit,tlsModel,arrows,navigation,axes,box,onSelect}) {
     let items=[],byKey=new Map(),selectedKey="",active=false,drawQueued=false,pointer=null;
     const openingYaw=-.18,openingPitch=.24,pitchLimit=Math.PI/2-.00001;
     let mode="orbit",yaw=openingYaw,pitch=openingPitch,distance=30,target=[0,0,0],contextLost=false,disposed=false;
@@ -239,6 +292,8 @@
     if(systemTheme)listen(systemTheme,"change",()=>requestDraw());
     const themeObserver=new MutationObserver(()=>requestDraw());
     themeObserver.observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+
+    listen(arrows,"change",()=>requestDraw());
 
     const axisTips=[];
     for(const [index,axis] of ["X","Y","Z"].entries()){
@@ -528,7 +583,8 @@
       uniforms.backdrop.value.copy(scene.background);
       uniforms.surface.value.setHex(lightTheme?0xc2cfda:0x415061);
       uniforms.grid.value.setHex(lightTheme?0xa6b5c3:0x516174);
-      if (edgesDirty) {
+      edges.group.visible=attachmentEdges.group.visible=arrows.checked;
+      if (arrows.checked && edgesDirty) {
         const links=visibleEdges(items,search.value.trim().toLowerCase());
         edges.update(nodes,links.filter(([,key])=>!byKey.get(key).attachment));
         attachmentEdges.update(nodes,links.filter(([,key])=>byKey.get(key).attachment));
