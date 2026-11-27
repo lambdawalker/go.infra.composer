@@ -44,6 +44,8 @@ test("projects the camera target to canvas center for picking", () => {
 
 test("chooses the same AWS service for the 3D model and artifact icon", () => {
   const cases = {
+    "aws:apigatewayv2/domainName:DomainName": "api-gateway-domain-name",
+    "aws:apigatewayv2:DomainName": "api-gateway-domain-name",
     "aws:apigatewayv2/apiMapping:ApiMapping":"api-gateway-mapping",
     "aws:apigatewayv2/integration:Integration":"api-gateway-integration",
     "aws:apigatewayv2/route:Route":"api-gateway-route", "aws:apigatewayv2/api:Api":"api-gateway",
@@ -131,7 +133,8 @@ function topologyHarness({failRenderer=false}={}) {
       setDrawingBufferSize(w,h,r){this.canvas.width=Math.floor(w*r);this.canvas.height=Math.floor(h*r);}
       getDrawingBufferSize(v){return v.set(this.canvas.width,this.canvas.height);}
       getRenderTarget(){return this.target||null;} setRenderTarget(t){this.target=t;}
-      render(scene,camera){if(!this.target)renders.push({scene,camera});}dispose(){stats.disposes++;}
+      getClearColor(c){return c.setHex(0);} getClearAlpha(){return 1;} setClearColor(){} clear(){}
+      render(scene,camera){if(!this.target && scene.name!=="Selection outline overlay")renders.push({scene,camera});}dispose(){stats.disposes++;}
     },
     PMREMGenerator:class {fromScene(){return {texture:{},dispose(){stats.environmentDisposes++;}};}dispose(){}}
   },RoomEnvironment:class {dispose(){}},GLTFLoader:class {
@@ -412,4 +415,37 @@ test("connections follow loaded model bounds, inventory filtering and context re
   h.elements.canvas.emit("webglcontextlost");h.elements.canvas.emit("webglcontextrestored");await settleModels();h.flush();
   assert.equal(group().children.length,1);
   h.topology.dispose();
+});
+
+test("selection masks the complete visible model and restores scene and renderer state", () => {
+  const h=topologyHarness();
+  const {SelectionOutline, THREE:T}=h.context.WizardTopologyThree;
+  const scene=new T.Scene(), camera=new T.PerspectiveCamera(), visual=h.model().scene;
+  const blocker=h.model().scene.children[0], glass=visual.children[0];
+  const background=new T.Color(0x374755), clearColor=new T.Color(0x303234);
+  scene.add(visual,blocker);scene.background=background;
+  const originals=[glass.material,blocker.material];
+  const draws=[],initialTarget={};
+  let target=initialTarget,alpha=.3;
+  const renderer={
+    autoClear:true,capabilities:{maxSamples:4},
+    getClearAlpha:()=>alpha,getClearColor:c=>c.copy(clearColor),
+    setClearColor:(c,a)=>{clearColor.set(c);alpha=a;},clear(){},
+    getRenderTarget:()=>target,setRenderTarget:t=>{target=t;},
+    getDrawingBufferSize:v=>v.set(1600,800),
+    render:(s,c)=>draws.push({target,scene:s,glass:glass.layers.test(c.layers),
+      blocker:blocker.layers.test(c.layers),material:glass.material})
+  };
+  const outline=new SelectionOutline(renderer);
+  outline.render(scene,camera,visual,800,400);
+  assert.deepEqual(draws.slice(0,2).map(d=>[d.glass,d.blocker]),[[true,false],[false,true]]);
+  assert.equal(draws[0].material,outline.silhouette);
+  assert.equal(draws[0].target,draws[1].target);
+  assert.equal(draws[2].target,initialTarget);
+  assert.equal(draws[2].scene,outline.overlay);
+  assert.deepEqual([glass.material,blocker.material],originals);
+  assert.equal(camera.layers.mask,1);assert.equal(glass.layers.mask,1);
+  assert.equal(scene.background,background);assert.equal(renderer.autoClear,true);
+  assert.equal(clearColor.getHex(),0x303234);assert.equal(alpha,.3);
+  outline.dispose();h.topology.dispose();
 });

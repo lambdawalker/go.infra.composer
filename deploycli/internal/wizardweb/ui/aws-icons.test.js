@@ -7,6 +7,8 @@ const {awsIconFor} = require("../../../awsicons/aws-icons.js");
 test("maps the email verification and discovery AWS resource families", () => {
   const cases = {
     "aws:acm/certificate:Certificate": "acm",
+    "aws:apigatewayv2/domainName:DomainName": "api-gateway-domain-name",
+    "aws:apigatewayv2:DomainName": "api-gateway-domain-name",
     "aws:apigatewayv2/apiMapping:ApiMapping": "api-gateway-mapping",
     "aws:apigatewayv2:ApiMapping": "api-gateway-mapping",
     "aws:apigatewayv2:Stage": "api-gateway",

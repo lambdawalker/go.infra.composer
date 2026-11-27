@@ -45,13 +45,13 @@ function checkGatewayPackets(meshes, THREE) {
   const sizes = bounds.map(box => box.getSize(new THREE.Vector3()));
   for (const box of bounds) {
     const center = box.getCenter(new THREE.Vector3());
-    assert.ok(Math.abs(center.y) < 1e-5 && Math.abs(center.z) < 1e-5, "packets share the aperture axis");
+    assert.ok(Math.abs(center.y) < 1e-5 && Math.abs(center.x) < 1e-5, "packets share the aperture axis");
   }
-  assert.ok(lead.min.x < 0 && lead.max.x > 0 && -lead.min.x > lead.max.x, "lead packet is past halfway through the iris");
-  assert.ok(sizes[0].x < 1 && sizes[1].x < .4 && cube.max.x < 1.2, "packet train stays compact");
-  assert.ok(lead.max.x < middle.min.x && middle.max.x < cube.min.x, "packets have visible gaps");
-  assert.ok(sizes[0].x > sizes[1].x && sizes[1].x > sizes[2].x);
-  assert.ok(Math.abs(sizes[2].x - sizes[2].y) < 1e-5 && Math.abs(sizes[2].x - sizes[2].z) < 1e-5);
+  assert.ok(lead.min.z < 0 && lead.max.z > 0 && -lead.min.z > lead.max.z, "lead packet is past halfway through the iris");
+  assert.ok(sizes[0].z < 1 && sizes[1].z < .4 && cube.max.z < 1.2, "packet train stays compact");
+  assert.ok(lead.max.z < middle.min.z && middle.max.z < cube.min.z, "packets have visible gaps");
+  assert.ok(sizes[0].z > sizes[1].z && sizes[1].z > sizes[2].z);
+  assert.ok(Math.abs(sizes[2].z - sizes[2].y) < 1e-5 && Math.abs(sizes[2].z - sizes[2].x) < 1e-5);
 }
 
 function checkShieldProfile(meshes, THREE) {
@@ -113,9 +113,10 @@ const customLandmarks = {
   "cloudflare/dns.glb": ["Amber cloud", "Hexagonal post", "Left collar", "Right collar"],
   "aws/acm.glb": ["Raised TLS lettering", "Engraved glass plaque", "Scalloped ribbon seal"],
   "aws/acm-shield.glb": ["Ruby shield", "Ivory T", "Ivory L", "Ivory S"],
+  "aws/api-gateway-domain-name.glb": ["Perpendicular wall mounting plate", "Cantilever arm with swept gusset", "Left hanging link", "Right hanging link"],
   "aws/api-gateway-mapping.glb": ["Transparent three-port housing", "Nickel selector lever", "L-bored selector ball", "Selected inlet-to-right L passage", "Idle left outlet flange", "Selected right outlet flange", "Common inlet flange"],
   "aws/api-gateway-integration.glb": ["Amethyst clevis fork", "Mandarin coupling tongue", "Brushed silver pivot pin"],
-  "aws/api-gateway-route.glb": ["Round apex pivot", "Round port scale cap", "Pierced brace eye", "Graduated outer arc", "Frosted index arm", "Diagonal telescope barrel", "Cyan packet slider"],
+  "aws/api-gateway-route.glb": ["Round apex pivot", "Round port scale cap", "Pierced brace eye", "Graduated outer arc", "Nickel index arm", "Diagonal telescope barrel", "Cyan packet slider"],
   "aws/api-gateway.glb": ["Aperture rim", "Iris blade 03", "Chevron 08", ...gatewayPackets],
   "aws/cloudwatch.glb": ["Ticker housing", "Left raised rim", "Right raised rim", "Glass bottom plate", "Feed slot", "Curled log strip", "Timestamp 1", "Message 1", "Timestamp 2", "Message 2", "Timestamp 3", "Message 3"],
   "aws/cognito.glb": ["Swept ruby-glass leg", "Spindle", "Fluted thumbwheel", "Profile card 01", "Profile card 34", "Profile head", "Profile shoulders"],
@@ -185,12 +186,19 @@ test("the shipped renderer loads every embedded service model without external r
       if (file === "acm-shield.glb") checkShieldProfile(meshes, THREE);
       if (file === "api-gateway-route.glb") {
         const bounds = name => new THREE.Box3().setFromObject(meshes.find(mesh => mesh.userData.name === name), true);
+        for (const name of ["Nickel index arm", "Diagonal telescope barrel"]) {
+          const material = meshes.find(mesh => mesh.userData.name === name).material;
+          assert.ok(material.metalness > .9 && !material.transmission, name + " is metal");
+        }
         const eye = bounds("Pierced brace eye").getSize(new THREE.Vector3());
         assert.ok(eye.x > .29 && eye.y > .29, "the open brace eye spans the three braces");
         const cap = bounds("Round port scale cap").getSize(new THREE.Vector3());
         assert.ok(Math.abs(cap.x - cap.y) < .002, "port fitting has a circular face");
-        assert.ok(bounds("Diagonal telescope barrel").min.z > bounds("Frosted index arm").max.z,
+        assert.ok(bounds("Diagonal telescope barrel").min.z > bounds("Nickel index arm").max.z,
           "the telescope passes in front of the index arm");
+      }
+      if (file === "api-gateway-mapping.glb") {
+        assert.equal(gltf.scene.children[0].quaternion.angleTo(gltf.scene.quaternion), 0, "valve has no presentation tilt");
       }
       if (file === "api-gateway.glb") checkGatewayPackets(meshes, THREE);
       const names = meshes.map(mesh => mesh.userData.name);

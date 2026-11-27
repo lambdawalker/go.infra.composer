@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="API Gateway custom domain">
+  <g fill="none" stroke="#898796" stroke-width="3" stroke-linecap="round">
+    <path d="M4 4v22M5 7h37M6 16l12-9M15 8v8m21-8v8"/>
+  </g>
+  <path d="M10 15h29l5 5v16l-5 5H10l-5-5V20z" fill="#ad83d4" stroke="#733f9a" stroke-width="2"/>
+  <path d="m9 24 2 8 2.5-5 2.5 5 2-8m2 0 2 8 2.5-5 2.5 5 2-8m2 0 2 8 2.5-5 2.5 5 2-8" fill="none" stroke="#462267" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
