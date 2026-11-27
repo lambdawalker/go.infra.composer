@@ -348,7 +348,19 @@
     return floor;
   }
 
-  function createArtifactTopology({stage,canvas,tooltip,message,selectedLabel,list,search,count,fit,tlsModel,arrows,focus,platformOpacity,glassTransparency,navigation,axes,box,onSelect}) {
+  // Only interchangeable artwork belongs here. Provider variants and distinct
+  // resource kinds keep their own catalog models.
+  const certificateIcons=[
+    {label:"TLS certificate",path:"/models/aws/acm.glb"},
+    {label:"TLS shield",path:"/models/aws/acm-shield.glb"}
+  ];
+  const iconAlternatives=new Map([
+    ["aws:acm/certificate:Certificate",certificateIcons],
+    ["aws:acm:Certificate",certificateIcons],
+    ["aws:acm/certificate",certificateIcons]
+  ]);
+
+  function createArtifactTopology({stage,canvas,tooltip,message,selectedLabel,list,search,count,fit,iconSettings,iconDialog,iconRows,arrows,focus,platformOpacity,glassTransparency,navigation,axes,box,onSelect}) {
     let items=[],byKey=new Map(),selectedKey="",active=false,drawQueued=false,pointer=null;
     const openingYaw=-.18,openingPitch=.24,pitchLimit=Math.PI/2-.00001;
     let mode="orbit",yaw=openingYaw,pitch=openingPitch,distance=30,target=[0,0,0],contextLost=false,disposed=false;
@@ -454,12 +466,41 @@
       else {cancelGesture(false);setMode(mode===action?"orbit":action);}
       stage.focus({preventScroll:true});
     });
+    const iconChoices=new Map();
+    let iconRowsSignature="";
     function pathFor(item) {
       if (item.category === "component") return "/models/pulumi/component.glb";
-      const path=modelPathFor(item.type,window.wizardAWSIconFor,item.iconVariant);
-      return path==="/models/aws/acm.glb" && tlsModel.value==="shield" ? "/models/aws/acm-shield.glb" : path;
+      const options=iconAlternatives.get(item.type);
+      if(options)return options.find(option=>option.path===iconChoices.get(item.key))?.path ?? options[0].path;
+      return modelPathFor(item.type,window.wizardAWSIconFor,item.iconVariant);
     }
-    listen(tlsModel,"change",()=>{syncArtifacts();updateMessage();requestDraw();});
+    function syncIconSettings() {
+      const eligible=items.filter(item=>item.category!=="component" && iconAlternatives.get(item.type)?.length>1)
+        .sort((a,b)=>a.name.localeCompare(b.name)||a.key.localeCompare(b.key));
+      iconSettings.hidden=!eligible.length;
+      if(!eligible.length && iconDialog.open)iconDialog.close();
+      const signature=JSON.stringify(eligible.map(item=>[item.key,item.name,item.type]));
+      if(signature===iconRowsSignature)return;
+      iconRowsSignature=signature;
+      iconRows.replaceChildren();
+      for(const item of eligible){
+        const row=document.createElement("tr"),name=document.createElement("th"),cell=document.createElement("td");
+        name.scope="row";name.textContent=item.name;name.title=item.key;
+        const select=document.createElement("select");
+        select.setAttribute("aria-label","3D icon for "+item.name);
+        for(const option of iconAlternatives.get(item.type)){
+          const entry=document.createElement("option");
+          entry.value=option.path;entry.textContent=option.label;select.append(entry);
+        }
+        select.value=pathFor(item);
+        select.addEventListener("change",()=>{
+          iconChoices.set(item.key,select.value);
+          syncArtifacts();updateMessage();requestDraw();
+        });
+        cell.append(select);row.append(name,cell);iconRows.append(row);
+      }
+    }
+    listen(iconSettings,"click",()=>iconDialog.showModal());
 
     function setMessage(text) {message.textContent=text;message.hidden=!text;}
     function updateMessage() {
@@ -765,7 +806,7 @@
     function setArtifacts(artifacts) {
       const previousStructure=items.map(a=>a.key+"\0"+a.parent).join("\n");
       items=layoutArtifacts(artifacts);byKey=new Map(items.map(a=>[a.key,a]));
-      tlsModel.hidden=!items.some(item=>modelPathFor(item.type,window.wizardAWSIconFor,item.iconVariant)==="/models/aws/acm.glb");
+      syncIconSettings();
       if(!byKey.has(selectedKey))selectedKey="";
       canvas.hidden=!items.length||!renderer;syncArtifacts();renderList();
       if(previousStructure!==items.map(a=>a.key+"\0"+a.parent).join("\n"))fitView();else requestDraw();
@@ -773,7 +814,7 @@
     }
     function setSelection(key) {selectedKey=key||"";updateSelection();}
     function activate() {if(disposed)return;active=true;if(items.length)initialize();requestDraw();}
-    function deactivate() {active=false;cancelGesture();tooltip.hidden=true;}
+    function deactivate() {if(iconDialog.open)iconDialog.close();active=false;cancelGesture();tooltip.hidden=true;}
     function near(clientX,clientY) {
       if(!active||!renderer||!camera||contextLost)return null;
       const rect=stage.getBoundingClientRect();if(!rect.width||!rect.height)return null;

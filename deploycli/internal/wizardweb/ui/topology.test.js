@@ -131,6 +131,8 @@ function topologyHarness({failRenderer=false}={}) {
     emit(event,detail={}){for(const fn of [...this.events.get(event)||[]])fn({preventDefault(){},...detail});}
     contains(node){return node===this||this.children.some(child=>child.contains(node));}
     focus(){}
+    showModal(){this.open=true;}
+    close(){this.open=false;}
     append(...children){this.children.push(...children);}
     replaceChildren(...children){this.children=children;}
     setAttribute(name,value){this.attributes[name]=value;}
@@ -162,7 +164,7 @@ function topologyHarness({failRenderer=false}={}) {
   }};
   context.wizardAWSIconFor=awsIconFor;
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,"topology.js"),"utf8"),context);
-  const elements=Object.fromEntries(["stage","canvas","tooltip","message","selectedLabel","list","search","count","fit","tlsModel","arrows","focus","platformOpacity","glassTransparency","navigation","axes","box"].map(key=>[key,new Element()]));
+  const elements=Object.fromEntries(["stage","canvas","tooltip","message","selectedLabel","list","search","count","fit","iconSettings","iconDialog","iconRows","arrows","focus","platformOpacity","glassTransparency","navigation","axes","box"].map(key=>[key,new Element()]));
   elements.arrows.checked=true;elements.focus.checked=true;elements.platformOpacity.value="4.75";elements.glassTransparency.value="50";
   elements.navigation.append(elements.axes);
   const selected=[];
@@ -278,14 +280,15 @@ test("supersamples the canvas and casts service and fallback shadows onto the fl
   h.topology.setArtifacts([{key:"cert",type:"aws:acm/certificate:Certificate"}]);h.topology.activate();h.flush();
   assert.equal(h.elements.canvas.width,1600);
   assert.equal(h.elements.canvas.height,800);
-  assert.equal(h.elements.tlsModel.hidden,false);
+  assert.equal(h.elements.iconSettings.hidden,false);
   assert.equal(h.artifactNodes()[0].children[0].castShadow,true);
   const scene=h.renders.at(-1).scene;
   assert.ok(scene.children.some(o=>o.isDirectionalLight && o.castShadow));
   assert.ok(scene.children.some(o=>o.geometry?.type==="PlaneGeometry" && o.receiveShadow));
   h.loads.get("/models/aws/acm.glb").resolve(h.model());await settleModels();h.flush();
   h.artifactNodes()[0].traverse(o=>{if(o.isMesh)assert.ok(o.castShadow);});
-  h.elements.tlsModel.value="shield";h.elements.tlsModel.emit("change");
+  const [choice]=h.elements.iconRows.querySelectorAll("select");
+  choice.value="/models/aws/acm-shield.glb";choice.emit("change");
   assert.ok(h.loads.has("/models/aws/acm-shield.glb"));
   h.topology.dispose();
 });
@@ -602,5 +605,29 @@ test("sliders restore authored glass, leave metal intact, and scale both shelf f
   platformOpacity.value="0";platformOpacity.emit("input");h.flush();
   assert.equal(floor.material.opacity,0);
   assert.equal(h.renders.at(-1).scene.getObjectByName("Group base perimeter").material.opacity,0);
+  h.topology.dispose();
+});
+
+test("icon settings lists only eligible instances and keeps each choice through inventory refreshes", () => {
+  const h=topologyHarness();
+  const inventory=[
+    {key:"b",name:"Second cert",type:"aws:acm:Certificate"},
+    {key:"a",name:"First cert",type:"aws:acm/certificate:Certificate"},
+    {key:"validation",type:"aws:acm/certificateValidation:CertificateValidation"},
+    {key:"unrelated",type:"aws:acm:Account"}
+  ];
+  const {iconSettings,iconDialog,iconRows}=h.elements;
+  h.topology.setArtifacts(inventory);h.topology.activate();h.flush();
+  iconSettings.emit("click");assert.equal(iconDialog.open,true);
+  const selects=iconRows.querySelectorAll("select");
+  assert.deepEqual(selects.map(s=>s.attributes["aria-label"]),["3D icon for First cert","3D icon for Second cert"]);
+  selects[0].value="/models/aws/acm-shield.glb";selects[0].emit("change");
+  h.topology.setArtifacts(inventory.slice().reverse());
+  assert.equal(iconRows.querySelectorAll("select")[0],selects[0]);
+  assert.equal(selects[1].value,"/models/aws/acm.glb");
+  h.topology.setArtifacts(inventory.slice(2));assert.equal(iconDialog.open,false);
+  assert.equal(iconSettings.hidden,true);assert.equal(iconRows.children.length,0);
+  h.topology.setArtifacts(inventory);
+  assert.equal(iconRows.querySelectorAll("select")[0].value,"/models/aws/acm-shield.glb");
   h.topology.dispose();
 });
