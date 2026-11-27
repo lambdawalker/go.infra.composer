@@ -675,8 +675,9 @@
           if(!Number.isFinite(extent)||extent<=0)throw Error("Empty model");
           centered.position.copy(bounds.getCenter(new T.Vector3())).multiplyScalar(-1);
           gltf.scene.traverse(object=>{if(object.isMesh)object.castShadow=true;});
-          centered.add(gltf.scene);template.add(centered);template.scale.setScalar(1.7/extent);
-          template.position.y=-.895+size.y*1.7/(2*extent);
+          const displaySize=path==="/models/aws/eventbridge.glb"?1.98:1.7;
+          centered.add(gltf.scene);template.add(centered);template.scale.setScalar(displaySize/extent);
+          template.position.y=-.895+size.y*displaySize/(2*extent);
           if(disposed){disposeTemplate(template);return null;}
           return template;
         }).catch(()=>{if(!disposed)failedModels.add(path);return null;}).finally(()=>{
