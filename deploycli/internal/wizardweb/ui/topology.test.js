@@ -54,9 +54,10 @@ test("chooses the same AWS service for the 3D model and artifact icon", () => {
     "aws:rds/instance:Instance":"rds", "aws:neptune/cluster:Cluster":"neptune",
     "aws:dynamodb/table:Table":"dynamodb", "aws:apigatewayv2/authorizer:Authorizer":"api-gateway",
     "aws:acm/certificate:Certificate":"acm", "aws:cloudwatch/logGroup:LogGroup":"cloudwatch",
-    "aws:cloudwatch/eventRule:EventRule":"eventbridge", "aws:cloudwatch:EventTarget":"eventbridge",
-    "aws:cloudwatch/eventTarget:EventTarget":"eventbridge",
-    "aws:cognito/userPool:UserPool":"cognito", "aws:cognito/userPoolClient:UserPoolClient":"cognito",
+    "aws:cloudwatch/eventRule:EventRule":"eventbridge", "aws:cloudwatch:EventTarget":"eventbridge-target",
+    "aws:cloudwatch/eventTarget:EventTarget":"eventbridge-target",
+    "aws:cognito/userPool:UserPool":"cognito", "aws:cognito/userPoolClient:UserPoolClient":"cognito-user-pool-client",
+    "aws:apigatewayv2/stage:Stage":"api-gateway-stage",
     "aws:iam/role:Role":"iam-role", "aws:acm/certificateValidation:CertificateValidation":"acm-validation", "aws:kms/key:Key":"kms",
     "aws:route53/record:Record":"route53", "aws:secretsmanager/secret:Secret":"secretsmanager",
     "aws:secretsmanager/secretVersion:SecretVersion":"secret-version",
@@ -448,4 +449,29 @@ test("selection masks the complete visible model and restores scene and renderer
   assert.equal(scene.background,background);assert.equal(renderer.autoClear,true);
   assert.equal(clearColor.getHex(),0x303234);assert.equal(alpha,.3);
   outline.dispose();h.topology.dispose();
+});
+
+test("nested valve glass resolves the passage before its shells from opposite views", () => {
+  const h=topologyHarness(), {LayeredGlass,THREE:T}=h.context.WizardTopologyThree;
+  const scene=new T.Scene(), camera=new T.PerspectiveCamera(40,1,.1,100);
+  const group=new T.Group(), visual=new T.Group();
+  group.add(visual);scene.add(group);
+  const parts=[1,2,3].map((size,layer)=>{
+    const part=new T.Mesh(new T.BoxGeometry(size,size,size),new T.MeshPhysicalMaterial({transmission:1}));
+    part.userData.transmissionLayer=layer;visual.add(part);return part;
+  });
+  const materials=parts.map(p=>p.material),passes=[];
+  let target=null;
+  const compositor=new LayeredGlass({
+    extensions:{has:()=>true}, getDrawingBufferSize:v=>v.set(64,64),
+    getRenderTarget:()=>target,setRenderTarget:t=>{target=t;},
+    render(){passes.push(parts.findIndex((p,i)=>p.material===materials[i]));}
+  });
+  for (const z of [-8,8]) {
+    camera.position.z=z;camera.lookAt(0,0,0);camera.updateMatrixWorld();
+    compositor.render(scene,camera,[{group,visual}]);
+    assert.deepEqual(passes.splice(0),[0,1,2]);
+    assert.deepEqual(parts.map(p=>p.material),materials);
+  }
+  compositor.dispose();h.topology.dispose();
 });

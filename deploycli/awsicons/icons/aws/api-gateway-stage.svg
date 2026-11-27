@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>API Gateway stage</title>
+  <path d="M28 54h9l6 5H21zM30 7h5v49h-5z" fill="#6c6872"/>
+  <path d="m5 10 27 9 27-6M32 19 8 30" fill="none" stroke="#99949f" stroke-linecap="round" stroke-width="4"/>
+  <path d="m4 14 19 6v11L4 24zm34 6 22-5v12l-22 5zM5 34l22-10v12L5 46z" fill="#9162bd" stroke="#583778"/>
+  <g fill="#fff" font-family="sans-serif" font-size="7" text-anchor="middle"><text x="13" y="23" transform="rotate(18 13 23)">prod</text><text x="49" y="25" transform="rotate(-12 49 25)">dev</text><text x="16" y="36" transform="rotate(-23 16 36)">qa</text></g>
+</svg>

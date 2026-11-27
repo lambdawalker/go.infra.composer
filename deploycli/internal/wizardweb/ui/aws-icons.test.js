@@ -11,7 +11,10 @@ test("maps the email verification and discovery AWS resource families", () => {
     "aws:apigatewayv2:DomainName": "api-gateway-domain-name",
     "aws:apigatewayv2/apiMapping:ApiMapping": "api-gateway-mapping",
     "aws:apigatewayv2:ApiMapping": "api-gateway-mapping",
-    "aws:apigatewayv2:Stage": "api-gateway",
+    "aws:apigatewayv2:Stage": "api-gateway-stage",
+    "aws:apigatewayv2/stage:Stage": "api-gateway-stage",
+    "aws:cognito:UserPoolClient": "cognito-user-pool-client",
+    "aws:cognito/userPoolClient:UserPoolClient": "cognito-user-pool-client",
     "aws:apigatewayv2/integration:Integration": "api-gateway-integration",
     "aws:apigateway:Integration": "api-gateway-integration",
     "aws:apigatewayv2:IntegrationResponse": "api-gateway",
@@ -30,7 +33,7 @@ test("maps the email verification and discovery AWS resource families", () => {
     "aws:ses/emailIdentity:EmailIdentity": "ses",
     "aws:cloudwatch/logGroup:LogGroup": "cloudwatch",
     "aws:cloudwatch/eventRule:EventRule": "eventbridge",
-    "aws:cloudwatch/eventTarget:EventTarget": "eventbridge"
+    "aws:cloudwatch/eventTarget:EventTarget": "eventbridge-target"
   };
   for (const [type, icon] of Object.entries(cases)) {
     assert.equal(awsIconFor(type), `/icons/aws/${icon}.svg`, type);
@@ -52,7 +55,7 @@ test("maps recorded state buckets and legacy abbreviated AWS types", () => {
     "aws:iam:Role": "iam-role", "aws:acm:CertificateValidation": "acm-validation", "aws:kms:Key": "kms", "aws:lambda:Function": "lambda",
     "aws:route53:Record": "route53", "aws:secretsmanager:Secret": "secretsmanager",
     "aws:ses:EmailIdentity": "ses", "aws:cloudwatch:LogGroup": "cloudwatch",
-    "aws:cloudwatch:EventTarget": "eventbridge"
+    "aws:cloudwatch:EventTarget": "eventbridge-target"
   };
   for (const [type, icon] of Object.entries(shortened)) {
     assert.equal(awsIconFor(type), `/icons/aws/${icon}.svg`, type);

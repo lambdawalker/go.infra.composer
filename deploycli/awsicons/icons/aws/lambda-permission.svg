@@ -3,7 +3,7 @@
   <rect x="2" y="7" width="60" height="45" rx="4"/>
   <path d="M9 12h46q0 4 3 4v26q-3 0-3 5H9q0-5-3-5V16q3 0 3-4Z" fill="#fff2d4"/>
   <path d="M25 18h14m-23 6h32m-32 5h25" fill="none" stroke="#bda578" stroke-width="2.5" stroke-linecap="round"/>
-  <path d="M13 31h7l8 14h3v3h-7l-6-11-6 11H7l9-15h-3Z"/>
+  <g transform="translate(0 7)"><path d="M13 31h7l8 14h3v3h-7l-6-11-6 11H7l9-15h-3Z"/></g>
   <path d="m43 45-3 13 5-2 3 4 2-13 3 12 3-4 4 1-5-13Z"/>
   <path d="m49 31 4 2 4 1 1 4 2 3-2 4-1 4-4 1-4 2-4-2-4-1-1-4-2-4 2-3 1-4 4-1Z"/>
   <circle stroke="#ffab69" stroke-width="1.5" cx="49" cy="41.5" r="6"/>
