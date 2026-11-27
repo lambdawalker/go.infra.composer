@@ -2,6 +2,7 @@ package reporting
 
 import (
 	"embed"
+	"encoding/json"
 	"github.com/lambdawalker/go.infra.composer/internal/reportui"
 	"html/template"
 	"io"
@@ -91,6 +92,7 @@ var page = template.Must(template.Must(template.New("report.html").Funcs(templat
 	"style": func() template.CSS { return workspaceStyle }, "runtime": func() template.JS { return workspaceRuntime },
 	"controller": func() template.JS { return template.JS(staticText(reportTemplates, "workspace.js")) },
 	"duration":   duration, "fields": artifactFields, "display": display, "shortOwner": shortOwner,
+	"dependencyKeys":  func(keys []string) (string, error) { data, err := json.Marshal(keys); return string(data), err },
 	"ownerRepository": ownerRepository, "icon": artifactIcon,
 	"dict": func(nodes []Node, repository string) any {
 		return struct {

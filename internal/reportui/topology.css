@@ -84,3 +84,8 @@
 .preview-workspace #topology-labels span {position:absolute;transform:translate(-50%,-100%);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 5px;border-radius:3px;color:var(--text);background:var(--surface);font-size:10px}
 .preview-workspace .topology-selected button {pointer-events:auto;color:inherit;background:none;border:0;padding:2px;cursor:pointer;text-decoration:underline}
 .preview-workspace #topology-branch[hidden] {display:none}
+
+.preview-workspace #topology-relationship {display:flex;align-items:center;flex-wrap:wrap;gap:.4rem;margin:.5rem 0;padding:.5rem .75rem;border:1px solid var(--line);border-radius:5px;color:var(--text);font-size:12px}
+.preview-workspace #topology-relationship[hidden] {display:none}
+.preview-workspace #topology-relationship button {background:var(--surface);border:1px solid var(--line);border-radius:4px;color:var(--text);padding:.2rem .45rem;cursor:pointer}
+.preview-workspace #topology-trace {background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:.25rem}

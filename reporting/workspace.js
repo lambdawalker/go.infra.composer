@@ -14,7 +14,8 @@
   const nodes = [];
   for (const [key, card] of cards) {
     const {name, type, component, action} = card.dataset;
-    nodes.push({key, name, type, component:component === "true", action, parent:card.parentElement.closest("details.artifact")?.dataset.key});
+    const dependencies = JSON.parse(card.dataset.dependencies || "[]");
+    nodes.push({key, name, type, dependencies, component:component === "true", action, parent:card.parentElement.closest("details.artifact")?.dataset.key});
     const summary = card.querySelector("summary");
     const icon = component === "true" ? "/icons/pulumi/component.svg" : window.wizardAWSIconFor(type);
     if (artwork[icon]) {
@@ -62,6 +63,7 @@
         fit:element("fit"), frameButton:element("frame"), branchButton:element("branch"), labels:element("labels"),
         iconSettings:element("icon-settings"), iconDialog:element("icon-dialog"), iconRows:element("icon-rows"),
         arrows:element("arrows"), focus:element("focus"), platformOpacity:element("opacity"), glassTransparency:element("glass"),
+        changesOnly:element("changes"), trace:element("trace"), relationship:element("relationship"),
         navigation:element("navigation"), axes:element("axes"), box:element("box"), onSelect:select,
         async loadGLTF(loader, path) {
           if (!artwork[path]) throw Error("Missing snapshot model");
