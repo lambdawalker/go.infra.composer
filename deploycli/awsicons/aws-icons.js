@@ -22,6 +22,9 @@
     if ((service === "apigateway" || service === "apigatewayv2") && /^integration$/i.test(resource)) return "/icons/aws/api-gateway-integration.svg";
     if (service === "apigatewayv2" && /^domainName$/i.test(resource)) return "/icons/aws/api-gateway-domain-name.svg";
     if (service === "apigatewayv2" && /^apiMapping$/i.test(resource)) return "/icons/aws/api-gateway-mapping.svg";
+    if (service === "apigatewayv2" && /^stage$/i.test(resource)) return "/icons/aws/api-gateway-stage.svg";
+    if (service === "cognito" && /^userPoolClient$/i.test(resource)) return "/icons/aws/cognito-user-pool-client.svg";
+    if (service === "cloudwatch" && /^eventTarget$/i.test(resource)) return "/icons/aws/eventbridge-target.svg";
     if (service === "apigatewayv2" && /^route$/i.test(resource)) return "/icons/aws/api-gateway-route.svg";
     if (service === "secretsmanager" && /^secretVersion$/i.test(resource)) return "/icons/aws/secret-version.svg";
     if (service === "iam" && /^role$/i.test(resource)) return "/icons/aws/iam-role.svg";
@@ -29,7 +32,7 @@
     if (service === "apigatewayv2" && /^authorizer$/i.test(resource) && variant === "jwt") return "/icons/aws/api-gateway-jwt.svg";
     if (service === "lambda" && /^permission$/i.test(resource)) return "/icons/aws/lambda-permission.svg";
     const icon = service === "cloudwatch" ?
-      (/^event(Rule|Target)$/i.test(resource) ? "eventbridge" : "cloudwatch") :
+      (/^eventRule$/i.test(resource) ? "eventbridge" : "cloudwatch") :
       (Object.hasOwn(services, service) ? services[service] : "");
     return icon ? "/icons/aws/" + icon + ".svg" : "";
   }

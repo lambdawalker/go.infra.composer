@@ -16,8 +16,12 @@ function checkCertificate(meshes, THREE, emblem) {
     const mesh = meshes.find(part => part.userData.name === name);
     return new THREE.Box3().setFromObject(mesh, true).max.y;
   };
-  assert.ok(Math.abs(top("Scalloped ribbon seal") - top(emblem)) < 1e-5,
-    "ribbon and emblem top edges align");
+  if (emblem==="Person silhouette" || emblem==="Lambda main diagonal") {
+    const symbol=meshes.find(mesh=>mesh.userData.name===emblem);
+    assert.ok(new THREE.Box3().setFromObject(symbol,true).min.y < new THREE.Box3().setFromObject(frame,true).min.y);
+  } else {
+    assert.ok(Math.abs(top("Scalloped ribbon seal") - top(emblem)) < 1e-5, "ribbon and emblem top edges align");
+  }
   for (const mesh of meshes) {
     assert.equal(mesh.material.transmission, 1, mesh.name);
     assert.ok(mesh.material.thickness > 0 && Number.isFinite(mesh.material.attenuationDistance));
@@ -116,6 +120,9 @@ const customLandmarks = {
   "aws/api-gateway-domain-name.glb": ["Perpendicular wall mounting plate", "Cantilever arm with swept gusset", "Left hanging link", "Right hanging link"],
   "aws/api-gateway-mapping.glb": ["Transparent three-port housing", "Nickel selector lever", "L-bored selector ball", "Selected inlet-to-right L passage", "Idle left outlet flange", "Selected right outlet flange", "Common inlet flange"],
   "aws/api-gateway-integration.glb": ["Amethyst clevis fork", "Mandarin coupling tongue", "Brushed silver pivot pin"],
+  "aws/api-gateway-stage.glb": ["Six sided direction pole", "dev • cantilever", "qa • cantilever", "prod • cantilever"],
+  "aws/cognito-user-pool-client.glb": ["Person silhouette", "Engraved glass plaque", "Twelve-tooth open gear", "Stepped octagonal client frame"],
+  "aws/eventbridge-target.glb": ["Hinged nickel mail flap", "Faceted raspberry mail slot bezel", "Left pointing triangular closure", "Amber envelope - short edge entering"],
   "aws/api-gateway-route.glb": ["Round apex pivot", "Round port scale cap", "Pierced brace eye", "Graduated outer arc", "Nickel index arm", "Diagonal telescope barrel", "Cyan packet slider"],
   "aws/api-gateway.glb": ["Aperture rim", "Iris blade 03", "Chevron 08", ...gatewayPackets],
   "aws/cloudwatch.glb": ["Ticker housing", "Left raised rim", "Right raised rim", "Glass bottom plate", "Feed slot", "Curled log strip", "Timestamp 1", "Message 1", "Timestamp 2", "Message 2", "Timestamp 3", "Message 3"],
@@ -188,7 +195,7 @@ test("the shipped renderer loads every embedded service model without external r
         const bounds = name => new THREE.Box3().setFromObject(meshes.find(mesh => mesh.userData.name === name), true);
         for (const name of ["Nickel index arm", "Diagonal telescope barrel"]) {
           const material = meshes.find(mesh => mesh.userData.name === name).material;
-          assert.ok(material.metalness > .9 && !material.transmission, name + " is metal");
+          assert.ok(material.name === "Satin graphite nickel" && material.metalness > .8 && !material.transmission, name + " is metal");
         }
         const eye = bounds("Pierced brace eye").getSize(new THREE.Vector3());
         assert.ok(eye.x > .29 && eye.y > .29, "the open brace eye spans the three braces");
@@ -198,6 +205,9 @@ test("the shipped renderer loads every embedded service model without external r
           "the telescope passes in front of the index arm");
       }
       if (file === "api-gateway-mapping.glb") {
+        const layers = ["Selected inlet-to-right L passage", "L-bored selector ball", "Transparent three-port housing", "Common inlet flange"]
+          .map(name=>meshes.find(mesh=>mesh.userData.name===name).userData.transmissionLayer ?? 0);
+        assert.deepEqual(layers,[0,1,2,3],"resolve the turquoise passage before the surrounding glass");
         assert.equal(gltf.scene.children[0].quaternion.angleTo(gltf.scene.quaternion), 0, "valve has no presentation tilt");
       }
       if (file === "api-gateway.glb") checkGatewayPackets(meshes, THREE);
@@ -210,5 +220,18 @@ test("the shipped renderer loads every embedded service model without external r
     const bounds = new THREE.Box3().setFromObject(gltf.scene);
     const size = bounds.getSize(new THREE.Vector3());
     assert.ok(size.toArray().every(extent => Number.isFinite(extent) && extent > 0), file);
+  }
+});
+
+test("sextant metal uses the domain sign bracket finish", () => {
+  function meshMaterial(file, name) {
+    const bytes=fs.readFileSync(path.join(__dirname,"../../../awsicons/models/aws",file));
+    const doc=JSON.parse(bytes.subarray(20,20+bytes.readUInt32LE(12)).toString());
+    const mesh=doc.nodes.find(node=>node.name===name).mesh;
+    return doc.materials[doc.meshes[mesh].primitives[0].material];
+  }
+  const finish=meshMaterial("api-gateway-domain-name.glb","Perpendicular wall mounting plate");
+  for (const name of ["Nickel index arm","Diagonal telescope barrel"]) {
+    assert.deepEqual(meshMaterial("api-gateway-route.glb",name),finish);
   }
 });

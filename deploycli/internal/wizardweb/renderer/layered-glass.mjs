@@ -60,17 +60,20 @@ export class LayeredGlass {
       visual.traverseVisible(mesh=>{
         if (!mesh.isMesh || !(mesh.material.transmission>0)) return;
         const bounds=this.footprint(mesh,camera);
-        if (bounds) pieces.push({...bounds,group,depth,mesh,material:mesh.material,layer:0});
+        if (bounds) pieces.push({...bounds,group,depth,mesh,material:mesh.material,
+          transmissionLayer:mesh.userData.transmissionLayer ?? 0,layer:0});
       });
     }
-    pieces.sort((a,b)=>b.depth-a.depth || a.group.id-b.group.id || (b.far+b.near)-(a.far+a.near));
+    pieces.sort((a,b)=>b.depth-a.depth || a.group.id-b.group.id ||
+      a.transmissionLayer-b.transmissionLayer || (b.far+b.near)-(a.far+a.near));
     let last=0;
     for (let i=0;i<pieces.length;i++) {
       const front=pieces[i];
       for (let j=0;j<i;j++) {
         const back=pieces[j];
-        // Intersecting details within one model share Three's regular depth test.
-        if (back.group===front.group && back.near<front.far) continue;
+        // Nested shells can surround the same depth interval from every camera angle.
+        // Their glTF node extras order the contents before the enclosing glass.
+        if (back.group===front.group && back.transmissionLayer===front.transmissionLayer && back.near<front.far) continue;
         if (back.right<=front.left || front.right<=back.left || back.top<=front.bottom || front.top<=back.bottom) continue;
         front.layer=Math.max(front.layer, back.layer+1);
       }
