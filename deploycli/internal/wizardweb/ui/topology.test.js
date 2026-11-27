@@ -2,8 +2,8 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const {categoryFor,layoutArtifacts,perspective,lookAt,multiply,project,modelPathFor,matchesArtifact,visibleEdges} = require("./topology.js");
-const {awsIconFor} = require("../../../awsicons/aws-icons.js");
+const {categoryFor,layoutArtifacts,perspective,lookAt,multiply,project,modelPathFor,matchesArtifact,visibleEdges} = require("../../../../internal/reportui/topology.js");
+const {awsIconFor} = require("../../../../internal/reportui/aws-icons.js");
 
 test("keeps fallback categories for resources without a service model", () => {
   assert.equal(categoryFor("aws:lambda/function:Function"),"compute");
@@ -146,7 +146,7 @@ function topologyHarness({failRenderer=false}={}) {
     requestAnimationFrame:fn=>frames.push(fn),getComputedStyle:()=>({backgroundColor:"rgb(30,30,31)"}),
     ResizeObserver:class {observe(){}disconnect(){}},MutationObserver:class {observe(){}disconnect(){}}});
   context.window=context;
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname,"vendor/topology-three.js"),"utf8"),context);
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,"../../../../internal/reportui/vendor/topology-three.js"),"utf8"),context);
   const T=context.WizardTopologyThree.THREE;
   context.WizardTopologyThree={...context.WizardTopologyThree,THREE:{...T,
     WebGLRenderer:class {
@@ -163,7 +163,7 @@ function topologyHarness({failRenderer=false}={}) {
     loadAsync(url){loadRequests.push(url);const record={};record.promise=new Promise((resolve,reject)=>Object.assign(record,{resolve,reject}));loads.set(url,record);return record.promise;}
   }};
   context.wizardAWSIconFor=awsIconFor;
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname,"topology.js"),"utf8"),context);
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,"../../../../internal/reportui/topology.js"),"utf8"),context);
   const elements=Object.fromEntries(["stage","canvas","tooltip","message","selectedLabel","list","search","count","fit","changesOnly","trace","relationship","frameButton","branchButton","iconSettings","iconDialog","iconRows","arrows","focus","platformOpacity","glassTransparency","navigation","axes","box"].map(key=>[key,new Element()]));
   elements.arrows.checked=true;elements.focus.checked=true;elements.platformOpacity.value="4.75";elements.glassTransparency.value="50";
   elements.navigation.append(elements.axes);
@@ -572,7 +572,7 @@ test("Arrows toggles both conduit groups and preserves camera, selection and flo
 });
 
 test("focus follows one ancestry chain and the selected subtree without including siblings", () => {
-  const {selectionFamily,bottomPerimeters}=require("./topology.js");
+  const {selectionFamily,bottomPerimeters}=require("../../../../internal/reportui/topology.js");
   const nodes=layoutArtifacts([{key:"root",component:true},{key:"fn",parent:"root"},
     {key:"p",parent:"root",attachment:"fn"},{key:"policy",parent:"p"},
     {key:"peer",parent:"root"},{key:"other",component:true}]);
@@ -645,7 +645,7 @@ test("collapsing a selected branch hides its descendants and preserves their wor
 });
 
 test("traces recorded dependencies across roots and retains change ancestors", () => {
-  const {tracePairs,previewKeys}=require("./topology.js");
+  const {tracePairs,previewKeys}=require("../../../../internal/reportui/topology.js");
   const items=layoutArtifacts([{key:"app"},{key:"worker",parent:"app",action:"replace",dependencies:["key","key","missing"]},
     {key:"backend"},{key:"key",parent:"backend"},{key:"other",action:"same"}]);
   const byKey=new Map(items.map(item=>[item.key,item]));

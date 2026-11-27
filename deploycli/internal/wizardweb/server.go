@@ -21,12 +21,13 @@ import (
 	"time"
 
 	"github.com/lambdawalker/go.infra.composer/deploycli/awsicons"
+	"github.com/lambdawalker/go.infra.composer/internal/reportui"
 )
 
 //go:embed ui
 var assets embed.FS
 
-var indexPage = template.Must(template.ParseFS(assets, "ui/index.html"))
+var indexPage = template.Must(template.Must(template.ParseFS(assets, "ui/index.html")).ParseFS(reportui.UI, "topology.html"))
 
 func Serve(ctx context.Context, title, repository string, open bool, register func(int, string) (func() error, error), run func(context.Context, *Session, bool) error) (result error) {
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
@@ -129,6 +130,7 @@ func (s *Session) handler(host, key string) http.Handler {
 		panic(err)
 	}
 	files := http.FileServerFS(static)
+	shared := http.FileServerFS(reportui.UI)
 	catalog := awsicons.Files()
 	catalogFiles := http.FileServerFS(catalog)
 	page := struct {
@@ -174,11 +176,14 @@ func (s *Session) handler(host, key string) http.Handler {
 				catalogFiles.ServeHTTP(w, r)
 				return
 			}
+			if name == "topology.js" || name == "topology.css" || name == "theme.css" || name == "vendor/topology-three.js" {
+				shared.ServeHTTP(w, r)
+				return
+			}
 			if r.URL.Path == "/" || r.URL.Path == "/favicon.svg" || r.URL.Path == "/wizard.css" || r.URL.Path == "/wizard.js" ||
 				r.URL.Path == "/preview-review.js" || r.URL.Path == "/artifact-dependencies.js" ||
 				r.URL.Path == "/workspace.css" || r.URL.Path == "/workspace.js" || r.URL.Path == "/deployment-history.js" ||
-				r.URL.Path == "/topology.css" || r.URL.Path == "/topology.js" ||
-				r.URL.Path == "/environment-menu.js" || r.URL.Path == "/vendor/topology-three.js" {
+				r.URL.Path == "/environment-menu.js" {
 				if r.URL.Path == "/" {
 					http.ServeContent(w, r, "index.html", time.Time{}, bytes.NewReader(index.Bytes()))
 					return

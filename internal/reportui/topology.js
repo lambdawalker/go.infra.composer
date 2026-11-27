@@ -382,7 +382,7 @@
     ["aws:acm/certificate",certificateIcons]
   ]);
 
-  function createArtifactTopology({stage,canvas,tooltip,message,selectedLabel,list,search,count,fit,changesOnly,trace,relationship,frameButton,branchButton,labels,iconSettings,iconDialog,iconRows,arrows,focus,platformOpacity,glassTransparency,navigation,axes,box,onSelect}) {
+  function createArtifactTopology({stage,canvas,tooltip,message,selectedLabel,list,search,count,fit,changesOnly,trace,relationship,frameButton,branchButton,labels,iconSettings,iconDialog,iconRows,arrows,focus,platformOpacity,glassTransparency,navigation,axes,box,onSelect,loadGLTF,emptyMessage="Select the deployment target to view its artifacts."}) {
     let items=[],byKey=new Map(),selectedKey="",active=false,drawQueued=false,pointer=null;
     const openingYaw=-.18,openingPitch=.24,pitchLimit=Math.PI/2-.00001;
     let mode="orbit",yaw=openingYaw,pitch=openingPitch,distance=30,target=[0,0,0],contextLost=false,disposed=false;
@@ -571,7 +571,7 @@
     function setMessage(text) {message.textContent=text;message.hidden=!text;}
     function updateMessage() {
       navigation.hidden=!items.length||!renderer||contextLost;
-      if(!items.length)setMessage("Select the deployment target to view its artifacts.");
+      if(!items.length)setMessage(emptyMessage);
       else if(contextLost)setMessage("3D view is temporarily unavailable. Select an artifact from the list below.");
       else if(!renderer)setMessage("3D view is unavailable here. Select an artifact from the list below.");
       else if(items.some(item=>loadingModels.has(pathFor(item))))setMessage("Loading resource models…");
@@ -667,7 +667,8 @@
     function loadModel(path) {
       if(!modelCache.has(path)) {
         loadingModels.add(path);
-        const pending=new runtime.GLTFLoader().loadAsync(path).then(gltf=>{
+        const loader=new runtime.GLTFLoader();
+        const pending=(loadGLTF ? loadGLTF(loader,path) : loader.loadAsync(path)).then(gltf=>{
           const T=runtime.THREE,template=new T.Group(),centered=new T.Group();
           const bounds=new T.Box3().setFromObject(gltf.scene),size=bounds.getSize(new T.Vector3());
           const extent=Math.max(size.x,size.y,size.z);

@@ -79,9 +79,35 @@ func TestHTMLFilterControlsAndHostileMetadata(t *testing.T) {
 			t.Errorf("unescaped %s metadata", field)
 		}
 	}
-	for _, unsafe := range []string{`<img src=x`, `<script>alert`, `innerHTML`, `<script src=`, `<link `, `fetch(`} {
+	// The shared renderer contains HTTP loading code used by the live wizard.
+	// The snapshot adapter parses bundled bytes and the document CSP blocks remote connections.
+	if !strings.Contains(html, "connect-src data: blob:") {
+		t.Fatal("missing offline content policy")
+	}
+	for _, unsafe := range []string{`<img src=x`, `<script>alert`, `innerHTML`, `<script src=`, `<link `} {
 		if strings.Contains(html, unsafe) {
 			t.Errorf("unsafe or external content %s", unsafe)
 		}
+	}
+}
+
+func TestSnapshotContainsOnlyInventoryArtworkFamilies(t *testing.T) {
+	assets, err := snapshotArtwork([]Artifact{
+		{Component: true},
+		{Type: "aws:apigatewayv2/route:Route"},
+		{Type: "aws:cloudwatch/eventRule:EventRule"},
+		{Type: "aws:secretsmanager/secretVersion:SecretVersion"},
+		{Type: "cloudflare:index/dnsRecord:DnsRecord"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"pulumi/component", "aws/api-gateway-route", "aws/eventbridge", "aws/secret-version", "cloudflare/dns"} {
+		if assets["/models/"+name+".glb"] == "" || assets["/icons/"+name+".svg"] == "" {
+			t.Errorf("missing embedded artwork for %s", name)
+		}
+	}
+	if assets["/models/aws/lambda.glb"] != "" {
+		t.Error("embedded unrelated service model")
 	}
 }

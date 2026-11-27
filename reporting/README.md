@@ -2,6 +2,8 @@
 
 `reporting` and `reporting/pulumicli` use only Go's standard library. They never deploy, mutate state or infer a child's existence from its parent. Raw provider inputs/outputs, diagnostics, policies and logs do not belong in the report model. Supply only safe identity/display metadata and the explicitly allowed recorded settings below. State readers copy an explicit allowlist and discard all other resource properties, including secret wrappers.
 
+Open the generated HTML directly from disk to inspect a deployment. The Summary view filters the inventory by observed status. The Topology view uses the deployment workspace renderer and a synchronized artifact inspector. Each HTML file embeds its scripts, theme, icons and models for the resource families in the snapshot. Opening the file requires no server. The text inventory is available without WebGL, and its native disclosures also work without JavaScript.
+
 ## Model and evidence
 
 The JSON schema version is `reporting.SchemaVersion` (currently `1`). `Report` has `SchemaVersion`, `Scope`, `Metadata`, `CacheLoaded`, `Warnings []string`, and `Artifacts []Artifact`. `Scope` is a comparable struct of strings: `Application`, `Repository`, `Environment`, `Account`, `Region`, `Project`, `Backend`, `Stack`. Fill every applicable field before using cache. `Metadata` has strings `Revision`, `Operation`, `Outcome`, bool `Dirty`, and `StartedAt`, `FinishedAt` (`time.Time`). Warnings should be stable safe codes, never diagnostic text.
