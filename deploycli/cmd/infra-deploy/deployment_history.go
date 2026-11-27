@@ -165,7 +165,7 @@ func (r *featureReport) recordDeploymentHistory(ctx context.Context) {
 }
 
 func (r *featureReport) saveBundle(ctx context.Context) error {
-	if err := writeFeatureBundle(r.output, r.report); err != nil {
+	if err := writeFeatureBundle(r.output, r.report, r.cli.spec.ArtifactAttachments); err != nil {
 		return err
 	}
 	r.recordDeploymentHistory(ctx)

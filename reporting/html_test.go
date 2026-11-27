@@ -111,3 +111,19 @@ func TestSnapshotContainsOnlyInventoryArtworkFamilies(t *testing.T) {
 		t.Error("embedded unrelated service model")
 	}
 }
+
+func TestHTMLTopologyIncludesServiceAttachments(t *testing.T) {
+	r := Report{Artifacts: []Artifact{
+		{Key: "app", Component: true},
+		{Key: "fn", Name: "worker", Parent: "app", Type: "aws:lambda/function:Function"},
+		{Key: "p1", Parent: "app", Type: "aws:lambda/permission:Permission", Dependencies: []string{"fn"}},
+		{Key: "p2", Name: "legacy", Parent: "app", Type: "aws:lambda/permission:Permission"},
+	}}
+	var out bytes.Buffer
+	if err := WriteHTMLWithAttachmentHints(&out, r, map[string]string{"legacy": "worker"}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), `<script id="attachments" type="application/json">{"p1":"fn","p2":"fn"}</script>`) {
+		t.Fatal("missing recorded or project-declared host in offline topology")
+	}
+}

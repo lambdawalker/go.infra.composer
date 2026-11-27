@@ -103,6 +103,12 @@ var page = template.Must(template.Must(template.New("report.html").Funcs(templat
 }).ParseFS(reportTemplates, "report.html")).ParseFS(reportui.UI, "topology.html"))
 
 func WriteHTML(w io.Writer, r Report) error {
+	return WriteHTMLWithAttachmentHints(w, r, nil)
+}
+
+// WriteHTMLWithAttachmentHints includes project-declared service attachments for
+// inventories without recorded structural dependencies.
+func WriteHTMLWithAttachmentHints(w io.Writer, r Report, hints map[string]string) error {
 	r = Normalize(r)
 	artwork, err := snapshotArtwork(r.Artifacts)
 	if err != nil {
@@ -114,12 +120,13 @@ func WriteHTML(w io.Writer, r Report) error {
 	}
 	return page.Execute(w, struct {
 		Report
-		Nodes    []Node
-		Context  []field
-		Summary  string
-		Issues   []Artifact
-		Features []repositoryRow
-		Artwork  map[string]string
-		Counts   map[Status]int
-	}{r, Hierarchy(r.Artifacts), contextFields(r)[2:], summary(r), issues(r), featureRows(r), artwork, counts})
+		Nodes       []Node
+		Context     []field
+		Summary     string
+		Issues      []Artifact
+		Features    []repositoryRow
+		Artwork     map[string]string
+		Counts      map[Status]int
+		Attachments map[string]string
+	}{r, Hierarchy(r.Artifacts), contextFields(r)[2:], summary(r), issues(r), featureRows(r), artwork, counts, ResolveAttachments(r.Artifacts, hints)})
 }

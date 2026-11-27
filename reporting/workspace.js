@@ -11,11 +11,12 @@
   const cards = new Map(Array.from(document.querySelectorAll("details.artifact"), card => [card.dataset.key, card]));
   const artwork = JSON.parse($("artwork").textContent);
   let topology, selected, view;
+  const attachments = new Map(Object.entries(JSON.parse($("attachments").textContent)));
   const nodes = [];
   for (const [key, card] of cards) {
     const {name, type, component, action} = card.dataset;
     const dependencies = JSON.parse(card.dataset.dependencies || "[]");
-    nodes.push({key, name, type, dependencies, component:component === "true", action, parent:card.parentElement.closest("details.artifact")?.dataset.key});
+    nodes.push({key, name, type, dependencies, attachment:attachments.get(key), component:component === "true", action, parent:card.parentElement.closest("details.artifact")?.dataset.key});
     const summary = card.querySelector("summary");
     const icon = component === "true" ? "/icons/pulumi/component.svg" : window.wizardAWSIconFor(type);
     if (artwork[icon]) {

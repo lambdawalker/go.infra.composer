@@ -29,7 +29,7 @@ func TestDeploymentHistorySelectsOutcomesInExactScope(t *testing.T) {
 				{Key: "bucket", PlannedAction: "same"},
 			},
 		}
-		if err := writeFeatureBundle(dir, r); err != nil {
+		if err := writeFeatureBundle(dir, r, nil); err != nil {
 			t.Fatal(err)
 		}
 		if apply != "" {

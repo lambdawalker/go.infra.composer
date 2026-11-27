@@ -1,9 +1,7 @@
-package wizardweb
+package reporting
 
 import (
 	"strings"
-
-	"github.com/lambdawalker/go.infra.composer/reporting"
 )
 
 // Only structural AWS relationships belong in the hierarchy. A function that
@@ -33,10 +31,10 @@ func awsKind(typ string) string {
 	return service + ":" + parts[2]
 }
 
-// Preserve the recorded Pulumi parent. Resolve a separate presentation edge
+// ResolveAttachments preserves the recorded Pulumi parent and derives a presentation edge
 // from typed dependencies or the project's explicit hints for older inventories.
-func resolveAttachments(items []reporting.Artifact, hints map[string]string) map[string]string {
-	byKey := make(map[string]reporting.Artifact, len(items))
+func ResolveAttachments(items []Artifact, hints map[string]string) map[string]string {
+	byKey := make(map[string]Artifact, len(items))
 	byName := make(map[string][]string)
 	for _, a := range items {
 		byKey[a.Key] = a
@@ -61,8 +59,8 @@ func resolveAttachments(items []reporting.Artifact, hints map[string]string) map
 				hosts[key] = true
 			}
 		}
-		if len(hosts) == 0 {
-			for _, key := range byName[hints[a.Name]] {
+		if hint := hints[a.Name]; len(hosts) == 0 && hint != "" {
+			for _, key := range byName[hint] {
 				host := byKey[key]
 				if !host.Component && awsKind(host.Type) == hostType && host.Parent == a.Parent {
 					hosts[key] = true

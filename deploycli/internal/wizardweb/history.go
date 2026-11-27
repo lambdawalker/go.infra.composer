@@ -45,27 +45,27 @@ func (s *Session) setDeploymentHistory(records []DeploymentHistoryRecord) {
 	}
 }
 
-func (s *Session) historyReport(id string) (reporting.Report, bool) {
+func (s *Session) historyReport(id string) (reporting.Report, map[string]string, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.vaultLocked() {
 		for _, record := range s.history {
 			if record.ID == id && record.Report.Scope.Environment == s.view.Environment {
-				return record.Report, true
+				return record.Report, s.artifactAttachments, true
 			}
 		}
 	}
-	return reporting.Report{}, false
+	return reporting.Report{}, nil, false
 }
 
 func (s *Session) downloadHistoryReport(w http.ResponseWriter, r *http.Request) {
-	report, ok := s.historyReport(r.URL.Query().Get("id"))
+	report, hints, ok := s.historyReport(r.URL.Query().Get("id"))
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
 	var page bytes.Buffer
-	if err := reporting.WriteHTML(&page, report); err != nil {
+	if err := reporting.WriteHTMLWithAttachmentHints(&page, report, hints); err != nil {
 		http.Error(w, "Could not render the artifact report", http.StatusInternalServerError)
 		return
 	}

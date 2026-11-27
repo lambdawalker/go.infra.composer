@@ -555,7 +555,7 @@ func (s *Session) setInventory(report reporting.Report, source string) {
 		s.setDeploymentHistory(nil)
 		s.view.Drift = nil
 	}
-	attachments := resolveAttachments(report.Artifacts, s.artifactAttachments)
+	attachments := reporting.ResolveAttachments(report.Artifacts, s.artifactAttachments)
 	items := make([]ArtifactView, 0, len(report.Artifacts))
 	for _, a := range report.Artifacts {
 		dependencies := make([]string, 0, len(a.Dependencies))
