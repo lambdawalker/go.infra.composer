@@ -28,8 +28,8 @@ test("lays out every artifact, retaining hierarchy and surviving malformed cycle
   const nodes=layoutArtifacts(artifacts),byKey=new Map(nodes.map(a=>[a.key,a]));
   assert.equal(nodes.length,artifacts.length);
   for(const node of nodes)assert.equal(node.position.length,3,node.key);
-  assert.ok(byKey.get("child").position[1]>byKey.get("root").position[1]);
-  assert.ok(byKey.get("grandchild").position[1]>byKey.get("child").position[1]);
+  assert.ok(byKey.get("child").position[1]<byKey.get("root").position[1]);
+  assert.ok(byKey.get("grandchild").position[1]<byKey.get("child").position[1]);
   assert.notDeepEqual(byKey.get("orphan").position,byKey.get("root").position);
 });
 
@@ -492,4 +492,32 @@ test("nested valve glass resolves the passage before its shells from opposite vi
     assert.deepEqual(parts.map(p=>p.material),materials);
   }
   compositor.dispose();h.topology.dispose();
+});
+
+test("separate towers share a ground plane and support their roots on hexagons", () => {
+  const inventory=[
+    {key:"short",component:true},{key:"key",parent:"short"},{key:"table",parent:"short"},
+    {key:"tall",component:true},{key:"function",parent:"tall"},
+    {key:"permit",parent:"tall",attachment:"function"}
+  ];
+  const nodes=new Map(layoutArtifacts(inventory).map(a=>[a.key,a]));
+  assert.ok(nodes.get("tall").position[1]>nodes.get("short").position[1]);
+  assert.equal(nodes.get("key").position[1],0);
+  assert.equal(nodes.get("permit").position[1],0);
+  const left=nodes.get("key").shelf,right=nodes.get("permit").shelf;
+  assert.ok(Math.abs(left.x-right.x)>(left.width+right.width)/2+4);
+  const h=topologyHarness();
+  h.topology.setArtifacts(inventory);h.topology.activate();h.flush();
+  assert.ok(h.loads.has("/models/pulumi/component.glb"));
+  const scene=h.renders.at(-1).scene;
+  const floors=scene.children.filter(o=>o.name.endsWith(" floor"));
+  assert.equal(floors.length,5);
+  const hex=floors.filter(o=>o.name==="Hexagonal root floor");
+  assert.equal(hex.length,2);
+  assert.ok(hex.every(o=>o.geometry.attributes.position.count===6*4 && o.material.opacity<.2));
+  assert.equal(scene.getObjectByName("AWS attachment conduits").children.length,1);
+  assert.equal(scene.getObjectByName("Directed glass conduits").children.length,3);
+  h.elements.search.value="permit";h.elements.search.emit("input");h.flush();
+  assert.equal(floors.filter(o=>o.visible).length,1);
+  h.topology.dispose();
 });

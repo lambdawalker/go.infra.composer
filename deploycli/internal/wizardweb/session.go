@@ -68,6 +68,7 @@ type PropertyChange struct {
 // ArtifactView contains only the safe identity and relationship fields used by
 // the workspace. Provider configuration and credentials never enter the page.
 type ArtifactView struct {
+	Attachment   string   `json:"attachment,omitempty"`
 	IconVariant  string   `json:"iconVariant,omitempty"`
 	Key          string   `json:"key"`
 	Name         string   `json:"name"`
@@ -143,6 +144,7 @@ type reply struct {
 }
 
 type Session struct {
+	artifactAttachments  map[string]string
 	artifactIconVariants map[string]string
 	pendingDriftRun      uint64
 	instanceID           string
@@ -246,6 +248,13 @@ func (s *Session) SetPasswordSaved(saved map[string]bool) {
 		}
 	}
 	s.view.Revision++
+}
+
+// SetArtifactAttachments provides project-declared service attachments for saved reports.
+func (s *Session) SetArtifactAttachments(attachments map[string]string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.artifactAttachments = attachments
 }
 
 // SetArtifactIconVariants selects resource-specific artwork for this manifest.
@@ -546,6 +555,7 @@ func (s *Session) setInventory(report reporting.Report, source string) {
 		s.setDeploymentHistory(nil)
 		s.view.Drift = nil
 	}
+	attachments := resolveAttachments(report.Artifacts, s.artifactAttachments)
 	items := make([]ArtifactView, 0, len(report.Artifacts))
 	for _, a := range report.Artifacts {
 		dependencies := make([]string, 0, len(a.Dependencies))
@@ -556,6 +566,7 @@ func (s *Session) setInventory(report reporting.Report, source string) {
 			Key: s.redact(a.Key), Name: s.redact(a.Name), Type: a.Type,
 			Description: s.redact(a.Description),
 			IconVariant: s.artifactIconVariants[a.Name],
+			Attachment:  s.redact(attachments[a.Key]),
 			Component:   a.Component, Parent: s.redact(a.Parent), Owner: s.redact(a.Owner), Feature: s.redact(a.Feature),
 			Dependencies: dependencies,
 			Action:       a.PlannedAction, Presence: string(a.Observation.Status),

@@ -27,6 +27,7 @@ writing identity configuration.
 | `Memory`, `StackIdentity` | Optional Lambda memory setting and opt-in ownership verification for programs with a compatible `deploymentIdentity` output |
 | `InputsFile`, `Inputs`, `Functions`, `ConfigDefaults` | Optional versioned nonsecret settings, validated input flags, composition functions, and defaults written only for missing Pulumi keys |
 | `LegacyComponentNames` | Optional map from a singleton root component’s Pulumi type to its logical name. When an older saved inventory lacks component ownership, the wizard uses the qualified types in child URNs to restore the group on startup. |
+| `ArtifactAttachments` | Optional map from an AWS attachment’s logical name to its host’s logical name, for inventories missing dependency evidence. Both resources must be present, have compatible service types and share a Pulumi parent. |
 | `ArtifactIconVariants` | Optional map of exact logical names to icon variants. Use `jwt` for API Gateway v2 JWT authorizers to distinguish them from Lambda request authorizers. |
 | `ArtifactDescriptions` | Optional map from exact Pulumi logical resource names to short, nonsecret purpose descriptions. The wizard and exported reports show them for resources already in state and resources proposed by preview. |
 | `ArtifactFeaturePrefixes` | Optional map from Pulumi logical resource name prefixes to artifact feature labels. The longest matching prefix wins. Unmatched resources and the bootstrap state bucket use `Feature`. |

@@ -42,6 +42,7 @@ type manifest struct {
 	Functions            map[string]functionSpec
 	ConfigDefaults       map[string]string
 	ArtifactDescriptions map[string]string
+	ArtifactAttachments  map[string]string
 	ArtifactIconVariants map[string]string
 	// Type to logical name for singleton root components in pre-hierarchy reports.
 	LegacyComponentNames map[string]string
@@ -204,6 +205,11 @@ func (m *manifest) validate() error {
 	for typ, name := range m.LegacyComponentNames {
 		if !pattern(`^[A-Za-z0-9_.-]+:[A-Za-z0-9_./-]*:[A-Za-z0-9_.-]+$`, typ) || !pattern(`^[A-Za-z0-9_.-]{1,128}$`, name) {
 			return fmt.Errorf("invalid legacy component mapping for %q", typ)
+		}
+	}
+	for child, host := range m.ArtifactAttachments {
+		if child == host || !pattern(`^[A-Za-z0-9_.-]{1,128}$`, child) || !pattern(`^[A-Za-z0-9_.-]{1,128}$`, host) {
+			return fmt.Errorf("invalid artifact attachment for %q", child)
 		}
 	}
 	for name, variant := range m.ArtifactIconVariants {
