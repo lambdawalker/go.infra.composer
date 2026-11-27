@@ -26,7 +26,7 @@ func TestStateDependenciesOnlyExposeKnownManagedResourceKeys(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 4 || !slices.Equal(got[0].Dependencies, []string{"key", "role", "table"}) {
+	if len(got) != 5 || !slices.Equal(got[0].Dependencies, []string{"key", "role", "table"}) {
 		t.Fatalf("incorrect dependency graph: %#v", got)
 	}
 	var body strings.Builder
@@ -205,12 +205,12 @@ func TestPreviewFiltersPseudoResourcesAndResolvesAcrossComponent(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if len(as) != 3 {
+	if len(as) != 4 {
 		t.Fatalf("pseudo inventory: %#v", as)
 	}
 	for _, a := range as {
-		if a.Key == "object" && a.Parent != "bucket" {
-			t.Fatalf("lost typed service parent: %#v", a)
+		if (a.Key == "object" || a.Key == "bucket") && a.Parent != "component" {
+			t.Fatalf("lost component parent: %#v", a)
 		}
 		if a.ProviderID != "" {
 			t.Fatal("adopted preview ID")
@@ -243,4 +243,40 @@ func TestStateARNAliasDeduplicatesURNAndRequiresExpectedType(t *testing.T) {
 	if as[2].Parent != "function" {
 		t.Fatalf("alias duplicate or wrong type: %#v", as)
 	}
+}
+
+func TestComponentHierarchyFromStatePreviewAndPlan(t *testing.T) {
+	const state = `{"deployment":{"resources":[
+		{"urn":"key","type":"aws:kms/key:Key","custom":true,"parent":"group"},
+		{"urn":"table","type":"aws:dynamodb/table:Table","custom":true,"parent":"group"},
+		{"urn":"group","type":"example:app:Backend","custom":false,"parent":"stack"},
+		{"urn":"stack","type":"pulumi:pulumi:Stack","custom":false}]}}`
+	// Step state omits custom:false; children may arrive before their component.
+	const events = `{"resourcePreEvent":{"metadata":{"urn":"key","op":"same","new":{"urn":"key","type":"aws:kms/key:Key","custom":true,"parent":"group"}}}}
+{"resourcePreEvent":{"metadata":{"urn":"group","op":"same","new":{"urn":"group","type":"example:app:Backend","parent":"stack"}}}}
+{"resourcePreEvent":{"metadata":{"urn":"table","op":"same","new":{"urn":"table","type":"aws:dynamodb/table:Table","custom":true,"parent":"group"}}}}`
+	const plan = `{"resourcePlans":{
+		"table":{"goal":{"custom":true,"type":"aws:dynamodb/table:Table","parent":"group"}},
+		"group":{"goal":{"custom":false,"type":"example:app:Backend","parent":"stack"}},
+		"key":{"goal":{"custom":true,"type":"aws:kms/key:Key","parent":"group"}},
+		"stack":{"goal":{"custom":false,"type":"pulumi:pulumi:Stack"}}}}`
+	legacy := []r.Artifact{{Key: "key", Type: "aws:kms/key:Key", ProviderID: "physical-key"}}
+	check := func(as []r.Artifact, err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+		nodes := r.Hierarchy(as)
+		if len(nodes) != 1 || nodes[0].Artifact.Key != "group" || !nodes[0].Artifact.Component || len(nodes[0].Children) != 2 {
+			t.Fatalf("invalid hierarchy: %#v", as)
+		}
+		for _, child := range nodes[0].Children {
+			if child.Artifact.Component || (child.Artifact.Key != "key" && child.Artifact.Key != "table") {
+				t.Fatalf("unexpected group member: %#v", child.Artifact)
+			}
+		}
+	}
+	check(ReadState(strings.NewReader(state), time.Now()))
+	check(ApplyPreview(legacy, strings.NewReader(events)))
+	check(ApplyPlanDependencies(legacy, strings.NewReader(plan)))
 }
