@@ -183,3 +183,35 @@ func TestSavedInventoryShowsRecordedNamesWithoutClaimingLivePresence(t *testing.
 		t.Fatalf("a mismatched report was trusted: %s %+v", source, other)
 	}
 }
+
+func TestRestoreLegacyComponentHierarchy(t *testing.T) {
+	const scope = "urn:pulumi:test-dev::project::"
+	const typ = "example:verification:Backend"
+	const parent = scope + typ + "::verification.backend"
+	const keyType = "aws:kms/key:Key"
+	const tableType = "aws:dynamodb/table:Table"
+	spec := manifest{LegacyComponentNames: map[string]string{typ: "verification.backend"}}
+	for _, hasGroup := range []bool{false, true} {
+		report := reporting.Report{Scope: reporting.Scope{Stack: "test-dev", Project: "project"}, Artifacts: []reporting.Artifact{
+			{Key: scope + typ + "$" + keyType + "::verification.backend-signing", Type: keyType},
+			{Key: scope + typ + "$" + tableType + "::verification.backend-transactions", Type: tableType},
+			{Key: scope + keyType + "::verification.backend-independent", Type: keyType},
+		}}
+		if hasGroup {
+			report.Artifacts = append(report.Artifacts, reporting.Artifact{Key: parent, Type: typ})
+		}
+		spec.restoreCachedGroups(&report)
+		spec.restoreCachedGroups(&report)
+		if len(report.Artifacts) != 4 || !report.Artifacts[3].Component || report.Artifacts[3].Key != parent ||
+			report.Artifacts[0].Parent != parent || report.Artifacts[1].Parent != parent || report.Artifacts[2].Parent != "" {
+			t.Fatalf("incorrect ownership (cached group %v): %+v", hasGroup, report.Artifacts)
+		}
+	}
+	report := reporting.Report{Scope: reporting.Scope{Stack: "test-dev", Project: "project"}, Artifacts: []reporting.Artifact{
+		{Key: parent, Type: typ}, {Key: scope + typ + "::other", Type: typ},
+		{Key: scope + typ + "$" + keyType + "::key", Type: keyType}}}
+	spec.restoreCachedGroups(&report)
+	if report.Artifacts[2].Parent != "" {
+		t.Fatal("ambiguous parent assigned")
+	}
+}

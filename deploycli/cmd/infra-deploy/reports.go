@@ -51,6 +51,7 @@ func (cli deployCLI) newFeatureReport(ctx context.Context, root, dir, stack, pri
 	r := cli.beginFeatureReport(ctx, root, dir, stack, local, s, operation, time.Now().UTC())
 	r.cache = reporting.CachePath(filepath.Join(private, "reports"), r.report.Scope)
 	if previous, e := reporting.LoadCache(r.cache, r.report.Scope); e == nil {
+		cli.spec.restoreCachedGroups(&previous)
 		r.report = reporting.Merge(r.report, previous)
 	}
 	r.report.Artifacts = cli.ownFeature(r.report.Artifacts)
