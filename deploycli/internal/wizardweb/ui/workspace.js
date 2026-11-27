@@ -53,6 +53,7 @@
     stage:$("topology-stage"),canvas:$("topology-canvas"),tooltip:$("topology-tooltip"),
     message:$("topology-message"),selectedLabel:$("topology-selected"),
     list:$("topology-list"),search:$("topology-search"),count:$("topology-count"),fit:$("topology-fit"),arrows:$("topology-arrows"),focus:$("topology-focus"),platformOpacity:$("topology-opacity"),glassTransparency:$("topology-glass"),
+    frameButton:$("topology-frame"),branchButton:$("topology-branch"),labels:$("topology-labels"),
     iconSettings:$("topology-icon-settings"),iconDialog:$("topology-icon-dialog"),iconRows:$("topology-icon-rows"),
     onSelect:key=>{const artifact=state.nodes.find(a=>a.key===key);if(artifact)select(artifact,true);}
   });
@@ -146,7 +147,7 @@
     }
     if (!ownerCounts.has(ownerFilter)) ownerFilter = "";
     state.selected = resources.get(state.selected?.key) || state.plan[0]?.node || nodes[0] || null;
-    topology.setArtifacts(nodes);
+    topology.setArtifacts(nodes,inventory.project || inventory.repository || "");
     topology.setSelection(state.selected?.key);
   }
   function setOwnerFilter(owner) {
