@@ -63,7 +63,7 @@ test("maps recorded state buckets and legacy abbreviated AWS types", () => {
 });
 
 test("keeps custom, other-provider, and malformed types on the neutral fallback", () => {
-  for (const type of ["", "pulumi:pulumi:Stack", "random:index/randomBytes:RandomBytes",
+  for (const type of ["", "pulumi:pulumi:Stack", "random:index/randomInteger:RandomInteger",
     "cloudflare:index/zone:Zone", "apexfission:email-verification:TestHost",
     "aws:unknown/resource:Resource", "aws:constructor/resource:Resource",
     "aws:s3/../../../secret:Bucket", "aws:s3/stateBucket/extra"]) {
