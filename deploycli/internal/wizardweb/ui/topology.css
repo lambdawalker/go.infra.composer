@@ -1,11 +1,19 @@
 /* The topology is local to the deployment workspace and uses its theme tokens. */
 .preview-workspace .topology-panel {padding:16px 18px 24px;color:var(--text)}
-.preview-workspace .topology-toolbar {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:11px}
-.preview-workspace .topology-toolbar h2 {margin:0;font-size:15px}
-.preview-workspace .topology-toolbar p {margin:3px 0 0;color:var(--muted);font-size:11px}
-.preview-workspace .topology-toolbar select {margin-left:auto}
-.preview-workspace .topology-toolbar select,.preview-workspace .topology-toolbar button {flex:none;padding:5px 10px;border:1px solid var(--line);border-radius:5px;background:var(--elevated);color:var(--text);font-size:11px}
-.preview-workspace .topology-toolbar button:hover {border-color:var(--blue)}
+.preview-workspace .topology-toolbar {display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:11px}
+.preview-workspace .topology-toolbar button,.preview-workspace .topology-icon-dialog button {padding:5px 10px;border:1px solid var(--line);border-radius:5px;background:var(--elevated);color:var(--text);font-size:12px}
+.preview-workspace .topology-toolbar button:hover,.preview-workspace .topology-icon-dialog button:hover {border-color:var(--blue)}
+.preview-workspace .topology-settings-button {display:grid;place-items:center;width:30px;height:28px;padding:4px}
+.preview-workspace .topology-settings-button[hidden] {display:none}
+.preview-workspace .topology-settings-button svg {width:17px;height:17px}
+.preview-workspace .topology-icon-dialog {box-sizing:border-box;width:min(460px,92vw);max-height:75vh;overflow:auto;padding:16px;border:1px solid var(--line);border-radius:8px;color:var(--text);background:var(--surface)}
+.preview-workspace .topology-icon-dialog::backdrop {background:#0007}
+.preview-workspace .topology-icon-dialog header {display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.preview-workspace .topology-icon-dialog h2 {margin:0;font-size:15px}
+.preview-workspace .topology-icon-dialog table {width:100%;border-collapse:collapse;font-size:12px;text-align:left}
+.preview-workspace .topology-icon-dialog th,.preview-workspace .topology-icon-dialog td {padding:7px 6px;border-top:1px solid var(--line);overflow-wrap:anywhere}
+.preview-workspace .topology-icon-dialog tbody th {font-weight:500}
+.preview-workspace .topology-icon-dialog select {width:auto;max-width:100%;min-height:28px;padding:3px 6px;color:var(--text);background:var(--elevated)}
 .preview-workspace .topology-switch {display:inline-flex;align-items:center;gap:6px;color:var(--text);font-size:12px;cursor:pointer}
 .preview-workspace .topology-switch input {appearance:none;box-sizing:border-box;width:27px;height:16px;min-height:0;margin:0;padding:0;border:1px solid var(--muted);border-radius:10px;background:var(--surface);cursor:pointer}
 .preview-workspace .topology-switch input::before {content:"";display:block;width:10px;height:10px;margin:2px;border-radius:50%;background:var(--muted)}
