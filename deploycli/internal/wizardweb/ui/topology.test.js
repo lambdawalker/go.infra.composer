@@ -164,7 +164,7 @@ function topologyHarness({failRenderer=false}={}) {
   }};
   context.wizardAWSIconFor=awsIconFor;
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,"topology.js"),"utf8"),context);
-  const elements=Object.fromEntries(["stage","canvas","tooltip","message","selectedLabel","list","search","count","fit","iconSettings","iconDialog","iconRows","arrows","focus","platformOpacity","glassTransparency","navigation","axes","box"].map(key=>[key,new Element()]));
+  const elements=Object.fromEntries(["stage","canvas","tooltip","message","selectedLabel","list","search","count","fit","frameButton","branchButton","iconSettings","iconDialog","iconRows","arrows","focus","platformOpacity","glassTransparency","navigation","axes","box"].map(key=>[key,new Element()]));
   elements.arrows.checked=true;elements.focus.checked=true;elements.platformOpacity.value="4.75";elements.glassTransparency.value="50";
   elements.navigation.append(elements.axes);
   const selected=[];
@@ -629,5 +629,17 @@ test("icon settings lists only eligible instances and keeps each choice through 
   assert.equal(iconSettings.hidden,true);assert.equal(iconRows.children.length,0);
   h.topology.setArtifacts(inventory);
   assert.equal(iconRows.querySelectorAll("select")[0].value,"/models/aws/acm-shield.glb");
+  h.topology.dispose();
+});
+
+test("collapsing a selected branch hides its descendants and preserves their world positions", () => {
+  const h=topologyHarness();
+  const inventory=[{key:"group",component:true},{key:"lambda",parent:"group"},{key:"permission",parent:"lambda"},{key:"table",parent:"group"}];
+  h.topology.setArtifacts(inventory);h.topology.activate();h.topology.setSelection("lambda");h.flush();
+  const child=h.artifactNodes().find(o=>o.userData.artifactKey==="permission"),position=child.position.clone();
+  h.elements.branchButton.emit("click");h.flush();assert.equal(child.visible,false);
+  assert.ok(h.artifactNodes().find(o=>o.userData.artifactKey==="table").visible);
+  h.topology.setSelection("permission");h.flush();
+  assert.ok(child.visible && child.position.equals(position));
   h.topology.dispose();
 });

@@ -360,7 +360,7 @@
     ["aws:acm/certificate",certificateIcons]
   ]);
 
-  function createArtifactTopology({stage,canvas,tooltip,message,selectedLabel,list,search,count,fit,iconSettings,iconDialog,iconRows,arrows,focus,platformOpacity,glassTransparency,navigation,axes,box,onSelect}) {
+  function createArtifactTopology({stage,canvas,tooltip,message,selectedLabel,list,search,count,fit,frameButton,branchButton,labels,iconSettings,iconDialog,iconRows,arrows,focus,platformOpacity,glassTransparency,navigation,axes,box,onSelect}) {
     let items=[],byKey=new Map(),selectedKey="",active=false,drawQueued=false,pointer=null;
     const openingYaw=-.18,openingPitch=.24,pitchLimit=Math.PI/2-.00001;
     let mode="orbit",yaw=openingYaw,pitch=openingPitch,distance=30,target=[0,0,0],contextLost=false,disposed=false;
@@ -388,6 +388,48 @@
     const themeObserver=new MutationObserver(()=>requestDraw());
     themeObserver.observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
 
+    const collapsed=new Set(),hiddenChildren=new Set();
+    const controls={arrows,focus,platform:platformOpacity,glass:glassTransparency};
+    let projectScope=null,pendingSave=Promise.resolve(),edited=new Set();
+    function preferenceURL(scope){return "/api/topology-preferences?project="+encodeURIComponent(scope);}
+    function savePreference(key,value){
+      if(!projectScope)return;
+      edited.add(key);
+      const url=preferenceURL(projectScope);
+      pendingSave=pendingSave.then(()=>post(url,{key,value:String(value)})).then(response=>{
+        if(!response.ok)throw Error();
+      }).catch(()=>showConnection("Could not save topology preferences."));
+    }
+    async function switchProject(scope){
+      projectScope=scope;edited=new Set();const currentEdits=edited;
+      iconChoices.clear();iconRowsSignature="";collapsed.clear();
+      for(const [key,input] of Object.entries(controls)){
+        if(key==="arrows"||key==="focus")input.checked=true;
+        else {input.value=key==="platform"?"4.75":"50";if(input.nextElementSibling)input.nextElementSibling.value=input.value+"%";}
+      }
+      updateGlass();
+      if(!scope)return;
+      try{
+        await pendingSave;
+        const response=await fetch(preferenceURL(scope),{headers:authHeaders});
+        if(!response.ok)throw Error();
+        const values=await response.json();
+        if(edited!==currentEdits)return;
+        for(const [key,value] of Object.entries(values)){
+          if(edited.has(key))continue;
+          if(key.startsWith("icon:"))iconChoices.set(key.slice(5),value);
+          else if(key==="arrows"||key==="focus")controls[key].checked=value==="true";
+          else if(key==="glass"||key==="platform"){
+            const slider=controls[key];slider.value=value;
+            if(slider.nextElementSibling)slider.nextElementSibling.value=value+"%";
+            slider.setAttribute("aria-valuetext",value+"%");
+          }
+        }
+        iconRowsSignature="";syncIconSettings();syncArtifacts();updateGlass();updateSelection();
+      }catch{if(edited===currentEdits)showConnection("Could not load topology preferences.");}
+    }
+    for(const [key,input] of Object.entries(controls))
+      listen(input,"change",()=>savePreference(key,key==="arrows"||key==="focus"?input.checked:input.value));
     listen(arrows,"change",()=>requestDraw());
     listen(focus,"change",()=>requestDraw());
     for(const slider of [platformOpacity,glassTransparency]){
@@ -457,7 +499,8 @@
       requestDraw();
     }
     function resetView(){
-      cancelGesture();yaw=openingYaw;pitch=openingPitch;frame(items);
+      cancelGesture();collapsed.clear();rebuildCollapsed();updateSelection();
+      yaw=openingYaw;pitch=openingPitch;frame(items);
     }
     for(const button of navButtons)listen(button,"click",()=>{
       const action=button.dataset.nav;
@@ -494,7 +537,7 @@
         }
         select.value=pathFor(item);
         select.addEventListener("change",()=>{
-          iconChoices.set(item.key,select.value);
+          iconChoices.set(item.key,select.value);savePreference("icon:"+item.key,select.value);
           syncArtifacts();updateMessage();requestDraw();
         });
         cell.append(select);row.append(name,cell);iconRows.append(row);
@@ -698,18 +741,53 @@
       renderer.shadowMap.needsUpdate=true;
       updateVisibility();
     }
+    function descendants(item){
+      const result=[],pending=[...item.children];
+      while(pending.length){const child=pending.pop();result.push(child);pending.push(...child.children);}
+      return result;
+    }
+    function rebuildCollapsed(){
+      hiddenChildren.clear();
+      for(const key of collapsed){
+        const item=byKey.get(key);
+        if(!item?.children.length){collapsed.delete(key);continue;}
+        for(const child of descendants(item))hiddenChildren.add(child.key);
+      }
+    }
+    function frameSelection(){
+      const item=byKey.get(selectedKey);
+      if(!item)return;
+      cancelGesture();
+      const branch=[item,...descendants(item)].filter(n=>!hiddenChildren.has(n.key));
+      const points=[];
+      for(const shelf of new Set(branch.map(n=>n.shelf))){
+        for(let i=0;i<6;i++){
+          const angle=i*Math.PI/3;
+          points.push({position:[shelf.x+Math.cos(angle)*shelf.width/2,shelf.y-1.05,shelf.z+Math.sin(angle)*shelf.width/2]});
+        }
+      }
+      points.push(...branch.map(n=>({position:[n.position[0],n.position[1]+1,n.position[2]]})));
+      frame(points);
+      const rect=canvas.getBoundingClientRect();distance/=Math.min(1,rect.width/Math.max(1,rect.height));
+      requestDraw();
+    }
+    if(frameButton)listen(frameButton,"click",frameSelection);
+    if(branchButton)listen(branchButton,"click",()=>{
+      if(collapsed.has(selectedKey))collapsed.delete(selectedKey);else collapsed.add(selectedKey);
+      rebuildCollapsed();renderList();
+    });
     function updateVisibility() {
       if(!scene)return;
       const query=search.value.trim().toLowerCase();
-      for(const {line,keys,groups} of perimeters)line.visible=[...keys,...groups].some(key=>matchesArtifact(byKey.get(key),query));
-      for (const {mesh,keys} of shelves.values()) mesh.visible=keys.some(key=>matchesArtifact(byKey.get(key),query));
+      for(const {line,keys,groups} of perimeters)line.visible=keys.some(key=>!hiddenChildren.has(key)) && [...keys,...groups].some(key=>!hiddenChildren.has(key)&&matchesArtifact(byKey.get(key),query));
+      for (const {mesh,keys} of shelves.values()) mesh.visible=keys.some(key=>!hiddenChildren.has(key)&&matchesArtifact(byKey.get(key),query));
       for(const item of items){
-        const node=nodes.get(item.key),visible=matchesArtifact(item,query);
+        const node=nodes.get(item.key),visible=!hiddenChildren.has(item.key)&&matchesArtifact(item,query);
         if(node && node.group.visible!==visible){node.group.visible=visible;edgesDirty=true;renderer.shadowMap.needsUpdate=true;}
       }
     }
     function fitView() {
-      frame(items.filter(item=>matchesArtifact(item,search.value.trim().toLowerCase())));
+      frame(items.filter(item=>!hiddenChildren.has(item.key)&&matchesArtifact(item,search.value.trim().toLowerCase())));
     }
     function frame(visible){
       cropSize=1;cropX=0;cropY=0;
@@ -744,7 +822,7 @@
       perimeterMaterial.opacity=Math.min(1,opacity*8);
       edges.group.visible=attachmentEdges.group.visible=arrows.checked;
       if (arrows.checked && edgesDirty) {
-        const links=visibleEdges(items,search.value.trim().toLowerCase());
+        const links=visibleEdges(items.filter(n=>!hiddenChildren.has(n.key)),search.value.trim().toLowerCase());
         edges.update(nodes,links.filter(([,key])=>!byKey.get(key).attachment));
         attachmentEdges.update(nodes,links.filter(([,key])=>byKey.get(key).attachment));
         edgesDirty=false;
@@ -762,6 +840,15 @@
       const span=2*distance*Math.tan(camera.fov*Math.PI/360);
       camera.translateX(-cropX*span*camera.aspect);camera.translateY(cropY*span);
       camera.updateMatrixWorld();
+      if(labels){
+        for(const label of labels.children){
+          const node=nodes.get(label.dataset.key);
+          if(!node?.group.visible){label.hidden=true;continue;}
+          const point=node.group.position.clone();point.y+=1;point.project(camera);
+          label.hidden=Math.abs(point.x)>1||Math.abs(point.y)>1||Math.abs(point.z)>1;
+          label.style.left=(point.x+1)*50+"%";label.style.top=(1-point.y)*50+"%";
+        }
+      }
       orientAxes();
       const context=[];
       if(focus.checked && family){
@@ -785,7 +872,26 @@
     }
     function updateSelection() {
       const selected=byKey.get(selectedKey);family=selectionFamily(selected,byKey);selectedLabel.hidden=!selected;
-      if(selected)selectedLabel.textContent=`${selected.name} · ${categories[selected.category].label}`;
+      if(frameButton)frameButton.disabled=!selected;
+      if(branchButton){
+        branchButton.hidden=!selected?.children.length;
+        branchButton.textContent=collapsed.has(selectedKey)?"Expand branch":"Collapse branch";
+      }
+      if(labels){
+        labels.replaceChildren();selectedLabel.replaceChildren();
+        const path=[];
+        for(let n=selected;n;n=byKey.get(n.parent))path.unshift(n);
+        for(const n of path){
+          if(n!==path[0])selectedLabel.append(" › ");
+          const crumb=document.createElement("button");crumb.type="button";crumb.textContent=n.name;
+          crumb.onclick=()=>onSelect(n.key);selectedLabel.append(crumb);
+        }
+        for(const n of new Set([...path,...[...collapsed].map(k=>byKey.get(k)).filter(Boolean)])){
+          const label=document.createElement("span");label.dataset.key=n.key;label.textContent=n.name;
+          if(collapsed.has(n.key))label.textContent+=" · "+descendants(n).length+" hidden";
+          labels.append(label);
+        }
+      }else if(selected)selectedLabel.textContent=selected.name;
       for(const button of list.querySelectorAll("button"))button.setAttribute("aria-current",String(button.dataset.key===selectedKey));
       updateVisibility();requestDraw();
     }
@@ -803,16 +909,24 @@
         button.append(marker,name,kind);button.onclick=()=>onSelect(item.key);li.append(button);list.append(li);}
       updateSelection();
     }
-    function setArtifacts(artifacts) {
+    function setArtifacts(artifacts,scope="") {
+      if(projectScope!==scope)switchProject(scope);
       const previousStructure=items.map(a=>a.key+"\0"+a.parent).join("\n");
       items=layoutArtifacts(artifacts);byKey=new Map(items.map(a=>[a.key,a]));
-      syncIconSettings();
+      rebuildCollapsed();syncIconSettings();
       if(!byKey.has(selectedKey))selectedKey="";
       canvas.hidden=!items.length||!renderer;syncArtifacts();renderList();
       if(previousStructure!==items.map(a=>a.key+"\0"+a.parent).join("\n"))fitView();else requestDraw();
       if(!items.length||renderer)updateMessage();
     }
-    function setSelection(key) {selectedKey=key||"";updateSelection();}
+    function setSelection(key) {
+      selectedKey=key||"";
+      if(hiddenChildren.has(key)){
+        for(let n=byKey.get(key);n;n=byKey.get(n.parent))collapsed.delete(n.parent);
+        rebuildCollapsed();
+      }
+      updateSelection();
+    }
     function activate() {if(disposed)return;active=true;if(items.length)initialize();requestDraw();}
     function deactivate() {if(iconDialog.open)iconDialog.close();active=false;cancelGesture();tooltip.hidden=true;}
     function near(clientX,clientY) {
@@ -874,7 +988,7 @@
       requestDraw();
     }
     listen(stage,"pointerdown",event=>{
-      if(!active||navigation.hidden||pointer||navigation.contains(event.target)||![0,1].includes(event.button))return;
+      if(!active||navigation.hidden||pointer||navigation.contains(event.target)||selectedLabel.contains(event.target)||![0,1].includes(event.button))return;
       event.preventDefault();stage.focus({preventScroll:true});
       pointer={id:event.pointerId,x:event.clientX,y:event.clientY,yaw,pitch,target,mode:event.button===1?"pan":mode,dragged:false};
       stage.setPointerCapture?.(event.pointerId);tooltip.hidden=true;
@@ -930,6 +1044,11 @@
     });
     // A pointer over the viewport can start box zoom immediately after opening the tab.
     listen(window,"keydown",event=>{
+      if(active&&!navigation.hidden&&!event.defaultPrevented && event.key.toLowerCase()==="f" &&
+        !event.ctrlKey&&!event.altKey&&!event.metaKey&&!iconDialog.open &&
+        !event.target?.closest?.("input,textarea,select,[contenteditable=true],dialog")){
+        event.preventDefault();frameSelection();return;
+      }
       if(!active||navigation.hidden||event.defaultPrevented||!event.ctrlKey||event.key.toLowerCase()!=="b")return;
       if(!stage.matches(":hover")||event.target.closest?.("input,textarea,select,[contenteditable=true]"))return;
       event.preventDefault();startBoxZoom();

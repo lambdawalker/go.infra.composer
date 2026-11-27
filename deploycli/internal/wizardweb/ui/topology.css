@@ -79,3 +79,8 @@
 .preview-workspace .topology-navigation button:focus-visible {outline:2px solid var(--focus);outline-offset:2px}
 .preview-workspace .topology-stage[data-mode=box] {cursor:crosshair}
 .preview-workspace .topology-box {position:absolute;z-index:2;border:1px dashed var(--blue);background:color-mix(in srgb,var(--blue) 15%,transparent);pointer-events:none}
+
+.preview-workspace #topology-labels {position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.preview-workspace #topology-labels span {position:absolute;transform:translate(-50%,-100%);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 5px;border-radius:3px;color:var(--text);background:var(--surface);font-size:10px}
+.preview-workspace .topology-selected button {pointer-events:auto;color:inherit;background:none;border:0;padding:2px;cursor:pointer;text-decoration:underline}
+.preview-workspace #topology-branch[hidden] {display:none}

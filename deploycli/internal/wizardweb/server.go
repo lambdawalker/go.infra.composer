@@ -194,6 +194,8 @@ func (s *Session) handler(host, key string) http.Handler {
 			return
 		}
 		switch {
+		case (r.Method == http.MethodGet || r.Method == http.MethodPost) && r.URL.Path == "/api/topology-preferences":
+			s.topologyPreferences(w, r)
 		case r.Method == http.MethodGet && r.URL.Path == "/api/deployment-history/report":
 			s.downloadHistoryReport(w, r)
 		case r.Method == http.MethodGet && r.URL.Path == "/api/state":
